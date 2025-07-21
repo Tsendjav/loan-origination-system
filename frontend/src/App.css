@@ -1,0 +1,48 @@
+.App {
+  text-align: center;
+  min-height: 100vh;
+}
+
+.ant-layout-header {
+  padding: 0 24px;
+  line-height: 64px;
+}
+
+.ant-card {
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ant-statistic-title {
+  font-size: 14px;
+  color: #666;
+}
+
+.ant-statistic-content {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+ul {
+  text-align: left;
+  margin: 16px 0;
+}
+
+ul li {
+  margin: 8px 0;
+  list-style-type: disc;
+}
+
+h3 {
+  color: #1890ff;
+  margin-top: 24px;
+}
+
+a {
+  color: #1890ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
