@@ -1,2 +1,1 @@
-# loan-orgination-system
-loan-orgination-system
+# Loan Origination System
