@@ -9,7 +9,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +27,7 @@ public interface LoanApplicationService {
     LoanApplicationDto createLoanApplication(CreateLoanRequestDto createRequest);
 
     /**
-     * Зээлийн хүсэлтийн мэдээлэл авах
+     * Зээлийн хүсэлтийн м mэдээлэл авах
      */
     LoanApplicationDto getLoanApplicationById(UUID id);
 
@@ -46,6 +45,53 @@ public interface LoanApplicationService {
      * Устгасан хүсэлт сэргээх
      */
     LoanApplicationDto restoreLoanApplication(UUID id);
+
+    // Workflow операциуд
+    /**
+     * Зээлийн хүсэлт илгээх
+     */
+    LoanApplicationDto submitLoanApplication(UUID id);
+
+    /**
+     * Зээлийн хүсэлт зөвшөөрөх
+     */
+    LoanApplicationDto approveLoanApplication(UUID id, BigDecimal approvedAmount, 
+                                            Integer approvedTermMonths, BigDecimal approvedRate, String reason);
+
+    /**
+     * Зээлийн хүсэлт татгалзах
+     */
+    LoanApplicationDto rejectLoanApplication(UUID id, String reason);
+
+    /**
+     * Зээл олгох
+     */
+    LoanApplicationDto disburseLoan(UUID id);
+
+    /**
+     * Зээлийн хүсэлт цуцлах
+     */
+    LoanApplicationDto cancelLoanApplication(UUID id, String reason);
+
+    /**
+     * Статус өөрчлөх
+     */
+    LoanApplicationDto updateLoanApplicationStatus(UUID id, LoanStatus newStatus);
+
+    /**
+     * Нэмэлт мэдээлэл шаардах
+     */
+    LoanApplicationDto requestAdditionalInfo(UUID id, String requestedInfo);
+
+    /**
+     * Хүсэлт хариуцуулах
+     */
+    LoanApplicationDto assignLoanApplication(UUID id, String assignedTo);
+
+    /**
+     * Олон хүсэлт хариуцуулах
+     */
+    int assignLoanApplications(List<UUID> applicationIds, String assignedTo);
 
     // Хайлт операциуд
     /**
@@ -78,6 +124,16 @@ public interface LoanApplicationService {
      */
     Page<LoanApplicationDto> searchLoanApplications(String searchTerm, Pageable pageable);
 
+    /**
+     * Хүлээгдэж байгаа хүсэлтүүд
+     */
+    List<LoanApplicationDto> getPendingApplications();
+
+    /**
+     * Хянах шаардлагатай хүсэлтүүд
+     */
+    List<LoanApplicationDto> getApplicationsForReview();
+
     // Дэвшилтэт хайлт
     /**
      * Филтертэй дэвшилтэт хайлт
@@ -94,55 +150,6 @@ public interface LoanApplicationService {
             Integer priority,
             Pageable pageable
     );
-
-    // Workflow операциуд
-    /**
-     * Зээлийн хүсэлт илгээх
-     */
-    LoanApplicationDto submitLoanApplication(UUID id);
-
-    /**
-     * Зээлийн хүсэлт зөвшөөрөх
-     */
-    LoanApplicationDto approveLoanApplication(UUID id, BigDecimal approvedAmount, 
-                                            Integer approvedTermMonths, BigDecimal approvedRate, 
-                                            String reason);
-
-    /**
-     * Зээлийн хүсэлт татгалзах
-     */
-    LoanApplicationDto rejectLoanApplication(UUID id, String reason);
-
-    /**
-     * Зээл олгох
-     */
-    LoanApplicationDto disburseLoan(UUID id);
-
-    /**
-     * Зээлийн хүсэлт цуцлах
-     */
-    LoanApplicationDto cancelLoanApplication(UUID id, String reason);
-
-    /**
-     * Нэмэлт мэдээлэл шаардах
-     */
-    LoanApplicationDto requestAdditionalInfo(UUID id, String requestedInfo);
-
-    // Хүлээлгэн өгөх
-    /**
-     * Хүсэлт хүлээлгэн өгөх
-     */
-    LoanApplicationDto assignLoanApplication(UUID id, String assignedTo);
-
-    /**
-     * Олон хүсэлт хүлээлгэн өгөх
-     */
-    int assignLoanApplications(List<UUID> applicationIds, String assignedTo);
-
-    /**
-     * Хүлээлгэсэн хүсэлтүүд
-     */
-    Page<LoanApplicationDto> getAssignedLoanApplications(String assignedTo, Pageable pageable);
 
     // Тэргүүлэх эрэмбэ
     /**
