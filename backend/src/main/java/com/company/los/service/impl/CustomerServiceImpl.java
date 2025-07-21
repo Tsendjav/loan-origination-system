@@ -1,9 +1,9 @@
-package com.los.service.impl;
+package com.company.los.service.impl;
 
-import com.los.dto.CustomerDto;
-import com.los.entity.Customer;
-import com.los.repository.CustomerRepository;
-import com.los.service.CustomerService;
+import com.company.los.dto.CustomerDto;
+import com.company.los.entity.Customer;
+import com.company.los.repository.CustomerRepository;
+import com.company.los.service.CustomerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;

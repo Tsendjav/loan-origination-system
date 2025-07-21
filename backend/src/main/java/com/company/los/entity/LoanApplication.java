@@ -1,7 +1,7 @@
-package com.los.entity;
+package com.company.los.entity;
 
-import com.los.common.BaseEntity;
-import com.los.enums.LoanStatus;
+import com.company.los.common.BaseEntity;
+import com.company.los.enums.LoanStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;

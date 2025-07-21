@@ -1,9 +1,9 @@
-package com.los.dto;
+package com.company.los.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.los.entity.Customer;
+import com.company.los.entity.Customer;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;

@@ -1,4 +1,4 @@
-package com.los.enums;
+package com.company.los.enums;
 
 /**
  * Зээлийн хүсэлтийн статус

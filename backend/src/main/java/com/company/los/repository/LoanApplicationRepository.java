@@ -1,8 +1,8 @@
-package com.los.repository;
+package com.company.los.repository;
 
-import com.los.entity.Customer;
-import com.los.entity.LoanApplication;
-import com.los.enums.LoanStatus;
+import com.company.los.entity.Customer;
+import com.company.los.entity.LoanApplication;
+import com.company.los.enums.LoanStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

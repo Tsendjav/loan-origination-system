@@ -1,4 +1,4 @@
-package com.los.enums;
+package com.company.los.enums;
 
 /**
  * Баримт бичгийн төрөл

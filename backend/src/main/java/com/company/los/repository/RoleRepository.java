@@ -1,8 +1,8 @@
-package com.los.repository;
+package com.company.los.repository;
 
-import com.los.entity.Permission;
-import com.los.entity.Role;
-import com.los.entity.User;
+import com.company.los.entity.Permission;
+import com.company.los.entity.Role;
+import com.company.los.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

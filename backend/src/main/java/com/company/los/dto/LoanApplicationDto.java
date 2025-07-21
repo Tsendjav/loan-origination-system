@@ -1,10 +1,10 @@
-package com.los.dto;
+package com.company.los.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.los.entity.LoanApplication;
-import com.los.enums.LoanStatus;
+import com.company.los.entity.LoanApplication;
+import com.company.los.enums.LoanStatus;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;

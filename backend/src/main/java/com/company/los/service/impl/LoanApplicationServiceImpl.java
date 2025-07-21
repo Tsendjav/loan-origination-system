@@ -1,13 +1,13 @@
-package com.los.service.impl;
+package com.company.los.service.impl;
 
-import com.los.dto.CreateLoanRequestDto;
-import com.los.dto.LoanApplicationDto;
-import com.los.entity.Customer;
-import com.los.entity.LoanApplication;
-import com.los.enums.LoanStatus;
-import com.los.repository.CustomerRepository;
-import com.los.repository.LoanApplicationRepository;
-import com.los.service.LoanApplicationService;
+import com.company.los.dto.CreateLoanRequestDto;
+import com.company.los.dto.LoanApplicationDto;
+import com.company.los.entity.Customer;
+import com.company.los.entity.LoanApplication;
+import com.company.los.enums.LoanStatus;
+import com.company.los.repository.CustomerRepository;
+import com.company.los.repository.LoanApplicationRepository;
+import com.company.los.service.LoanApplicationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -504,7 +504,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     @Override
     public Page<LoanApplicationDto> searchLoanApplicationsWithFilters(LoanStatus status,
                                                                      LoanApplication.LoanType loanType,
-                                                                     com.los.entity.Customer.CustomerType customerType,
+                                                                     com.company.los.entity.Customer.CustomerType customerType,
                                                                      BigDecimal minAmount, BigDecimal maxAmount,
                                                                      LocalDateTime startDate, LocalDateTime endDate,
                                                                      String assignedTo, Integer priority,

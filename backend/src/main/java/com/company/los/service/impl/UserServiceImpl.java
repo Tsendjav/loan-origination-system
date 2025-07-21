@@ -1,11 +1,11 @@
-package com.los.service.impl;
+package com.company.los.service.impl;
 
-import com.los.dto.UserDto;
-import com.los.entity.Role;
-import com.los.entity.User;
-import com.los.repository.RoleRepository;
-import com.los.repository.UserRepository;
-import com.los.service.UserService;
+import com.company.los.dto.UserDto; // Package name засварласан
+import com.company.los.entity.Role;
+import com.company.los.entity.User;
+import com.company.los.repository.RoleRepository;
+import com.company.los.repository.UserRepository;
+import com.company.los.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -629,7 +629,7 @@ public class UserServiceImpl implements UserService {
     @Transactional(readOnly = true)
     public boolean hasResourcePermission(UUID id, String resource, String action) {
         return userRepository.userHasResourcePermission(id, resource, 
-                com.los.entity.Permission.Action.valueOf(action));
+                com.company.los.entity.Permission.Action.valueOf(action));
     }
 
     @Override

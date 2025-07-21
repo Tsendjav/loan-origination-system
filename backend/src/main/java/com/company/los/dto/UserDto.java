@@ -1,11 +1,11 @@
-package com.los.dto;
+package com.company.los.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.los.entity.Role;
-import com.los.entity.User;
+import com.company.los.entity.Role;
+import com.company.los.entity.User;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;

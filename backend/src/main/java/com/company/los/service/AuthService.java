@@ -1,6 +1,6 @@
-package com.los.service;
+package com.company.los.service;
 
-import com.los.dto.UserDto;
+import com.company.los.dto.UserDto;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;

@@ -1,8 +1,8 @@
-package com.los.service;
+package com.company.los.service;
 
-import com.los.dto.UserDto;
-import com.los.entity.Role;
-import com.los.entity.User;
+import com.company.los.dto.UserDto; // Package name засварласан
+import com.company.los.entity.Role;
+import com.company.los.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetailsService;
