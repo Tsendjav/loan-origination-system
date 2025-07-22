@@ -1,6 +1,6 @@
 package com.company.los.entity;
 
-import com.company.los.common.BaseEntity;
+import com.company.los.entity.BaseEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -146,9 +146,7 @@ public class Customer extends BaseEntity {
             this.mongolianName = mongolianName;
         }
 
-        public String getMongolianName() {
-            return mongolianName;
-        }
+        public String getMongolianName() { return mongolianName; }
     }
 
     public enum Gender {
@@ -162,9 +160,7 @@ public class Customer extends BaseEntity {
             this.mongolianName = mongolianName;
         }
 
-        public String getMongolianName() {
-            return mongolianName;
-        }
+        public String getMongolianName() { return mongolianName; }
     }
 
     public enum KycStatus {
@@ -179,9 +175,7 @@ public class Customer extends BaseEntity {
             this.mongolianName = mongolianName;
         }
 
-        public String getMongolianName() {
-            return mongolianName;
-        }
+        public String getMongolianName() { return mongolianName; }
     }
 
     // Constructors
@@ -233,31 +227,80 @@ public class Customer extends BaseEntity {
     }
 
     // Getters and Setters
-    // [Энд бүх getter/setter методуудыг оруулах - товчруулсан]
-    
     public CustomerType getCustomerType() { return customerType; }
     public void setCustomerType(CustomerType customerType) { this.customerType = customerType; }
-    
+
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { this.firstName = firstName; }
-    
+
     public String getLastName() { return lastName; }
     public void setLastName(String lastName) { this.lastName = lastName; }
-    
+
     public String getRegisterNumber() { return registerNumber; }
     public void setRegisterNumber(String registerNumber) { this.registerNumber = registerNumber; }
-    
+
+    public LocalDate getBirthDate() { return birthDate; }
+    public void setBirthDate(LocalDate birthDate) { this.birthDate = birthDate; }
+
+    public Gender getGender() { return gender; }
+    public void setGender(Gender gender) { this.gender = gender; }
+
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
-    
+
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
-    
+
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getProvince() { return province; }
+    public void setProvince(String province) { this.province = province; }
+
+    public String getPostalCode() { return postalCode; }
+    public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
+
+    public String getEmployerName() { return employerName; }
+    public void setEmployerName(String employerName) { this.employerName = employerName; }
+
+    public String getJobTitle() { return jobTitle; }
+    public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
+
+    public Integer getWorkExperienceYears() { return workExperienceYears; }
+    public void setWorkExperienceYears(Integer workExperienceYears) { this.workExperienceYears = workExperienceYears; }
+
+    public BigDecimal getMonthlyIncome() { return monthlyIncome; }
+    public void setMonthlyIncome(BigDecimal monthlyIncome) { this.monthlyIncome = monthlyIncome; }
+
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
+
+    public String getBusinessRegistrationNumber() { return businessRegistrationNumber; }
+    public void setBusinessRegistrationNumber(String businessRegistrationNumber) { this.businessRegistrationNumber = businessRegistrationNumber; }
+
+    public String getTaxNumber() { return taxNumber; }
+    public void setTaxNumber(String taxNumber) { this.taxNumber = taxNumber; }
+
+    public String getBusinessType() { return businessType; }
+    public void setBusinessType(String businessType) { this.businessType = businessType; }
+
+    public BigDecimal getAnnualRevenue() { return annualRevenue; }
+    public void setAnnualRevenue(BigDecimal annualRevenue) { this.annualRevenue = annualRevenue; }
+
     public KycStatus getKycStatus() { return kycStatus; }
     public void setKycStatus(KycStatus kycStatus) { this.kycStatus = kycStatus; }
-    
+
+    public LocalDate getKycCompletedAt() { return kycCompletedAt; }
+    public void setKycCompletedAt(LocalDate kycCompletedAt) { this.kycCompletedAt = kycCompletedAt; }
+
     public List<LoanApplication> getLoanApplications() { return loanApplications; }
     public void setLoanApplications(List<LoanApplication> loanApplications) { this.loanApplications = loanApplications; }
+
+    public List<Document> getDocuments() { return documents; }
+    public void setDocuments(List<Document> documents) { this.documents = documents; }
 
     // toString
     @Override

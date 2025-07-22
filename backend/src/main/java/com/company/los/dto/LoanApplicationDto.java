@@ -64,7 +64,7 @@ public class LoanApplicationDto {
     @DecimalMin(value = "0.0", message = "Сарын төлбөр сөрөг байж болохгүй")
     private BigDecimal monthlyPayment;
 
-    // Огнонууд
+    // Огноонууд
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime submittedDate;
 
@@ -160,74 +160,74 @@ public class LoanApplicationDto {
         dto.setCreatedBy(loanApplication.getCreatedBy());
         dto.setUpdatedBy(loanApplication.getUpdatedBy());
 
-        // Null-safe getter calls for potentially missing methods
+        // Null-safe getter calls with default values
         try {
-            dto.setPurpose(loanApplication.getPurpose());
+            dto.setPurpose(loanApplication.getPurpose() != null ? loanApplication.getPurpose() : "");
+        } catch (Exception e) { dto.setPurpose(""); }
+        
+        try {
+            dto.setDeclaredIncome(loanApplication.getDeclaredIncome() != null ? loanApplication.getDeclaredIncome() : BigDecimal.ZERO);
+        } catch (Exception e) { dto.setDeclaredIncome(BigDecimal.ZERO); }
+        
+        try {
+            dto.setApprovedAmount(loanApplication.getApprovedAmount() != null ? loanApplication.getApprovedAmount() : BigDecimal.ZERO);
+        } catch (Exception e) { dto.setApprovedAmount(BigDecimal.ZERO); }
+        
+        try {
+            dto.setApprovedTermMonths(loanApplication.getApprovedTermMonths() != null ? loanApplication.getApprovedTermMonths() : 0);
+        } catch (Exception e) { dto.setApprovedTermMonths(0); }
+        
+        try {
+            dto.setApprovedRate(loanApplication.getApprovedRate() != null ? loanApplication.getApprovedRate() : BigDecimal.ZERO);
+        } catch (Exception e) { dto.setApprovedRate(BigDecimal.ZERO); }
+        
+        try {
+            dto.setMonthlyPayment(loanApplication.getMonthlyPayment() != null ? loanApplication.getMonthlyPayment() : BigDecimal.ZERO);
+        } catch (Exception e) { dto.setMonthlyPayment(BigDecimal.ZERO); }
+        
+        try {
+            dto.setSubmittedDate(loanApplication.getSubmittedDate() != null ? loanApplication.getSubmittedDate() : null);
         } catch (Exception e) { /* Ignore if getter not available */ }
         
         try {
-            dto.setDeclaredIncome(loanApplication.getDeclaredIncome());
+            dto.setApprovedDate(loanApplication.getApprovedDate() != null ? loanApplication.getApprovedDate() : null);
         } catch (Exception e) { /* Ignore if getter not available */ }
         
         try {
-            dto.setApprovedAmount(loanApplication.getApprovedAmount());
+            dto.setRejectedDate(loanApplication.getRejectedDate() != null ? loanApplication.getRejectedDate() : null);
         } catch (Exception e) { /* Ignore if getter not available */ }
         
         try {
-            dto.setApprovedTermMonths(loanApplication.getApprovedTermMonths());
+            dto.setDisbursedDate(loanApplication.getDisbursedDate() != null ? loanApplication.getDisbursedDate() : null);
         } catch (Exception e) { /* Ignore if getter not available */ }
         
         try {
-            dto.setApprovedRate(loanApplication.getApprovedRate());
+            dto.setExpectedDisbursementDate(loanApplication.getExpectedDisbursementDate() != null ? loanApplication.getExpectedDisbursementDate() : null);
         } catch (Exception e) { /* Ignore if getter not available */ }
         
         try {
-            dto.setMonthlyPayment(loanApplication.getMonthlyPayment());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+            dto.setDecisionReason(loanApplication.getDecisionReason() != null ? loanApplication.getDecisionReason() : "");
+        } catch (Exception e) { dto.setDecisionReason(""); }
         
         try {
-            dto.setSubmittedDate(loanApplication.getSubmittedDate());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+            dto.setRiskScore(loanApplication.getRiskScore() != null ? loanApplication.getRiskScore() : BigDecimal.ZERO);
+        } catch (Exception e) { dto.setRiskScore(BigDecimal.ZERO); }
         
         try {
-            dto.setApprovedDate(loanApplication.getApprovedDate());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+            dto.setCreditScore(loanApplication.getCreditScore() != null ? loanApplication.getCreditScore() : BigDecimal.ZERO);
+        } catch (Exception e) { dto.setCreditScore(BigDecimal.ZERO); }
         
         try {
-            dto.setRejectedDate(loanApplication.getRejectedDate());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+            dto.setCurrentStep(loanApplication.getCurrentStep() != null ? loanApplication.getCurrentStep() : "");
+        } catch (Exception e) { dto.setCurrentStep(""); }
         
         try {
-            dto.setDisbursedDate(loanApplication.getDisbursedDate());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+            dto.setAssignedTo(loanApplication.getAssignedTo() != null ? loanApplication.getAssignedTo() : "");
+        } catch (Exception e) { dto.setAssignedTo(""); }
         
         try {
-            dto.setExpectedDisbursementDate(loanApplication.getExpectedDisbursementDate());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setDecisionReason(loanApplication.getDecisionReason());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setRiskScore(loanApplication.getRiskScore());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setCreditScore(loanApplication.getCreditScore());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setCurrentStep(loanApplication.getCurrentStep());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setAssignedTo(loanApplication.getAssignedTo());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setPriority(loanApplication.getPriority());
-        } catch (Exception e) { dto.setPriority(3); /* Default priority */ }
+            dto.setPriority(loanApplication.getPriority() != null ? loanApplication.getPriority() : 3);
+        } catch (Exception e) { dto.setPriority(3); }
 
         // Set customer info
         try {
@@ -252,7 +252,6 @@ public class LoanApplicationDto {
         try {
             dto.setPriorityText(loanApplication.getPriorityText());
         } catch (Exception e) {
-            // Generate priority text manually
             Integer priority = dto.getPriority();
             if (priority != null) {
                 if (priority <= 2) dto.setPriorityText("Өндөр");
@@ -285,7 +284,6 @@ public class LoanApplicationDto {
             dto.setIsActive(!dto.getIsFinalStatus());
         }
         
-        // Calculate processing time
         if (dto.getSubmittedDate() != null) {
             LocalDateTime endDate = dto.getApprovedDate() != null ? 
                 dto.getApprovedDate() : LocalDateTime.now();
@@ -310,12 +308,10 @@ public class LoanApplicationDto {
         dto.setRequestedAmount(loanApplication.getRequestedAmount());
         dto.setRequestedTermMonths(loanApplication.getRequestedTermMonths());
         
-        // Safe getter calls
         try {
-            dto.setSubmittedDate(loanApplication.getSubmittedDate());
+            dto.setSubmittedDate(loanApplication.getSubmittedDate() != null ? loanApplication.getSubmittedDate() : null);
         } catch (Exception e) { /* Ignore if getter not available */ }
         
-        // Set display values
         try {
             dto.setStatusDisplay(loanApplication.getStatus().getMongolianName());
             dto.setLoanTypeDisplay(loanApplication.getLoanType().getMongolianName());
@@ -346,7 +342,6 @@ public class LoanApplicationDto {
         loanApplication.setCreatedBy(this.createdBy);
         loanApplication.setUpdatedBy(this.updatedBy);
         
-        // Null-safe setter calls for potentially missing methods
         try {
             loanApplication.setPurpose(this.purpose);
         } catch (Exception e) { /* Ignore if setter not available */ }
@@ -437,7 +432,6 @@ public class LoanApplicationDto {
                    requestedTermMonths >= loanType.getMinTermMonths() &&
                    requestedTermMonths <= loanType.getMaxTermMonths();
         } catch (Exception e) {
-            // Basic validation if entity methods not available
             return requestedAmount.compareTo(BigDecimal.valueOf(100000)) >= 0 &&
                    requestedAmount.compareTo(BigDecimal.valueOf(100000000)) <= 0 &&
                    requestedTermMonths >= 3 && requestedTermMonths <= 300;

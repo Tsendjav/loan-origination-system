@@ -170,16 +170,16 @@ public class DocumentDto {
 
         // Null-safe getter calls for potentially missing methods
         try {
-            dto.setContentType(document.getContentType());
-        } catch (Exception e) { /* Default if getter not available */ }
+            dto.setContentType(document.getContentType() != null ? document.getContentType() : "");
+        } catch (Exception e) { dto.setContentType(""); }
         
         try {
-            dto.setFileSize(document.getFileSize());
-        } catch (Exception e) { /* Default if getter not available */ }
+            dto.setFileSize(document.getFileSize() != null ? document.getFileSize() : 0L);
+        } catch (Exception e) { dto.setFileSize(0L); }
         
         try {
-            dto.setChecksum(document.getChecksum());
-        } catch (Exception e) { /* Default if getter not available */ }
+            dto.setChecksum(document.getChecksum() != null ? document.getChecksum() : "");
+        } catch (Exception e) { dto.setChecksum(""); }
         
         try {
             dto.setVerifiedAt(document.getVerifiedAt());
@@ -260,7 +260,6 @@ public class DocumentDto {
         try {
             dto.setFileSizeFormatted(document.getFileSizeFormatted());
         } catch (Exception e) {
-            // Generate file size format manually if method not available
             if (dto.getFileSize() != null) {
                 dto.setFileSizeFormatted(formatFileSize(dto.getFileSize()));
             }
@@ -269,7 +268,6 @@ public class DocumentDto {
         try {
             dto.setFileExtension(document.getFileExtension());
         } catch (Exception e) {
-            // Extract extension from filename manually
             if (dto.getOriginalFilename() != null) {
                 int lastDot = dto.getOriginalFilename().lastIndexOf('.');
                 if (lastDot > 0) {
@@ -299,7 +297,6 @@ public class DocumentDto {
         try {
             dto.setIsImage(document.isImage());
         } catch (Exception e) {
-            // Check content type manually
             String contentType = dto.getContentType();
             dto.setIsImage(contentType != null && contentType.startsWith("image/"));
         }
@@ -320,7 +317,6 @@ public class DocumentDto {
         
         dto.setStatusBadgeClass(dto.calculateStatusBadgeClass());
         
-        // Calculate verification time
         if (document.getVerifiedAt() != null && document.getUploadedAt() != null) {
             long days = java.time.Duration.between(document.getUploadedAt(), document.getVerifiedAt()).toDays();
             dto.setVerificationDaysElapsed((int) days);
@@ -341,13 +337,11 @@ public class DocumentDto {
         dto.setVerificationStatus(document.getVerificationStatus());
         dto.setUploadedAt(document.getUploadedAt());
         
-        // Safe getter calls
         try {
-            dto.setFileSize(document.getFileSize());
-            dto.setContentType(document.getContentType());
+            dto.setFileSize(document.getFileSize() != null ? document.getFileSize() : 0L);
+            dto.setContentType(document.getContentType() != null ? document.getContentType() : "");
         } catch (Exception e) { /* Ignore if getters not available */ }
         
-        // Set display values
         try {
             dto.setDocumentTypeDisplay(document.getDocumentType().getMongolianName());
             dto.setVerificationStatusDisplay(document.getVerificationStatus().getMongolianName());
@@ -356,7 +350,6 @@ public class DocumentDto {
             dto.setVerificationStatusDisplay(document.getVerificationStatus().toString());
         }
         
-        // Set computed fields
         if (dto.getFileSize() != null) {
             dto.setFileSizeFormatted(formatFileSize(dto.getFileSize()));
         }
@@ -388,7 +381,6 @@ public class DocumentDto {
         document.setCreatedBy(this.createdBy);
         document.setUpdatedBy(this.updatedBy);
         
-        // Null-safe setter calls
         try {
             document.setContentType(this.contentType);
         } catch (Exception e) { /* Ignore if setter not available */ }
@@ -487,7 +479,6 @@ public class DocumentDto {
         try {
             return documentType.isExtensionAllowed(extension);
         } catch (Exception e) {
-            // Basic file type validation if method not available
             return contentType.startsWith("image/") || 
                    contentType.equals("application/pdf") ||
                    contentType.contains("msword") ||

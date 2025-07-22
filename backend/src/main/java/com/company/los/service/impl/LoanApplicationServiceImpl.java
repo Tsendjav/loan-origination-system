@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +24,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Зээлийн хүсэлтийн Service Implementation with null-safe method calls
+ * Зээлийн хүсэлтийн Service Implementation
  */
 @Service
 @Transactional
@@ -65,30 +66,18 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 createRequest.getRequestedAmount(),
                 createRequest.getRequestedTermMonths());
 
-        // Null-safe setter calls
-        try {
-            loanApplication.setPurpose(createRequest.getPurpose());
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        // Set additional fields
+        loanApplication.setPurpose(createRequest.getPurpose());
+        loanApplication.setDeclaredIncome(createRequest.getDeclaredIncome());
+        loanApplication.setPriority(createRequest.getPriority() != null ? createRequest.getPriority() : 3);
+        loanApplication.setAssignedTo(createRequest.getAssignTo());
 
-        try {
-            loanApplication.setDeclaredIncome(createRequest.getDeclaredIncome());
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        try {
-            loanApplication.setPriority(createRequest.getPriority() != null ? createRequest.getPriority() : 3);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        try {
-            loanApplication.setAssignedTo(createRequest.getAssignTo());
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        // Set status based on request
-        loanApplication.setStatus(createRequest.getSaveAsDraft() ? LoanStatus.DRAFT : LoanStatus.SUBMITTED);
-        if (createRequest.getAutoSubmit()) {
-            try {
-                loanApplication.setSubmittedDate(LocalDateTime.now());
-            } catch (Exception e) { /* Ignore if setter not available */ }
+        // Set status and submitted date if not saving as draft
+        if (!createRequest.getSaveAsDraft()) {
+            loanApplication.submit();
         }
+
+        // Set common fields
         loanApplication.setApplicationNumber(generateApplicationNumber());
         loanApplication.setCreatedAt(LocalDateTime.now());
         loanApplication.setUpdatedAt(LocalDateTime.now());
@@ -132,24 +121,10 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         existingApplication.setLoanType(loanApplicationDto.getLoanType());
         existingApplication.setRequestedAmount(loanApplicationDto.getRequestedAmount());
         existingApplication.setRequestedTermMonths(loanApplicationDto.getRequestedTermMonths());
-
-        // Null-safe setter calls
-        try {
-            existingApplication.setPurpose(loanApplicationDto.getPurpose());
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        try {
-            existingApplication.setDeclaredIncome(loanApplicationDto.getDeclaredIncome());
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        try {
-            existingApplication.setPriority(loanApplicationDto.getPriority());
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        try {
-            existingApplication.setAssignedTo(loanApplicationDto.getAssignedTo());
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
+        existingApplication.setPurpose(loanApplicationDto.getPurpose());
+        existingApplication.setDeclaredIncome(loanApplicationDto.getDeclaredIncome());
+        existingApplication.setPriority(loanApplicationDto.getPriority());
+        existingApplication.setAssignedTo(loanApplicationDto.getAssignedTo());
         existingApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(existingApplication);
@@ -174,14 +149,13 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         logger.info("Loan application deleted successfully with ID: {}", id);
     }
 
-    @Override
     public LoanApplicationDto restoreLoanApplication(UUID id) {
         logger.info("Restoring loan application with ID: {}", id);
 
         LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
-        loanApplication.restore();
+        loanApplication.setIsDeleted(false); // Assuming BaseEntity has isDeleted field
         loanApplication.setUpdatedAt(LocalDateTime.now());
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
 
@@ -260,10 +234,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
             throw new IllegalArgumentException("Хүсэлтийн мэдээлэл дутуу байна");
         }
 
-        loanApplication.setStatus(LoanStatus.SUBMITTED);
-        try {
-            loanApplication.setSubmittedDate(LocalDateTime.now());
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        loanApplication.submit();
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -284,21 +255,9 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
             throw new IllegalArgumentException("Энэ статустай хүсэлтийг зөвшөөрөх боломжгүй");
         }
 
-        loanApplication.setStatus(LoanStatus.APPROVED);
-        loanApplication.setApprovedAmount(approvedAmount);
-        loanApplication.setApprovedTermMonths(approvedTermMonths);
-        loanApplication.setApprovedRate(approvedRate);
-        loanApplication.setApprovedDate(LocalDateTime.now());
-
-        BigDecimal monthlyPayment = calculateMonthlyPayment(approvedAmount, approvedRate, approvedTermMonths);
-        try {
-            loanApplication.setMonthlyPayment(monthlyPayment);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
-        try {
-            loanApplication.setDecisionReason(reason);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-
+        loanApplication.approve(approvedAmount, approvedTermMonths, approvedRate, reason);
+        BigDecimal monthlyPayment = calculateMonthlyPayment(approvedAmount, approvedTermMonths, approvedRate);
+        loanApplication.setMonthlyPayment(monthlyPayment);
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -317,11 +276,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
             throw new IllegalArgumentException("Энэ статустай хүсэлтийг татгалзах боломжгүй");
         }
 
-        loanApplication.setStatus(LoanStatus.REJECTED);
-        loanApplication.setRejectedDate(LocalDateTime.now());
-        try {
-            loanApplication.setDecisionReason(reason);
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        loanApplication.reject(reason);
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -340,8 +295,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
             throw new IllegalArgumentException("Зөвхөн зөвшөөрсөн зээлийг олгох боломжтой");
         }
 
-        loanApplication.setStatus(LoanStatus.DISBURSED);
-        loanApplication.setDisbursedDate(LocalDateTime.now());
+        loanApplication.disburse();
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -361,9 +315,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         }
 
         loanApplication.setStatus(LoanStatus.CANCELLED);
-        try {
-            loanApplication.setDecisionReason(reason);
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        loanApplication.setDecisionReason(reason);
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -379,9 +331,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         loanApplication.setStatus(LoanStatus.PENDING_INFO);
-        try {
-            loanApplication.setDecisionReason(requestedInfo);
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        loanApplication.setDecisionReason(requestedInfo);
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -544,7 +494,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         return loanApplicationRepository.getAverageProcessingDays();
     }
 
-    @Override
     public Page<LoanApplicationDto> searchLoanApplicationsWithFilters(LoanStatus status,
                                                                      LoanApplication.LoanType loanType,
                                                                      com.company.los.entity.Customer.CustomerType customerType,
@@ -557,16 +506,13 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public LoanApplicationDto assignLoanApplication(UUID id, String assignedTo) {
         logger.info("Assigning loan application {} to {}", id, assignedTo);
 
         LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
-        try {
-            loanApplication.setAssignedTo(assignedTo);
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        loanApplication.setAssignedTo(assignedTo);
         loanApplication.setUpdatedAt(LocalDateTime.now());
 
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
@@ -574,12 +520,10 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         return LoanApplicationDto.fromEntity(savedApplication);
     }
 
-    @Override
     public int assignLoanApplications(List<UUID> applicationIds, String assignedTo) {
         return loanApplicationRepository.assignApplications(applicationIds, assignedTo, assignedTo);
     }
 
-    @Override
     public Page<LoanApplicationDto> getAssignedLoanApplications(String assignedTo, Pageable pageable) {
         List<LoanStatus> activeStatuses = Arrays.asList(LoanStatus.SUBMITTED, LoanStatus.DOCUMENT_REVIEW,
                 LoanStatus.CREDIT_CHECK, LoanStatus.RISK_ASSESSMENT, LoanStatus.MANAGER_REVIEW);
@@ -587,41 +531,34 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public LoanApplicationDto updatePriority(UUID id, Integer priority) {
         loanApplicationRepository.updatePriority(id, priority, "system");
         return getLoanApplicationById(id);
     }
 
-    @Override
     public Page<LoanApplicationDto> getLoanApplicationsByPriority(Integer priority, Pageable pageable) {
         return loanApplicationRepository.findByPriority(priority, pageable)
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public Map<String, Object> performRiskAssessment(UUID id) {
         return new HashMap<>();
     }
 
-    @Override
     public BigDecimal calculateCreditScore(UUID customerId) {
         return BigDecimal.valueOf(650);
     }
 
-    @Override
     public Page<LoanApplicationDto> getHighRiskApplications(BigDecimal riskThreshold, Pageable pageable) {
         return loanApplicationRepository.findHighRiskApplications(riskThreshold, pageable)
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public Page<LoanApplicationDto> getLowRiskApplications(BigDecimal riskThreshold, Pageable pageable) {
         return loanApplicationRepository.findLowRiskApplications(riskThreshold, pageable)
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public Page<LoanApplicationDto> getOverdueApplications(Pageable pageable) {
         LocalDateTime overdueDate = LocalDateTime.now().minusDays(14);
         List<LoanStatus> activeStatuses = Arrays.asList(LoanStatus.SUBMITTED, LoanStatus.DOCUMENT_REVIEW,
@@ -630,7 +567,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public List<LoanApplicationDto> getPendingTooLong(LoanStatus status, int days) {
         LocalDateTime thresholdDate = LocalDateTime.now().minusDays(days);
         return loanApplicationRepository.findPendingTooLong(status, thresholdDate)
@@ -639,7 +575,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public List<Map<String, Object>> getMonthlyLoanApplicationStats(int months) {
         LocalDateTime startDate = LocalDateTime.now().minusMonths(months);
         List<Object[]> results = loanApplicationRepository.getMonthlyStats(startDate);
@@ -655,7 +590,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public Map<String, Object> getApprovalRates(LocalDateTime startDate) {
         Object[] results = loanApplicationRepository.getApprovalRates(startDate);
         Map<String, Object> rates = new HashMap<>();
@@ -675,13 +609,11 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         return rates;
     }
 
-    @Override
     public Page<LoanApplicationDto> getFastestApprovedApplications(Pageable pageable) {
         return loanApplicationRepository.findFastestApproved(pageable)
                 .map(LoanApplicationDto::fromEntity);
     }
 
-    @Override
     public Map<String, Object> getTodayDashboardStats() {
         Object[] results = loanApplicationRepository.getTodayDashboardStats();
         Map<String, Object> stats = new HashMap<>();
@@ -696,7 +628,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         return stats;
     }
 
-    @Override
     public Map<String, Object> getThisMonthDashboardStats() {
         Object[] results = loanApplicationRepository.getThisMonthDashboardStats();
         Map<String, Object> stats = new HashMap<>();
@@ -710,34 +641,28 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         return stats;
     }
 
-    @Override
     public List<Map<String, Object>> getLoanReport(LocalDateTime startDate, LocalDateTime endDate) {
         return new ArrayList<>();
     }
 
-    @Override
     public List<Map<String, Object>> getPerformanceReport(LocalDateTime startDate, LocalDateTime endDate) {
         return new ArrayList<>();
     }
 
-    @Override
     public byte[] exportLoanApplicationsToExcel(List<UUID> applicationIds) {
         return new byte[0];
     }
 
-    @Override
     public LoanApplicationDto getLatestLoanApplicationByCustomer(UUID customerId) {
         return loanApplicationRepository.findLatestByCustomerId(customerId)
                 .map(LoanApplicationDto::fromEntity)
                 .orElse(null);
     }
 
-    @Override
     public int getActiveLoansCountForCustomer(UUID customerId) {
         return loanApplicationRepository.countActiveLoansForCustomer(customerId);
     }
 
-    @Override
     public List<LoanApplicationDto> getCustomerLoanHistory(UUID customerId) {
         return loanApplicationRepository.findByCustomerId(customerId, Pageable.unpaged())
                 .getContent()
@@ -746,71 +671,58 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public int updateStatusForApplications(List<UUID> applicationIds, LoanStatus currentStatus, LoanStatus newStatus) {
         return loanApplicationRepository.updateStatusForApplications(applicationIds, currentStatus, newStatus, "system");
     }
 
-    @Override
     public boolean checkLoanLimits(UUID customerId, BigDecimal requestedAmount) {
         return true;
     }
 
-    @Override
     public Map<String, Object> assessLoanCapacity(UUID customerId, BigDecimal requestedAmount) {
         return new HashMap<>();
     }
 
-    @Override
     public boolean sendStatusChangeNotification(UUID id) {
         return true;
     }
 
-    @Override
     public boolean sendOverdueNotification(UUID id) {
         return true;
     }
 
-    @Override
     public boolean checkAutoApprovalEligibility(UUID id) {
         return false;
     }
 
-    @Override
     public LoanApplicationDto processAutoApproval(UUID id) {
         return getLoanApplicationById(id);
     }
 
-    @Override
     public Map<String, Object> reviewLoanApplication(UUID id) {
         return new HashMap<>();
     }
 
-    @Override
     public Map<String, Object> validateDataIntegrity() {
         return new HashMap<>();
     }
 
-    @Override
     public List<Map<String, Object>> getLoanApplicationAuditHistory(UUID id) {
         return new ArrayList<>();
     }
 
-    @Override
     public List<Map<String, Object>> getLoanApplicationActivityLog(UUID id) {
         return new ArrayList<>();
     }
 
-    @Override
     @Transactional(readOnly = true)
     public List<LoanApplicationDto> getPendingApplications() {
-        List<LoanApplication> applications = loanApplicationRepository.findByStatus(LoanStatus.SUBMITTED);
+        List<LoanApplication> applications = loanApplicationRepository.findByStatus(LoanStatus.SUBMITTED, PageRequest.of(0, 1000)).getContent();
         return applications.stream()
                 .map(LoanApplicationDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    @Override
     @Transactional(readOnly = true)
     public List<LoanApplicationDto> getApplicationsForReview() {
         List<LoanApplication> applications = loanApplicationRepository.findApplicationsForReview();
@@ -819,7 +731,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                 .collect(Collectors.toList());
     }
 
-    @Override
     public LoanApplicationDto updateLoanApplicationStatus(UUID id, LoanStatus newStatus) {
         LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));

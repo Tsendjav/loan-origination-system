@@ -1,13 +1,15 @@
 package com.company.los.entity;
 
-import com.company.los.common.BaseEntity;
+import com.company.los.entity.BaseEntity;
 import com.company.los.enums.DocumentType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 /**
  * Баримт бичгийн Entity
@@ -59,12 +61,12 @@ public class Document extends BaseEntity {
     @Column(name = "file_size", nullable = false)
     @NotNull(message = "Файлын хэмжээ заавал байх ёстой")
     @Min(value = 1, message = "Файлын хэмжээ 0-ээс их байх ёстой")
-    @Max(value = 52428800, message = "Файлын хэмжээ 50MB-аас бага байх ёстой") // 50MB limit
+    @Max(value = 52428800, message = "Файлын хэмжээ 50MB-аас бага байх ёстой")
     private Long fileSize;
 
     @Column(name = "checksum", length = 64)
     @Size(max = 64, message = "Checksum 64 тэмдэгтээс ихгүй байх ёстой")
-    private String checksum; // SHA-256 hash
+    private String checksum;
 
     @Column(name = "uploaded_at", nullable = false)
     @NotNull(message = "Илгээсэн огноо заавал байх ёстой")
@@ -86,36 +88,34 @@ public class Document extends BaseEntity {
     @Size(max = 1000, message = "Баталгаажуулалтын тэмдэглэл 1000 тэмдэгтээс ихгүй байх ёстой")
     private String verificationNotes;
 
-    // OCR болон AI шинжилгээний үр дүн
     @Column(name = "ocr_text", columnDefinition = "TEXT")
-    private String ocrText; // OCR-ээр задалсан текст
+    private String ocrText;
 
     @Column(name = "extracted_data", columnDefinition = "TEXT")
-    private String extractedData; // JSON форматаар задалсан өгөгдөл
+    private String extractedData;
 
     @Column(name = "ai_confidence_score", precision = 5, scale = 2)
     @DecimalMin(value = "0.0", message = "AI итгэлцлийн оноо сөрөг байж болохгүй")
     @DecimalMax(value = "100.0", message = "AI итгэлцлийн оноо 100-аас их байж болохгүй")
-    private java.math.BigDecimal aiConfidenceScore;
+    private BigDecimal aiConfidenceScore;
 
     @Column(name = "processing_status", length = 30)
-    private String processingStatus; // PROCESSING, COMPLETED, FAILED
+    private String processingStatus;
 
     @Column(name = "processing_error", length = 500)
     @Size(max = 500, message = "Процессын алдаа 500 тэмдэгтээс ихгүй байх ёстой")
     private String processingError;
 
-    // Metadata
     @Column(name = "description", length = 500)
     @Size(max = 500, message = "Тайлбар 500 тэмдэгтээс ихгүй байх ёстой")
     private String description;
 
     @Column(name = "tags", length = 255)
     @Size(max = 255, message = "Таг 255 тэмдэгтээс ихгүй байх ёстой")
-    private String tags; // CSV format: "urgent,income,2024"
+    private String tags;
 
     @Column(name = "expiry_date")
-    private java.time.LocalDate expiryDate; // Баримтын дуусах хугацаа
+    private LocalDate expiryDate;
 
     @Column(name = "is_required", nullable = false)
     private Boolean isRequired = false;
@@ -125,7 +125,7 @@ public class Document extends BaseEntity {
     private Integer versionNumber = 1;
 
     @Column(name = "previous_document_id", columnDefinition = "uuid")
-    private java.util.UUID previousDocumentId; // Өмнөх хувилбарын ID
+    private java.util.UUID previousDocumentId;
 
     // Баталгаажуулалтын статус
     public enum VerificationStatus {
@@ -199,7 +199,7 @@ public class Document extends BaseEntity {
     }
 
     public boolean isExpired() {
-        return expiryDate != null && expiryDate.isBefore(java.time.LocalDate.now());
+        return expiryDate != null && expiryDate.isBefore(LocalDate.now());
     }
 
     public boolean needsResubmission() {
@@ -247,7 +247,7 @@ public class Document extends BaseEntity {
         );
     }
 
-    public void updateOcrResults(String ocrText, String extractedData, java.math.BigDecimal confidenceScore) {
+    public void updateOcrResults(String ocrText, String extractedData, BigDecimal confidenceScore) {
         this.ocrText = ocrText;
         this.extractedData = extractedData;
         this.aiConfidenceScore = confidenceScore;
@@ -262,27 +262,78 @@ public class Document extends BaseEntity {
     // Getters and Setters
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
-    
+
     public LoanApplication getLoanApplication() { return loanApplication; }
     public void setLoanApplication(LoanApplication loanApplication) { this.loanApplication = loanApplication; }
-    
+
     public DocumentType getDocumentType() { return documentType; }
     public void setDocumentType(DocumentType documentType) { this.documentType = documentType; }
-    
+
     public String getOriginalFilename() { return originalFilename; }
     public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
-    
+
     public String getStoredFilename() { return storedFilename; }
     public void setStoredFilename(String storedFilename) { this.storedFilename = storedFilename; }
-    
+
     public String getFilePath() { return filePath; }
     public void setFilePath(String filePath) { this.filePath = filePath; }
-    
-    public VerificationStatus getVerificationStatus() { return verificationStatus; }
-    public void setVerificationStatus(VerificationStatus verificationStatus) { this.verificationStatus = verificationStatus; }
-    
+
+    public String getContentType() { return contentType; }
+    public void setContentType(String contentType) { this.contentType = contentType; }
+
+    public Long getFileSize() { return fileSize; }
+    public void setFileSize(Long fileSize) { this.fileSize = fileSize; }
+
+    public String getChecksum() { return checksum; }
+    public void setChecksum(String checksum) { this.checksum = checksum; }
+
     public LocalDateTime getUploadedAt() { return uploadedAt; }
     public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
+
+    public VerificationStatus getVerificationStatus() { return verificationStatus; }
+    public void setVerificationStatus(VerificationStatus verificationStatus) { this.verificationStatus = verificationStatus; }
+
+    public LocalDateTime getVerifiedAt() { return verifiedAt; }
+    public void setVerifiedAt(LocalDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
+
+    public String getVerifiedBy() { return verifiedBy; }
+    public void setVerifiedBy(String verifiedBy) { this.verifiedBy = verifiedBy; }
+
+    public String getVerificationNotes() { return verificationNotes; }
+    public void setVerificationNotes(String verificationNotes) { this.verificationNotes = verificationNotes; }
+
+    public String getOcrText() { return ocrText; }
+    public void setOcrText(String ocrText) { this.ocrText = ocrText; }
+
+    public String getExtractedData() { return extractedData; }
+    public void setExtractedData(String extractedData) { this.extractedData = extractedData; }
+
+    public BigDecimal getAiConfidenceScore() { return aiConfidenceScore; }
+    public void setAiConfidenceScore(BigDecimal aiConfidenceScore) { this.aiConfidenceScore = aiConfidenceScore; }
+
+    public String getProcessingStatus() { return processingStatus; }
+    public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
+
+    public String getProcessingError() { return processingError; }
+    public void setProcessingError(String processingError) { this.processingError = processingError; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
+
+    public LocalDate getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
+
+    public Boolean getIsRequired() { return isRequired; }
+    public void setIsRequired(Boolean isRequired) { this.isRequired = isRequired; }
+
+    public Integer getVersionNumber() { return versionNumber; }
+    public void setVersionNumber(Integer versionNumber) { this.versionNumber = versionNumber; }
+
+    public java.util.UUID getPreviousDocumentId() { return previousDocumentId; }
+    public void setPreviousDocumentId(java.util.UUID previousDocumentId) { this.previousDocumentId = previousDocumentId; }
 
     // toString
     @Override

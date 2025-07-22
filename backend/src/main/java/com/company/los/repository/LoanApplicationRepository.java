@@ -145,6 +145,15 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
             @Param("status") LoanStatus status,
             @Param("thresholdDate") LocalDateTime thresholdDate);
 
+    // Хянах хүсэлтүүд
+    /**
+     * Хянахад хүлээж байгаа хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.status IN ('SUBMITTED', 'DOCUMENT_REVIEW', 'CREDIT_CHECK', 'RISK_ASSESSMENT', 'MANAGER_REVIEW') " +
+           "ORDER BY la.submittedDate ASC")
+    List<LoanApplication> findApplicationsForReview();
+
     // Ерөнхий хайлт
     /**
      * Ерөнхий хайлт - хүсэлтийн дугаар, харилцагчийн нэр

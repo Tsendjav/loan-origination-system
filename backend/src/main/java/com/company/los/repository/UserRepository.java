@@ -2,6 +2,7 @@ package com.company.los.repository;
 
 import com.company.los.entity.Role;
 import com.company.los.entity.User;
+import com.company.los.entity.Permission;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -327,6 +328,21 @@ public interface UserRepository extends JpaRepository<User, UUID> {
            "WHERE p.resource = :resource AND p.action = :action")
     List<User> findUsersWithResourcePermission(@Param("resource") String resource,
                                              @Param("action") String action);
+
+    /**
+     * Хэрэглэгч тодорхой ресурс болон үйлдэлд эрх эзэмшдэг эсэхийг шалгах - НЭМЭГДСЭН
+     */
+    @Query("SELECT COUNT(u) > 0 FROM User u " +
+           "JOIN u.roles r " +
+           "JOIN r.permissions p " +
+           "WHERE u.id = :userId " +
+           "AND p.resource = :resource " +
+           "AND p.action = :action " +
+           "AND u.enabled = true " +
+           "AND u.status = 'ACTIVE'")
+    boolean userHasResourcePermission(@Param("userId") UUID userId, 
+                                     @Param("resource") String resource, 
+                                     @Param("action") Permission.Action action);
 
     // Dashboard статистик
     /**

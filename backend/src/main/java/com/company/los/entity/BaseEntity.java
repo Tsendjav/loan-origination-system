@@ -1,4 +1,4 @@
-package com.company.los.common;
+package com.company.los.entity;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;

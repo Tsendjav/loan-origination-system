@@ -1,6 +1,6 @@
 package com.company.los.entity;
 
-import com.company.los.common.BaseEntity;
+import com.company.los.entity.BaseEntity;
 import com.company.los.enums.LoanStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -87,7 +87,7 @@ public class LoanApplication extends BaseEntity {
     @DecimalMin(value = "0.0", message = "Сарын төлбөр сөрөг байж болохгүй")
     private BigDecimal monthlyPayment;
 
-    // Огнонууд
+    // Огноонууд
     @Column(name = "submitted_date")
     private LocalDateTime submittedDate;
 
@@ -251,22 +251,73 @@ public class LoanApplication extends BaseEntity {
     // Getters and Setters
     public String getApplicationNumber() { return applicationNumber; }
     public void setApplicationNumber(String applicationNumber) { this.applicationNumber = applicationNumber; }
-    
+
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
-    
+
     public LoanType getLoanType() { return loanType; }
     public void setLoanType(LoanType loanType) { this.loanType = loanType; }
-    
+
     public LoanStatus getStatus() { return status; }
     public void setStatus(LoanStatus status) { this.status = status; }
-    
+
     public BigDecimal getRequestedAmount() { return requestedAmount; }
     public void setRequestedAmount(BigDecimal requestedAmount) { this.requestedAmount = requestedAmount; }
-    
+
     public Integer getRequestedTermMonths() { return requestedTermMonths; }
     public void setRequestedTermMonths(Integer requestedTermMonths) { this.requestedTermMonths = requestedTermMonths; }
-    
+
+    public String getPurpose() { return purpose; }
+    public void setPurpose(String purpose) { this.purpose = purpose; }
+
+    public BigDecimal getDeclaredIncome() { return declaredIncome; }
+    public void setDeclaredIncome(BigDecimal declaredIncome) { this.declaredIncome = declaredIncome; }
+
+    public BigDecimal getApprovedAmount() { return approvedAmount; }
+    public void setApprovedAmount(BigDecimal approvedAmount) { this.approvedAmount = approvedAmount; }
+
+    public Integer getApprovedTermMonths() { return approvedTermMonths; }
+    public void setApprovedTermMonths(Integer approvedTermMonths) { this.approvedTermMonths = approvedTermMonths; }
+
+    public BigDecimal getApprovedRate() { return approvedRate; }
+    public void setApprovedRate(BigDecimal approvedRate) { this.approvedRate = approvedRate; }
+
+    public BigDecimal getMonthlyPayment() { return monthlyPayment; }
+    public void setMonthlyPayment(BigDecimal monthlyPayment) { this.monthlyPayment = monthlyPayment; }
+
+    public LocalDateTime getSubmittedDate() { return submittedDate; }
+    public void setSubmittedDate(LocalDateTime submittedDate) { this.submittedDate = submittedDate; }
+
+    public LocalDateTime getApprovedDate() { return approvedDate; }
+    public void setApprovedDate(LocalDateTime approvedDate) { this.approvedDate = approvedDate; }
+
+    public LocalDateTime getRejectedDate() { return rejectedDate; }
+    public void setRejectedDate(LocalDateTime rejectedDate) { this.rejectedDate = rejectedDate; }
+
+    public LocalDateTime getDisbursedDate() { return disbursedDate; }
+    public void setDisbursedDate(LocalDateTime disbursedDate) { this.disbursedDate = disbursedDate; }
+
+    public LocalDate getExpectedDisbursementDate() { return expectedDisbursementDate; }
+    public void setExpectedDisbursementDate(LocalDate expectedDisbursementDate) { this.expectedDisbursementDate = expectedDisbursementDate; }
+
+    public String getDecisionReason() { return decisionReason; }
+    public void setDecisionReason(String decisionReason) { this.decisionReason = decisionReason; }
+
+    public BigDecimal getRiskScore() { return riskScore; }
+    public void setRiskScore(BigDecimal riskScore) { this.riskScore = riskScore; }
+
+    public BigDecimal getCreditScore() { return creditScore; }
+    public void setCreditScore(BigDecimal creditScore) { this.creditScore = creditScore; }
+
+    public String getCurrentStep() { return currentStep; }
+    public void setCurrentStep(String currentStep) { this.currentStep = currentStep; }
+
+    public String getAssignedTo() { return assignedTo; }
+    public void setAssignedTo(String assignedTo) { this.assignedTo = assignedTo; }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
+
     public List<Document> getDocuments() { return documents; }
     public void setDocuments(List<Document> documents) { this.documents = documents; }
 

@@ -1,65 +1,58 @@
 package com.company.los.enums;
 
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+
 /**
  * Баримт бичгийн төрөл
- * Document Type Enum
+ * Document Types for Loan Origination System
  */
 public enum DocumentType {
-    // Иргэний бүртгэлийн үнэмлэх
-    ID_CARD("Иргэний үнэмлэх", "National ID Card", "png,jpg,jpeg,pdf", true),
+    // Үндсэн баримт бичиг - Basic Documents
+    NATIONAL_ID("Иргэний үнэмлэх", "National ID", true, Set.of("jpg", "jpeg", "png", "pdf")),
+    PASSPORT("Гадаад паспорт", "Passport", false, Set.of("jpg", "jpeg", "png", "pdf")),
+    DRIVER_LICENSE("Жолооны үнэмлэх", "Driver License", false, Set.of("jpg", "jpeg", "png", "pdf")),
     
-    // Гэрчилгээ
-    PASSPORT("Гадаад паспорт", "Passport", "png,jpg,jpeg,pdf", true),
+    // Орлогын баримт - Income Documents
+    INCOME_STATEMENT("Орлогын справка", "Income Statement", true, Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx")),
+    SALARY_CERTIFICATE("Цалингийн справка", "Salary Certificate", false, Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx")),
+    BANK_STATEMENT("Банкны хуулга", "Bank Statement", true, Set.of("pdf", "xls", "xlsx")),
+    TAX_STATEMENT("Татварын тайлан", "Tax Statement", false, Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx")),
     
-    // Орлогын баримт
-    SALARY_CERTIFICATE("Цалингийн гэрчилгээ", "Salary Certificate", "pdf,doc,docx", true),
+    // Бизнесийн баримт - Business Documents
+    BUSINESS_LICENSE("Бизнесийн лиценз", "Business License", false, Set.of("pdf", "jpg", "jpeg", "png")),
+    BUSINESS_REGISTRATION("Бизнесийн бүртгэл", "Business Registration", false, Set.of("pdf", "jpg", "jpeg", "png")),
+    COMPANY_CHARTER("Компанийн дүрэм", "Company Charter", false, Set.of("pdf", "doc", "docx")),
+    FINANCIAL_STATEMENT("Санхүүгийн тайлан", "Financial Statement", false, Set.of("pdf", "xls", "xlsx")),
     
-    // Банкны хуудас
-    BANK_STATEMENT("Банкны хуудас", "Bank Statement", "pdf,xls,xlsx", true),
+    // Зээлийн баримт - Loan Documents
+    LOAN_APPLICATION("Зээлийн хүсэлт", "Loan Application", true, Set.of("pdf", "doc", "docx")),
+    LOAN_AGREEMENT("Зээлийн гэрээ", "Loan Agreement", false, Set.of("pdf", "doc", "docx")),
+    COLLATERAL_DOCUMENT("Барьцааны баримт", "Collateral Document", false, Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx")),
+    GUARANTOR_DOCUMENT("Батлан даагчийн баримт", "Guarantor Document", false, Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx")),
     
-    // Ажлын байрны лавлагаа
-    EMPLOYMENT_LETTER("Ажлын байрны лавлагаа", "Employment Letter", "pdf,doc,docx", true),
+    // Өмчийн баримт - Property Documents
+    PROPERTY_CERTIFICATE("Өмчийн гэрчилгээ", "Property Certificate", false, Set.of("pdf", "jpg", "jpeg", "png")),
+    VEHICLE_REGISTRATION("Тээврийн хэрэгслийн бүртгэл", "Vehicle Registration", false, Set.of("pdf", "jpg", "jpeg", "png")),
+    LEASE_AGREEMENT("Түрээсийн гэрээ", "Lease Agreement", false, Set.of("pdf", "doc", "docx")),
     
-    // Гэрчилгээ баримт
-    INCOME_TAX("Татварын баримт", "Income Tax Document", "pdf", false),
-    
-    // НДШБ-ны лавлагаа
-    SOCIAL_INSURANCE("НДШБ лавлагаа", "Social Insurance Certificate", "pdf", false),
-    
-    // Гэр орны бүртгэлийн хуудас
-    FAMILY_REGISTRATION("Гэр орны бүртгэл", "Family Registration", "png,jpg,jpeg,pdf", false),
-    
-    // Хөрөнгийн баримт
-    ASSET_DOCUMENT("Хөрөнгийн баримт", "Asset Document", "pdf,png,jpg,jpeg", false),
-    
-    // Барьцааны баримт
-    COLLATERAL_DOCUMENT("Барьцааны баримт", "Collateral Document", "pdf,doc,docx", false),
-    
-    // Хуулийн этгээдийн бүртгэлийн гэрчилгээ
-    BUSINESS_REGISTRATION("ХЭ-ийн бүртгэлийн гэрчилгээ", "Business Registration Certificate", "pdf,png,jpg,jpeg", false),
-    
-    // Санхүүгийн тайлан
-    FINANCIAL_STATEMENT("Санхүүгийн тайлан", "Financial Statement", "pdf,xls,xlsx", false),
-    
-    // Нэмэлт баримт
-    ADDITIONAL_DOCUMENT("Нэмэлт баримт", "Additional Document", "pdf,doc,docx,png,jpg,jpeg", false),
-    
-    // Зээлийн гэрээ
-    LOAN_AGREEMENT("Зээлийн гэрээ", "Loan Agreement", "pdf", false),
-    
-    // Батлан даалтын баримт
-    GUARANTOR_DOCUMENT("Батлан даалтын баримт", "Guarantor Document", "pdf,doc,docx", false);
+    // Бусад баримт - Other Documents
+    MEDICAL_CERTIFICATE("Эрүүл мэндийн справка", "Medical Certificate", false, Set.of("pdf", "jpg", "jpeg", "png")),
+    EMPLOYMENT_CERTIFICATE("Ажил эрхлэлтийн справка", "Employment Certificate", false, Set.of("pdf", "doc", "docx")),
+    REFERENCE_LETTER("Санал болгох захидал", "Reference Letter", false, Set.of("pdf", "doc", "docx")),
+    OTHER("Бусад", "Other", false, Set.of("pdf", "doc", "docx", "jpg", "jpeg", "png", "xls", "xlsx"));
 
     private final String mongolianName;
     private final String englishName;
-    private final String allowedExtensions;
     private final boolean required;
+    private final Set<String> allowedExtensions;
 
-    DocumentType(String mongolianName, String englishName, String allowedExtensions, boolean required) {
+    DocumentType(String mongolianName, String englishName, boolean required, Set<String> allowedExtensions) {
         this.mongolianName = mongolianName;
         this.englishName = englishName;
-        this.allowedExtensions = allowedExtensions;
         this.required = required;
+        this.allowedExtensions = allowedExtensions;
     }
 
     public String getMongolianName() {
@@ -70,47 +63,83 @@ public enum DocumentType {
         return englishName;
     }
 
-    public String getAllowedExtensions() {
-        return allowedExtensions;
-    }
-
     public boolean isRequired() {
         return required;
     }
 
-    /**
-     * Файлын өргөтгөл зөвшөөрөгдсөн эсэхийг шалгах
-     */
+    public Set<String> getAllowedExtensions() {
+        return allowedExtensions;
+    }
+
     public boolean isExtensionAllowed(String extension) {
-        if (extension == null || extension.trim().isEmpty()) {
-            return false;
-        }
-        String cleanExtension = extension.toLowerCase().replace(".", "");
-        return allowedExtensions.toLowerCase().contains(cleanExtension);
+        if (extension == null) return false;
+        return allowedExtensions.contains(extension.toLowerCase());
     }
 
     /**
-     * Заавал шаардлагатай баримтуудыг буцаах
+     * Заавал шаардлагатай баримт бичгүүдийг буцаах
      */
     public static DocumentType[] getRequiredDocuments() {
-        return java.util.Arrays.stream(values())
+        return Arrays.stream(values())
                 .filter(DocumentType::isRequired)
                 .toArray(DocumentType[]::new);
     }
 
     /**
-     * Зээлийн төрлөөр шаардлагатай баримтуудыг буцаах
+     * Зээлийн төрөлөөр шаардлагатай баримт бичгүүдийг буцаах
      */
     public static DocumentType[] getDocumentsByLoanType(String loanType) {
+        if (loanType == null) {
+            return getRequiredDocuments();
+        }
+        
         switch (loanType.toUpperCase()) {
-            case "CONSUMER":
-                return new DocumentType[]{ID_CARD, SALARY_CERTIFICATE, BANK_STATEMENT, EMPLOYMENT_LETTER};
             case "BUSINESS":
-                return new DocumentType[]{ID_CARD, BUSINESS_REGISTRATION, FINANCIAL_STATEMENT, BANK_STATEMENT};
+                return new DocumentType[]{
+                    NATIONAL_ID, INCOME_STATEMENT, BUSINESS_LICENSE, 
+                    TAX_STATEMENT, BUSINESS_REGISTRATION, FINANCIAL_STATEMENT
+                };
+            case "PERSONAL":
+                return new DocumentType[]{
+                    NATIONAL_ID, INCOME_STATEMENT, BANK_STATEMENT, SALARY_CERTIFICATE
+                };
             case "MORTGAGE":
-                return new DocumentType[]{ID_CARD, SALARY_CERTIFICATE, BANK_STATEMENT, COLLATERAL_DOCUMENT, FAMILY_REGISTRATION};
+                return new DocumentType[]{
+                    NATIONAL_ID, INCOME_STATEMENT, BANK_STATEMENT, 
+                    PROPERTY_CERTIFICATE, COLLATERAL_DOCUMENT
+                };
+            case "VEHICLE":
+                return new DocumentType[]{
+                    NATIONAL_ID, INCOME_STATEMENT, BANK_STATEMENT, 
+                    VEHICLE_REGISTRATION, COLLATERAL_DOCUMENT
+                };
             default:
                 return getRequiredDocuments();
         }
+    }
+
+    /**
+     * Зээлийн дүнгээр шаардлагатай баримт бичгүүдийг буцаах
+     */
+    public static List<DocumentType> getDocumentsByAmount(double amount) {
+        List<DocumentType> documents = Arrays.asList(NATIONAL_ID, INCOME_STATEMENT, BANK_STATEMENT);
+        
+        if (amount > 10000000) { // 10 сая төгрөгөөс дээш
+            documents = Arrays.asList(
+                NATIONAL_ID, INCOME_STATEMENT, BANK_STATEMENT, 
+                TAX_STATEMENT, GUARANTOR_DOCUMENT, COLLATERAL_DOCUMENT
+            );
+        } else if (amount > 5000000) { // 5 сая төгрөгөөс дээш
+            documents = Arrays.asList(
+                NATIONAL_ID, INCOME_STATEMENT, BANK_STATEMENT, GUARANTOR_DOCUMENT
+            );
+        }
+        
+        return documents;
+    }
+
+    @Override
+    public String toString() {
+        return mongolianName;
     }
 }

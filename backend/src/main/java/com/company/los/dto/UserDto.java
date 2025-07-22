@@ -9,6 +9,7 @@ import com.company.los.entity.User;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;
+import java.time.Duration; // Duration импорт нэмсэн
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -48,6 +49,7 @@ public class UserDto {
     private String lastName;
 
     @Pattern(regexp = "^[+]?[0-9]{8,15}$", message = "Утасны дугаарын формат буруу")
+    @Size(max = 20, message = "Утасны дугаар 20 тэмдэгтээс ихгүй байх ёстой")
     private String phone;
 
     @Size(max = 20, message = "Ажилтны дугаар 20 тэмдэгтээс ихгүй байх ёстой")
@@ -59,14 +61,13 @@ public class UserDto {
     @Size(max = 100, message = "Хэлтэс 100 тэмдэгтээс ихгүй байх ёстой")
     private String department;
 
+    @NotNull(message = "Хэрэглэгчийн статус заавал байх ёстой")
     private User.UserStatus status;
 
-    // Security мэдээлэл
     private Boolean accountNonExpired;
     private Boolean accountNonLocked;
     private Boolean credentialsNonExpired;
     private Boolean enabled;
-
     private Integer failedLoginAttempts;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -80,16 +81,21 @@ public class UserDto {
 
     // Two-Factor Authentication
     private Boolean twoFactorEnabled;
-    
-    @JsonIgnore // Never serialize secret
+    @JsonIgnore // Secret never expose in DTO
     private String twoFactorSecret;
 
     // Profile мэдээлэл
+    @Size(max = 500, message = "Профайл зургийн URL 500 тэмдэгтээс ихгүй байх ёстой")
     private String profilePictureUrl;
+
+    @Size(max = 10, message = "Хэл 10 тэмдэгтээс ихгүй байх ёстой")
     private String language;
+
+    @Size(max = 50, message = "Цагийн бүс 50 тэмдэгтээс ихгүй байх ёстой")
     private String timezone;
 
-    // Audit fields
+    private Set<RoleDto> roles; // DTO for roles
+
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 
@@ -99,50 +105,47 @@ public class UserDto {
     private String createdBy;
     private String updatedBy;
 
-    // Roles - simplified for DTO
-    private Set<String> roleNames;
-    private List<RoleDto> roles;
-
-    // Computed fields (read-only)
+    // Computed fields
     private String fullName;
     private String displayName;
-    private String statusDisplay;
     private Boolean isActive;
     private Boolean isLocked;
     private Boolean isPasswordExpired;
     private Boolean hasMultipleRoles;
     private Boolean isAdminUser;
     private Integer daysSinceLastLogin;
-    private String lastLoginText;
+    private String lastLoginText; // for display, e.g., "5 days ago", "just now"
 
     // Constructors
     public UserDto() {
-        this.status = User.UserStatus.ACTIVE;
+    }
+
+    public UserDto(String username, String email, String firstName, String lastName) {
+        this.username = username;
+        this.email = email;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.status = User.UserStatus.PENDING_ACTIVATION; // Default status
         this.accountNonExpired = true;
         this.accountNonLocked = true;
         this.credentialsNonExpired = true;
-        this.enabled = true;
+        this.enabled = false; // By default, not enabled until activated
         this.failedLoginAttempts = 0;
         this.twoFactorEnabled = false;
         this.language = "mn";
         this.timezone = "Asia/Ulaanbaatar";
     }
 
-    public UserDto(String username, String password, String email, String firstName, String lastName) {
-        this();
-        this.username = username;
-        this.password = password;
-        this.email = email;
-        this.firstName = firstName;
-        this.lastName = lastName;
-    }
-
     // Static factory methods
     public static UserDto fromEntity(User user) {
+        if (user == null) {
+            return null;
+        }
+
         UserDto dto = new UserDto();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
-        // Note: password is never set in DTO for security
+        // Password and TwoFactorSecret are @JsonIgnore, so don't set them directly from entity for DTO
         dto.setEmail(user.getEmail());
         dto.setFirstName(user.getFirstName());
         dto.setLastName(user.getLastName());
@@ -160,76 +163,48 @@ public class UserDto {
         dto.setPasswordChangedAt(user.getPasswordChangedAt());
         dto.setLockedUntil(user.getLockedUntil());
         dto.setTwoFactorEnabled(user.getTwoFactorEnabled());
+        // twoFactorSecret intentionally not set
         dto.setProfilePictureUrl(user.getProfilePictureUrl());
         dto.setLanguage(user.getLanguage());
         dto.setTimezone(user.getTimezone());
+
+        if (user.getRoles() != null) {
+            dto.setRoles(user.getRoles().stream()
+                    .map(RoleDto::fromEntity)
+                    .collect(Collectors.toSet()));
+        }
+
         dto.setCreatedAt(user.getCreatedAt());
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setCreatedBy(user.getCreatedBy());
         dto.setUpdatedBy(user.getUpdatedBy());
 
-        // Set role information
-        if (user.getRoles() != null && !user.getRoles().isEmpty()) {
-            dto.setRoleNames(user.getRoles().stream()
-                    .map(Role::getName)
-                    .collect(Collectors.toSet()));
-            
-            dto.setRoles(user.getRoles().stream()
-                    .map(RoleDto::fromEntity)
-                    .collect(Collectors.toList()));
-        }
-
-        // Computed fields
+        // Set computed fields
         dto.setFullName(user.getFullName());
         dto.setDisplayName(user.getDisplayName());
-        dto.setStatusDisplay(user.getStatus().getMongolianName());
-        dto.setIsActive(user.isEnabled() && user.getStatus() == User.UserStatus.ACTIVE);
+        dto.setIsActive(user.isEnabled());
         dto.setIsLocked(user.isAccountLocked());
         dto.setIsPasswordExpired(user.isPasswordExpired());
-        dto.setHasMultipleRoles(user.getRoles().size() > 1);
-        dto.setIsAdminUser(user.hasAnyRole("ROLE_SYSTEM_ADMIN", "ROLE_BUSINESS_ADMIN"));
-        
-        // Calculate days since last login
+        dto.setHasMultipleRoles(user.getRoles() != null && user.getRoles().size() > 1);
+        dto.setIsAdminUser(user.hasAnyRole("ROLE_SYSTEM_ADMIN", "ROLE_BUSINESS_ADMIN")); // Check for admin roles
+
+        // Calculate daysSinceLastLogin and lastLoginText
         if (user.getLastLoginAt() != null) {
-            long days = java.time.Duration.between(user.getLastLoginAt(), LocalDateTime.now()).toDays();
+            Duration duration = Duration.between(user.getLastLoginAt(), LocalDateTime.now());
+            long days = duration.toDays();
             dto.setDaysSinceLastLogin((int) days);
-            dto.setLastLoginText(days == 0 ? "Өнөөдөр" : days + " хоногийн өмнө");
+            if (days == 0) {
+                dto.setLastLoginText("Өнөөдөр");
+            } else if (days == 1) {
+                dto.setLastLoginText("Өчигдөр");
+            } else {
+                dto.setLastLoginText(days + " хоногийн өмнө");
+            }
         } else {
+            dto.setDaysSinceLastLogin(null);
             dto.setLastLoginText("Хэзээ ч нэвтрээгүй");
         }
 
-        return dto;
-    }
-
-    public static UserDto createSummary(User user) {
-        UserDto dto = new UserDto();
-        dto.setId(user.getId());
-        dto.setUsername(user.getUsername());
-        dto.setEmail(user.getEmail());
-        dto.setFullName(user.getFullName());
-        dto.setDisplayName(user.getDisplayName());
-        dto.setStatus(user.getStatus());
-        dto.setEnabled(user.getEnabled());
-        dto.setStatusDisplay(user.getStatus().getMongolianName());
-        dto.setIsActive(user.isEnabled() && user.getStatus() == User.UserStatus.ACTIVE);
-        
-        if (user.getRoles() != null) {
-            dto.setRoleNames(user.getRoles().stream()
-                    .map(Role::getName)
-                    .collect(Collectors.toSet()));
-        }
-        
-        return dto;
-    }
-
-    public static UserDto createProfile(User user) {
-        UserDto dto = fromEntity(user);
-        // Remove sensitive information for profile view
-        dto.setFailedLoginAttempts(null);
-        dto.setAccountNonExpired(null);
-        dto.setAccountNonLocked(null);
-        dto.setCredentialsNonExpired(null);
-        dto.setLockedUntil(null);
         return dto;
     }
 
@@ -237,10 +212,7 @@ public class UserDto {
         User user = new User();
         user.setId(this.id);
         user.setUsername(this.username);
-        // Password should be handled separately with encoding
-        if (this.password != null) {
-            user.setPassword(this.password); // Will be encoded in service
-        }
+        user.setPassword(this.password); // Only set if creating/updating password
         user.setEmail(this.email);
         user.setFirstName(this.firstName);
         user.setLastName(this.lastName);
@@ -248,115 +220,186 @@ public class UserDto {
         user.setEmployeeId(this.employeeId);
         user.setPosition(this.position);
         user.setDepartment(this.department);
-        user.setStatus(this.status != null ? this.status : User.UserStatus.ACTIVE);
-        user.setAccountNonExpired(this.accountNonExpired != null ? this.accountNonExpired : true);
-        user.setAccountNonLocked(this.accountNonLocked != null ? this.accountNonLocked : true);
-        user.setCredentialsNonExpired(this.credentialsNonExpired != null ? this.credentialsNonExpired : true);
-        user.setEnabled(this.enabled != null ? this.enabled : true);
-        user.setFailedLoginAttempts(this.failedLoginAttempts != null ? this.failedLoginAttempts : 0);
+        user.setStatus(this.status);
+        user.setAccountNonExpired(this.accountNonExpired);
+        user.setAccountNonLocked(this.accountNonLocked);
+        user.setCredentialsNonExpired(this.credentialsNonExpired);
+        user.setEnabled(this.enabled);
+        user.setFailedLoginAttempts(this.failedLoginAttempts);
         user.setLastLoginAt(this.lastLoginAt);
         user.setPasswordChangedAt(this.passwordChangedAt);
         user.setLockedUntil(this.lockedUntil);
-        user.setTwoFactorEnabled(this.twoFactorEnabled != null ? this.twoFactorEnabled : false);
-        user.setTwoFactorSecret(this.twoFactorSecret);
+        user.setTwoFactorEnabled(this.twoFactorEnabled);
+        user.setTwoFactorSecret(this.twoFactorSecret); // Only set if creating/updating two-factor secret
         user.setProfilePictureUrl(this.profilePictureUrl);
-        user.setLanguage(this.language != null ? this.language : "mn");
-        user.setTimezone(this.timezone != null ? this.timezone : "Asia/Ulaanbaatar");
+        user.setLanguage(this.language);
+        user.setTimezone(this.timezone);
+
+        if (this.roles != null) {
+            user.setRoles(this.roles.stream()
+                    .map(RoleDto::toEntity)
+                    .collect(Collectors.toSet()));
+        }
+
+        user.setCreatedAt(this.createdAt);
+        user.setUpdatedAt(this.updatedAt);
+        user.setCreatedBy(this.createdBy);
+        user.setUpdatedBy(this.updatedBy);
         return user;
     }
 
-    // Validation methods
+    // ========== НЭМЭГДСЭН ДУТУУ МЕТОДУУД ==========
+
+    /**
+     * Хэрэглэгчийн мэдээлэл бүрэн эсэхийг шалгах - НЭМЭГДСЭН
+     */
     public boolean isValidForRegistration() {
         return username != null && !username.trim().isEmpty() &&
-               password != null && password.length() >= 8 &&
-               email != null && email.contains("@") &&
+               email != null && !email.trim().isEmpty() &&
                firstName != null && !firstName.trim().isEmpty() &&
-               lastName != null && !lastName.trim().isEmpty();
+               lastName != null && !lastName.trim().isEmpty() &&
+               isValidEmail(email) &&
+               isValidUsername(username);
     }
 
-    public boolean hasValidContactInfo() {
-        return (email != null && email.contains("@")) ||
-               (phone != null && !phone.trim().isEmpty());
-    }
-
-    // Business logic methods
-    public boolean canLogin() {
-        return enabled && status == User.UserStatus.ACTIVE && 
-               accountNonLocked && !isLocked;
-    }
-
-    public boolean needsPasswordReset() {
-        return isPasswordExpired || status == User.UserStatus.PENDING_ACTIVATION;
-    }
-
-    public boolean canBeDeactivated() {
-        return status != User.UserStatus.SUSPENDED &&
-               !isAdminUser; // Don't allow deactivating admin users
-    }
-
-    public boolean canBeDeleted() {
-        return status != User.UserStatus.ACTIVE &&
-               !isAdminUser && // Don't allow deleting admin users
-               daysSinceLastLogin != null && daysSinceLastLogin > 90; // Inactive for 90+ days
-    }
-
-    public String getStatusBadgeClass() {
-        if (status == null) return "badge-secondary";
-        switch (status) {
-            case ACTIVE: return enabled ? "badge-success" : "badge-warning";
-            case INACTIVE: return "badge-secondary";
-            case LOCKED: case SUSPENDED: return "badge-danger";
-            case PENDING_ACTIVATION: return "badge-info";
-            default: return "badge-secondary";
+    /**
+     * И-мэйл хаягийн формат зөв эсэхийг шалгах - НЭМЭГДСЭН
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
         }
+        String emailRegex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
+        return email.matches(emailRegex);
     }
 
-    public String getSecurityStatusText() {
-        if (!enabled) return "Идэвхгүй";
-        if (isLocked) return "Түгжээтэй";
-        if (status == User.UserStatus.SUSPENDED) return "Түр зогсоосон";
-        if (isPasswordExpired) return "Нууц үг хуучирсан";
-        if (failedLoginAttempts != null && failedLoginAttempts > 0) {
-            return failedLoginAttempts + " удаа буруу оролдлого";
+    /**
+     * Хэрэглэгчийн нэрийн формат зөв эсэхийг шалгах - НЭМЭГДСЭН
+     */
+    private boolean isValidUsername(String username) {
+        if (username == null || username.trim().isEmpty()) {
+            return false;
         }
-        return "Хэвийн";
+        // Хэрэглэгчийн нэр дор хаяж 3 тэмдэгт, зөвхөн үсэг, тоо, доор зураас
+        String usernameRegex = "^[a-zA-Z0-9_]{3,50}$";
+        return username.matches(usernameRegex);
     }
 
-    public String getRoleNamesText() {
-        if (roleNames == null || roleNames.isEmpty()) {
-            return "Дүр олгоогүй";
+    /**
+     * Хэрэглэгчийн бүрэн нэрийг авах - НЭМЭГДСЭН
+     */
+    public String getComputedFullName() {
+        if (firstName == null && lastName == null) {
+            return username;
         }
-        return String.join(", ", roleNames);
+        
+        StringBuilder fullName = new StringBuilder();
+        if (firstName != null && !firstName.trim().isEmpty()) {
+            fullName.append(firstName.trim());
+        }
+        if (lastName != null && !lastName.trim().isEmpty()) {
+            if (fullName.length() > 0) {
+                fullName.append(" ");
+            }
+            fullName.append(lastName.trim());
+        }
+        
+        return fullName.length() > 0 ? fullName.toString() : username;
     }
 
+    /**
+     * Хэрэглэгчийн харагдах нэрийг авах - НЭМЭГДСЭН
+     */
+    public String getComputedDisplayName() {
+        String fullName = getComputedFullName();
+        return fullName != null && !fullName.equals(username) ? fullName : username;
+    }
+
+    /**
+     * Дүр эзэмшдэг эсэхийг шалгах - НЭМЭГДСЭН
+     */
     public boolean hasRole(String roleName) {
-        return roleNames != null && roleNames.contains(roleName);
+        if (roles == null || roleName == null) {
+            return false;
+        }
+        return roles.stream()
+                .anyMatch(role -> roleName.equals(role.getName()));
     }
 
+    /**
+     * Аль нэг дүр эзэмшдэг эсэхийг шалгах - НЭМЭГДСЭН
+     */
     public boolean hasAnyRole(String... roleNames) {
-        if (this.roleNames == null) return false;
-        for (String role : roleNames) {
-            if (this.roleNames.contains(role)) {
+        if (roles == null || roleNames == null) {
+            return false;
+        }
+        for (String roleName : roleNames) {
+            if (hasRole(roleName)) {
                 return true;
             }
         }
         return false;
     }
 
-    // Profile management
-    public void updateProfile(String firstName, String lastName, String phone, String profilePictureUrl) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.phone = phone;
-        this.profilePictureUrl = profilePictureUrl;
+    /**
+     * Админ эрхтэй эсэхийг шалгах - НЭМЭГДСЭН
+     */
+    public boolean isAdmin() {
+        return hasAnyRole("ROLE_SYSTEM_ADMIN", "ROLE_BUSINESS_ADMIN");
     }
 
-    public void updatePreferences(String language, String timezone) {
-        this.language = language;
-        this.timezone = timezone;
+    /**
+     * Дүрүүдийн нэрийг текст болгож буцаах - НЭМЭГДСЭН
+     */
+    public String getRoleNamesAsString() {
+        if (roles == null || roles.isEmpty()) {
+            return "Дүргүй";
+        }
+        return roles.stream()
+                .map(RoleDto::getName)
+                .collect(Collectors.joining(", "));
     }
 
-    // Getters and Setters
+    /**
+     * Утасны дугаарыг форматлаж буцаах - НЭМЭГДСЭН
+     */
+    public String getFormattedPhone() {
+        if (phone == null || phone.trim().isEmpty()) {
+            return "";
+        }
+        String cleanPhone = phone.replaceAll("[^0-9+]", "");
+        if (cleanPhone.startsWith("+976")) {
+            return cleanPhone.substring(0, 4) + " " + cleanPhone.substring(4, 8) + " " + cleanPhone.substring(8);
+        } else if (cleanPhone.length() == 8) {
+            return cleanPhone.substring(0, 4) + " " + cleanPhone.substring(4);
+        }
+        return cleanPhone;
+    }
+
+    /**
+     * Нэвтрэх статусын текст - НЭМЭГДСЭН
+     */
+    public String getAccountStatusText() {
+        if (!enabled) {
+            return "Идэвхгүй";
+        }
+        if (!accountNonLocked) {
+            return "Түгжээтэй";
+        }
+        if (!credentialsNonExpired) {
+            return "Нууц үг хуучирсан";
+        }
+        if (status == User.UserStatus.PENDING_ACTIVATION) {
+            return "Идэвхжүүлэх хүлээгдэж байна";
+        }
+        if (status == User.UserStatus.SUSPENDED) {
+            return "Түдгэлзүүлсэн";
+        }
+        return "Идэвхтэй";
+    }
+
+    // ========== GETTERS AND SETTERS ==========
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -429,6 +472,9 @@ public class UserDto {
     public String getTimezone() { return timezone; }
     public void setTimezone(String timezone) { this.timezone = timezone; }
 
+    public Set<RoleDto> getRoles() { return roles; }
+    public void setRoles(Set<RoleDto> roles) { this.roles = roles; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -441,20 +487,12 @@ public class UserDto {
     public String getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
-    public Set<String> getRoleNames() { return roleNames; }
-    public void setRoleNames(Set<String> roleNames) { this.roleNames = roleNames; }
-
-    public List<RoleDto> getRoles() { return roles; }
-    public void setRoles(List<RoleDto> roles) { this.roles = roles; }
-
+    // Computed fields getters and setters
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
 
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
-
-    public String getStatusDisplay() { return statusDisplay; }
-    public void setStatusDisplay(String statusDisplay) { this.statusDisplay = statusDisplay; }
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
@@ -483,9 +521,39 @@ public class UserDto {
                 "id=" + id +
                 ", username='" + username + '\'' +
                 ", email='" + email + '\'' +
-                ", fullName='" + fullName + '\'' +
+                ", firstName='" + firstName + '\'' +
+                ", lastName='" + lastName + '\'' +
+                ", phone='" + phone + '\'' +
+                ", employeeId='" + employeeId + '\'' +
+                ", position='" + position + '\'' +
+                ", department='" + department + '\'' +
                 ", status=" + status +
+                ", accountNonExpired=" + accountNonExpired +
+                ", accountNonLocked=" + accountNonLocked +
+                ", credentialsNonExpired=" + credentialsNonExpired +
                 ", enabled=" + enabled +
+                ", failedLoginAttempts=" + failedLoginAttempts +
+                ", lastLoginAt=" + lastLoginAt +
+                ", passwordChangedAt=" + passwordChangedAt +
+                ", lockedUntil=" + lockedUntil +
+                ", twoFactorEnabled=" + twoFactorEnabled +
+                ", profilePictureUrl='" + profilePictureUrl + '\'' +
+                ", language='" + language + '\'' +
+                ", timezone='" + timezone + '\'' +
+                ", roles=" + (roles != null ? roles.stream().map(RoleDto::getName).collect(Collectors.joining(", ")) : "[]") +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", createdBy='" + createdBy + '\'' +
+                ", updatedBy='" + updatedBy + '\'' +
+                ", fullName='" + fullName + '\'' +
+                ", displayName='" + displayName + '\'' +
+                ", isActive=" + isActive +
+                ", isLocked=" + isLocked +
+                ", isPasswordExpired=" + isPasswordExpired +
+                ", hasMultipleRoles=" + hasMultipleRoles +
+                ", isAdminUser=" + isAdminUser +
+                ", daysSinceLastLogin=" + daysSinceLastLogin +
+                ", lastLoginText='" + lastLoginText + '\'' +
                 '}';
     }
 }

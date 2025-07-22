@@ -12,6 +12,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -75,6 +77,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     List<Document> findByLoanApplicationIdAndDocumentType(@Param("loanApplicationId") UUID loanApplicationId,
                                                           @Param("documentType") DocumentType documentType);
 
+    /**
+     * Баримтын төрлүүдээр хайх
+     */
+    @Query("SELECT d FROM Document d WHERE d.documentType IN :documentTypes")
+    List<Document> findByDocumentTypes(@Param("documentTypes") List<DocumentType> documentTypes);
+
     // Файлын мэдээллээр хайх
     /**
      * Файлын нэрээр хайх
@@ -120,6 +128,18 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     @Query("SELECT d FROM Document d WHERE d.uploadedAt >= :sevenDaysAgo ORDER BY d.uploadedAt DESC")
     List<Document> findRecentUploads(@Param("sevenDaysAgo") LocalDateTime sevenDaysAgo);
 
+    /**
+     * Сүүлийн баримтууд
+     */
+    @Query("SELECT d FROM Document d ORDER BY d.uploadedAt DESC")
+    List<Document> findRecentDocuments(int limit);
+
+    /**
+     * Хуучин баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.uploadedAt < :cutoffDate")
+    List<Document> findOldDocuments(@Param("cutoffDate") LocalDateTime cutoffDate);
+
     // Баталгаажуулалттай холбоотой
     /**
      * Баталгаажуулалт хүлээж байгаа баримтууд
@@ -161,6 +181,13 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
      */
     @Query("SELECT d FROM Document d WHERE d.expiryDate < CURRENT_DATE AND d.verificationStatus = 'APPROVED'")
     List<Document> findExpiredDocuments();
+
+    /**
+     * Удахгүй хугацаа дуусах баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.expiryDate IS NOT NULL AND " +
+           "d.expiryDate BETWEEN CURRENT_DATE AND :futureDate")
+    List<Document> findExpiringSoonDocuments(@Param("futureDate") LocalDate futureDate);
 
     /**
      * Удахгүй хугацаа дуусах баримтууд (30 хоногийн дотор)
@@ -236,10 +263,20 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     List<Object[]> countByDocumentType();
 
     /**
+     * Баримтын төрлөөр тоолох (параметр байхгүй)
+     */
+    long countByDocumentType(DocumentType documentType);
+
+    /**
      * Баталгаажуулалтын статусаар тоолох
      */
     @Query("SELECT d.verificationStatus, COUNT(d) FROM Document d GROUP BY d.verificationStatus")
     List<Object[]> countByVerificationStatus();
+
+    /**
+     * Баталгаажуулалтын статусаар тоолох (параметр байхгүй)
+     */
+    long countByVerificationStatus(Document.VerificationStatus verificationStatus);
 
     /**
      * Сарын баримтын статистик
@@ -371,4 +408,17 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
            "ORDER BY d.versionNumber DESC")
     List<Document> findAllVersions(@Param("customerId") UUID customerId, 
                                  @Param("documentType") DocumentType documentType);
+
+    // Тоолох функцууд
+    /**
+     * Хугацааны хооронд илгээсэн баримтын тоо
+     */
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.uploadedAt BETWEEN :startDate AND :endDate")
+    long countUploadsBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Хугацааны хооронд баталгаажуулсан баримтын тоо
+     */
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.verifiedAt BETWEEN :startDate AND :endDate AND d.verificationStatus = 'APPROVED'")
+    long countVerificationsBetween(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 }

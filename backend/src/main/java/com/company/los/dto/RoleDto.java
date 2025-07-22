@@ -5,7 +5,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Дүрийн DTO
@@ -20,11 +22,22 @@ public class RoleDto {
     @Size(max = 50, message = "Дүрийн нэр 50 тэмдэгтээс ихгүй байх ёстой")
     private String name;
 
-    @Size(max = 200, message = "Тайлбар 200 тэмдэгтээс ихгүй байх ёстой")
+    private String displayName;
+    private String displayNameMn;
+
+    @Size(max = 500, message = "Тайлбар 500 тэмдэгтээс ихгүй байх ёстой")
     private String description;
 
-    private Boolean enabled;
-    private Boolean systemRole;
+    // Entity-тэй тааруулж entity-н талбаруудыг ашиглана
+    private Role.RoleType roleType;
+    private Integer level;
+    private Boolean isSystemRole; // Entity дотор isSystemRole гэж байна
+    private Boolean canBeAssigned;
+    private Integer maxAssignments;
+    private Integer priority;
+
+    private Set<PermissionDto> permissions;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String createdBy;
@@ -32,8 +45,10 @@ public class RoleDto {
 
     // Constructors
     public RoleDto() {
-        this.enabled = true;
-        this.systemRole = false;
+        this.isSystemRole = false;
+        this.canBeAssigned = true;
+        this.maxAssignments = -1;
+        this.priority = 5;
     }
 
     public RoleDto(String name, String description) {
@@ -50,19 +65,24 @@ public class RoleDto {
         RoleDto dto = new RoleDto();
         dto.setId(role.getId());
         dto.setName(role.getName());
+        dto.setDisplayName(role.getDisplayName());
+        dto.setDisplayNameMn(role.getDisplayNameMn());
         dto.setDescription(role.getDescription());
-        // Handle null-safe getter calls
-        try {
-            dto.setEnabled(role.getEnabled());
-            dto.setSystemRole(role.getSystemRole());
-            dto.setCreatedAt(role.getCreatedAt());
-            dto.setUpdatedAt(role.getUpdatedAt());
-            dto.setCreatedBy(role.getCreatedBy());
-            dto.setUpdatedBy(role.getUpdatedBy());
-        } catch (Exception e) {
-            // Set default values if entity methods are not available
-            dto.setEnabled(true);
-            dto.setSystemRole(false);
+        dto.setRoleType(role.getRoleType());
+        dto.setLevel(role.getLevel());
+        dto.setIsSystemRole(role.getIsSystemRole()); // Entity-тэй тааруулсан
+        dto.setCanBeAssigned(role.getCanBeAssigned());
+        dto.setMaxAssignments(role.getMaxAssignments());
+        dto.setPriority(role.getPriority());
+        dto.setCreatedAt(role.getCreatedAt());
+        dto.setUpdatedAt(role.getUpdatedAt());
+        dto.setCreatedBy(role.getCreatedBy());
+        dto.setUpdatedBy(role.getUpdatedBy());
+        
+        if (role.getPermissions() != null) {
+            dto.setPermissions(role.getPermissions().stream()
+                    .map(PermissionDto::fromEntity)
+                    .collect(Collectors.toSet()));
         }
         return dto;
     }
@@ -71,13 +91,24 @@ public class RoleDto {
         Role role = new Role();
         role.setId(this.id);
         role.setName(this.name);
+        role.setDisplayName(this.displayName);
+        role.setDisplayNameMn(this.displayNameMn);
         role.setDescription(this.description);
-        // Handle null-safe setter calls with defaults
-        try {
-            role.setEnabled(this.enabled != null ? this.enabled : true);
-            role.setSystemRole(this.systemRole != null ? this.systemRole : false);
-        } catch (Exception e) {
-            // Ignore if setters are not available in entity
+        role.setRoleType(this.roleType);
+        role.setLevel(this.level);
+        role.setIsSystemRole(this.isSystemRole);
+        role.setCanBeAssigned(this.canBeAssigned);
+        role.setMaxAssignments(this.maxAssignments);
+        role.setPriority(this.priority);
+        role.setCreatedAt(this.createdAt);
+        role.setUpdatedAt(this.updatedAt);
+        role.setCreatedBy(this.createdBy);
+        role.setUpdatedBy(this.updatedBy);
+        
+        if (this.permissions != null) {
+            role.setPermissions(this.permissions.stream()
+                    .map(PermissionDto::toEntity)
+                    .collect(Collectors.toSet()));
         }
         return role;
     }
@@ -89,14 +120,35 @@ public class RoleDto {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+
+    public String getDisplayNameMn() { return displayNameMn; }
+    public void setDisplayNameMn(String displayNameMn) { this.displayNameMn = displayNameMn; }
+
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
 
-    public Boolean getEnabled() { return enabled; }
-    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+    public Role.RoleType getRoleType() { return roleType; }
+    public void setRoleType(Role.RoleType roleType) { this.roleType = roleType; }
 
-    public Boolean getSystemRole() { return systemRole; }
-    public void setSystemRole(Boolean systemRole) { this.systemRole = systemRole; }
+    public Integer getLevel() { return level; }
+    public void setLevel(Integer level) { this.level = level; }
+
+    public Boolean getIsSystemRole() { return isSystemRole; }
+    public void setIsSystemRole(Boolean isSystemRole) { this.isSystemRole = isSystemRole; }
+
+    public Boolean getCanBeAssigned() { return canBeAssigned; }
+    public void setCanBeAssigned(Boolean canBeAssigned) { this.canBeAssigned = canBeAssigned; }
+
+    public Integer getMaxAssignments() { return maxAssignments; }
+    public void setMaxAssignments(Integer maxAssignments) { this.maxAssignments = maxAssignments; }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
+
+    public Set<PermissionDto> getPermissions() { return permissions; }
+    public void setPermissions(Set<PermissionDto> permissions) { this.permissions = permissions; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
@@ -115,8 +167,11 @@ public class RoleDto {
         return "RoleDto{" +
                 "id=" + id +
                 ", name='" + name + '\'' +
-                ", description='" + description + '\'' +
-                ", enabled=" + enabled +
+                ", displayName='" + displayName + '\'' +
+                ", roleType=" + roleType +
+                ", level=" + level +
+                ", isSystemRole=" + isSystemRole +
+                ", permissions=" + (permissions != null ? permissions.stream().map(PermissionDto::getName).collect(Collectors.joining(", ")) : "[]") +
                 '}';
     }
 }

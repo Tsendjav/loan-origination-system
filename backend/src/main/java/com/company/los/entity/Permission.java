@@ -319,6 +319,9 @@ public class Permission extends BaseEntity {
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }
     
+    public String getScope() { return scope; }
+    public void setScope(String scope) { this.scope = scope; }
+    
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
 
@@ -332,6 +335,7 @@ public class Permission extends BaseEntity {
                 ", action=" + action +
                 ", category=" + category +
                 ", priority=" + priority +
+                ", scope='" + scope + '\'' +
                 '}';
     }
 }

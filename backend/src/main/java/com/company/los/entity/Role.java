@@ -1,6 +1,6 @@
 package com.company.los.entity;
 
-import com.company.los.common.BaseEntity;
+import com.company.los.entity.BaseEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -269,6 +269,33 @@ public class Role extends BaseEntity {
     
     public Boolean getIsSystemRole() { return isSystemRole; }
     public void setIsSystemRole(Boolean isSystemRole) { this.isSystemRole = isSystemRole; }
+    
+    // canBeAssigned талбарын getter/setter нэмэгдсэн
+    public Boolean getCanBeAssigned() { 
+        return canBeAssigned; 
+    }
+    
+    public void setCanBeAssigned(Boolean canBeAssigned) { 
+        this.canBeAssigned = canBeAssigned; 
+    }
+    
+    // maxAssignments талбарын getter/setter нэмэгдсэн
+    public Integer getMaxAssignments() { 
+        return maxAssignments; 
+    }
+    
+    public void setMaxAssignments(Integer maxAssignments) { 
+        this.maxAssignments = maxAssignments; 
+    }
+    
+    // priority талбарын getter/setter нэмэгдсэн
+    public Integer getPriority() { 
+        return priority; 
+    }
+    
+    public void setPriority(Integer priority) { 
+        this.priority = priority; 
+    }
     
     public Set<Permission> getPermissions() { return permissions; }
     public void setPermissions(Set<Permission> permissions) { this.permissions = permissions; }

@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +60,10 @@ public class DocumentServiceImpl implements DocumentService {
     @Value("${app.document.max-size:52428800}") // 50MB
     private Long maxFileSize;
 
-    // Document upload and management
+    // =============================================================================
+    // CRUD ОПЕРАЦИУД / CRUD OPERATIONS
+    // =============================================================================
+
     @Override
     public DocumentDto uploadDocument(UUID customerId, UUID loanApplicationId, DocumentType documentType,
                                      MultipartFile file, String description, String tags) throws IOException {
@@ -188,7 +193,6 @@ public class DocumentServiceImpl implements DocumentService {
         logger.info("Document deleted successfully with ID: {}", id);
     }
 
-    @Override
     public DocumentDto restoreDocument(UUID id) {
         logger.info("Restoring document with ID: {}", id);
         
@@ -203,11 +207,11 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public DocumentDto replaceDocument(UUID id, MultipartFile newFile, String reason) throws IOException {
-        logger.info("Replacing document with ID: {}", id);
+    public DocumentDto replaceDocument(UUID oldDocumentId, MultipartFile newFile, String reason) throws IOException {
+        logger.info("Replacing document with ID: {}", oldDocumentId);
         
-        Document existingDocument = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
+        Document existingDocument = documentRepository.findById(oldDocumentId)
+                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + oldDocumentId));
         
         return uploadDocument(
                 existingDocument.getCustomer().getId(),
@@ -219,10 +223,47 @@ public class DocumentServiceImpl implements DocumentService {
         );
     }
 
-    // Document verification
+    // =============================================================================
+    // ХУВИЛБАР УДИРДЛАГА / VERSION MANAGEMENT
+    // =============================================================================
+
     @Override
-    public DocumentDto verifyDocument(UUID id, Document.VerificationStatus status, String notes) {
-        logger.info("Verifying document {} with status: {}", id, status);
+    public DocumentDto createNewVersion(UUID originalDocumentId, MultipartFile newFile, String changeReason) throws IOException {
+        Document originalDocument = documentRepository.findById(originalDocumentId)
+                .orElseThrow(surfaceDocumentNotFound(originalDocumentId));
+        
+        return uploadDocument(
+                originalDocument.getCustomer().getId(),
+                originalDocument.getLoanApplication() != null ? originalDocument.getLoanApplication().getId() : null,
+                originalDocument.getDocumentType(),
+                newFile,
+                changeReason,
+                originalDocument.getTags()
+        );
+    }
+
+    @Override
+    public DocumentDto getLatestDocumentVersion(UUID customerId, DocumentType documentType) {
+        return documentRepository.findLatestVersion(customerId, documentType)
+                .map(DocumentDto::fromEntity)
+                .orElse(null);
+    }
+
+    @Override
+    public List<DocumentDto> getAllDocumentVersions(UUID customerId, DocumentType documentType) {
+        return documentRepository.findAllVersions(customerId, documentType)
+                .stream()
+                .map(DocumentDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // =============================================================================
+    // БАТАЛГААЖУУЛАЛТ / VERIFICATION
+    // =============================================================================
+
+    @Override
+    public DocumentDto verifyDocument(UUID id, Document.VerificationStatus status, String verifierName, String notes) {
+        logger.info("Verifying document {} with status: {} by: {}", id, status, verifierName);
         
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
@@ -230,6 +271,7 @@ public class DocumentServiceImpl implements DocumentService {
         document.setVerificationStatus(status);
         document.setVerifiedAt(LocalDateTime.now());
         document.setVerificationNotes(notes);
+        document.setVerifiedBy(verifierName);
 
         Document savedDocument = documentRepository.save(document);
         logger.info("Document verification completed for ID: {}", id);
@@ -266,8 +308,8 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public DocumentDto requestResubmission(UUID id, String reason) {
-        return verifyDocument(id, Document.VerificationStatus.RESUBMIT_REQUIRED, reason);
+    public DocumentDto requestResubmission(UUID id, String verifierName, String reason) {
+        return verifyDocument(id, Document.VerificationStatus.RESUBMIT_REQUIRED, verifierName, reason);
     }
 
     @Override
@@ -300,24 +342,18 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public DocumentDto requireResubmission(UUID id, String verifierName, String reason) {
-        logger.info("Requiring resubmission for document: {} by: {}", id, verifierName);
-        
+    public DocumentDto extendDocumentExpiry(UUID id, LocalDate newExpiryDate) {
         Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
+                .orElseThrow(surfaceDocumentNotFound(id));
         
-        document.setVerificationStatus(Document.VerificationStatus.RESUBMIT_REQUIRED);
-        document.setVerifiedBy(verifierName);
-        document.setVerifiedAt(LocalDateTime.now());
-        document.setVerificationNotes(reason);
-        
-        Document savedDocument = documentRepository.save(document);
-        
-        logger.info("Document resubmission required: {}", id);
-        return DocumentDto.fromEntity(savedDocument);
+        document.setExpiryDate(newExpiryDate);
+        return DocumentDto.fromEntity(documentRepository.save(document));
     }
 
-    // Document search and listing
+    // =============================================================================
+    // ХАЙЛТ БОЛОН ЖАГСААЛТ / SEARCH AND LISTING
+    // =============================================================================
+
     @Override
     @Transactional(readOnly = true)
     public Page<DocumentDto> getAllDocuments(Pageable pageable) {
@@ -375,42 +411,73 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<DocumentDto> getRequiredDocuments(DocumentType documentType, Customer.CustomerType customerType) {
-        logger.debug("Getting required documents for type: {} and customer type: {}", documentType, customerType);
-        
-        List<DocumentType> requiredTypes = getRequiredDocumentTypes(documentType, customerType);
-        List<Document> documents = documentRepository.findByDocumentTypes(requiredTypes);
-        return documents.stream()
+    public Page<DocumentDto> searchDocumentsWithFilters(DocumentType documentType,
+                                                       Document.VerificationStatus verificationStatus,
+                                                       Customer.CustomerType customerType,
+                                                       String verifiedBy, Long minSize, Long maxSize,
+                                                       LocalDateTime startDate, LocalDateTime endDate,
+                                                       Boolean hasExpiry, Pageable pageable) {
+        return documentRepository.findByAdvancedFilters(documentType, verificationStatus, customerType,
+                verifiedBy, minSize, maxSize, startDate, endDate, hasExpiry, pageable)
+                .map(DocumentDto::fromEntity);
+    }
+
+    @Override
+    public Page<DocumentDto> getDocumentsByTags(String tags, Pageable pageable) {
+        return Page.empty();
+    }
+
+    // =============================================================================
+    // СТАТУС БОЛОН ХҮЛЭЭЛТИЙН БАРИМТУУД / STATUS AND PENDING DOCUMENTS
+    // =============================================================================
+
+    @Override
+    public Page<DocumentDto> getPendingVerificationDocuments(Pageable pageable) {
+        return documentRepository.findPendingVerification(pageable)
+                .map(DocumentDto::fromEntity);
+    }
+
+    @Override
+    public List<DocumentDto> getDocumentsInReviewByReviewer(String reviewerName) {
+        return documentRepository.findInReviewByReviewer(reviewerName)
+                .stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<DocumentDto> getPendingDocuments() {
-        logger.debug("Getting pending documents");
-        
-        List<Document> documents = documentRepository.findByVerificationStatus(Document.VerificationStatus.PENDING);
-        return documents.stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
+    public Page<DocumentDto> getApprovedDocuments(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        return documentRepository.findApprovedBetween(startDate, endDate, pageable)
+                .map(DocumentDto::fromEntity);
     }
 
     @Override
-    @Transactional(readOnly = true)
+    public Page<DocumentDto> getRejectedDocuments(String reviewerName, Pageable pageable) {
+        return documentRepository.findRejectedByReviewer(reviewerName, pageable)
+                .map(DocumentDto::fromEntity);
+    }
+
+    @Override
+    public Page<DocumentDto> getDocumentsRequiringResubmission(Pageable pageable) {
+        return documentRepository.findRequiringResubmission(pageable)
+                .map(DocumentDto::fromEntity);
+    }
+
+    // =============================================================================
+    // ХУГАЦАА / EXPIRY MANAGEMENT
+    // =============================================================================
+
+    @Override
     public List<DocumentDto> getExpiredDocuments() {
         logger.debug("Getting expired documents");
         
-        LocalDate today = LocalDate.now();
-        List<Document> documents = documentRepository.findExpiredDocuments(today);
+        List<Document> documents = documentRepository.findExpiredDocuments();
         return documents.stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
     @Override
-    @Transactional(readOnly = true)
     public List<DocumentDto> getExpiringSoonDocuments(int days) {
         logger.debug("Getting documents expiring in {} days", days);
         
@@ -421,7 +488,102 @@ public class DocumentServiceImpl implements DocumentService {
                 .collect(Collectors.toList());
     }
 
-    // File operations
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentDto> getRecentDocuments(int limit) {
+        logger.debug("Getting {} recent documents", limit);
+        
+        List<Document> documents = documentRepository.findRecentDocuments(limit);
+        return documents.stream()
+                .map(DocumentDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // =============================================================================
+    // OCR БОЛОН AI БОЛОВСРУУЛАЛТ / OCR AND AI PROCESSING
+    // =============================================================================
+
+    @Override
+    public DocumentDto processDocumentWithOCR(UUID id) {
+        logger.info("Processing document with OCR: {}", id);
+        
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
+
+        try {
+            String ocrText = performOCR(document);
+            document.setOcrText(ocrText);
+            document.setProcessingStatus("COMPLETED");
+            Document savedDocument = documentRepository.save(document);
+            logger.info("OCR processing completed for document: {}", id);
+            return DocumentDto.fromEntity(savedDocument);
+        } catch (Exception e) {
+            logger.error("OCR processing failed for document: {}", id, e);
+            document.setProcessingStatus("FAILED");
+            document.setProcessingError(e.getMessage());
+            Document savedDocument = documentRepository.save(document);
+            return DocumentDto.fromEntity(savedDocument);
+        }
+    }
+
+    @Override
+    public DocumentDto saveOcrResults(UUID id, String ocrText, String extractedData, BigDecimal confidenceScore) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(surfaceDocumentNotFound(id));
+        
+        document.updateOcrResults(ocrText, extractedData, confidenceScore);
+        return DocumentDto.fromEntity(documentRepository.save(document));
+    }
+
+    @Override
+    public DocumentDto extractDataWithAI(UUID id) {
+        logger.info("Extracting data with AI: {}", id);
+        
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
+
+        try {
+            String extractedData = performAIExtraction(document);
+            document.setExtractedData(extractedData);
+            document.setProcessingStatus("COMPLETED");
+            Document savedDocument = documentRepository.save(document);
+            logger.info("AI data extraction completed for document: {}", id);
+            return DocumentDto.fromEntity(savedDocument);
+        } catch (Exception e) {
+            logger.error("AI data extraction failed for document: {}", id, e);
+            document.setProcessingStatus("FAILED");
+            document.setProcessingError(e.getMessage());
+            Document savedDocument = documentRepository.save(document);
+            return DocumentDto.fromEntity(savedDocument);
+        }
+    }
+
+    @Override
+    public List<DocumentDto> getOcrFailedDocuments() {
+        return documentRepository.findOcrFailed()
+                .stream()
+                .map(DocumentDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<DocumentDto> getHighConfidenceDocuments(BigDecimal minScore, Pageable pageable) {
+        return documentRepository.findByHighConfidenceScore(minScore, pageable)
+                .map(DocumentDto::fromEntity);
+    }
+
+    @Override
+    public List<DocumentDto> getLowConfidenceDocuments(BigDecimal threshold) {
+        return documentRepository.findLowConfidenceDocuments(threshold)
+                .stream()
+                .map(DocumentDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // =============================================================================
+    // ФАЙЛ ОПЕРАЦИУД / FILE OPERATIONS
+    // =============================================================================
+
     @Override
     @Transactional(readOnly = true)
     public byte[] downloadDocument(UUID id) {
@@ -473,83 +635,139 @@ public class DocumentServiceImpl implements DocumentService {
         return fileInfo;
     }
 
-    // Document processing and OCR
-    @Override
-    public DocumentDto processDocumentWithOCR(UUID id) {
-        logger.info("Processing document with OCR: {}", id);
-        
-        Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
+    // =============================================================================
+    // ДУПЛИКАТ ШАЛГАЛТ / DUPLICATE DETECTION
+    // =============================================================================
 
-        try {
-            String ocrText = performOCR(document);
-            document.setOcrText(ocrText);
-            document.setProcessingStatus("COMPLETED");
-            Document savedDocument = documentRepository.save(document);
-            logger.info("OCR processing completed for document: {}", id);
-            return DocumentDto.fromEntity(savedDocument);
-        } catch (Exception e) {
-            logger.error("OCR processing failed for document: {}", id, e);
-            document.setProcessingStatus("FAILED");
-            document.setProcessingError(e.getMessage());
-            Document savedDocument = documentRepository.save(document);
-            return DocumentDto.fromEntity(savedDocument);
+    @Override
+    public List<DocumentDto> findDuplicateDocuments(String filename, Long fileSize, String checksum, UUID excludeCustomerId) {
+        Customer excludeCustomer = customerRepository.findById(excludeCustomerId).orElse(null);
+        return documentRepository.findDuplicates(filename, fileSize, checksum, excludeCustomer)
+                .stream()
+                .map(DocumentDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<DocumentDto> findDocumentsByChecksum(String checksum, UUID excludeCustomerId) {
+        Customer excludeCustomer = customerRepository.findById(excludeCustomerId).orElse(null);
+        return documentRepository.findByChecksumAndCustomerNot(checksum, excludeCustomer)
+                .stream()
+                .map(DocumentDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    // =============================================================================
+    // ШААРДЛАГАТАЙ БАРИМТУУД / REQUIRED DOCUMENTS
+    // =============================================================================
+
+    @Override
+    public List<DocumentType> getMissingRequiredDocuments(UUID loanApplicationId) {
+        return documentRepository.findMissingRequiredDocuments(loanApplicationId);
+    }
+
+    @Override
+    public Map<DocumentType, Document.VerificationStatus> getRequiredDocumentStatus(UUID customerId) {
+        List<DocumentType> requiredTypes = Arrays.asList(DocumentType.getRequiredDocuments());
+        List<Object[]> results = documentRepository.getRequiredDocumentStatus(customerId, requiredTypes);
+        
+        Map<DocumentType, Document.VerificationStatus> statusMap = new HashMap<>();
+        for (Object[] row : results) {
+            DocumentType type = (DocumentType) row[0];
+            Document.VerificationStatus status = (Document.VerificationStatus) row[1];
+            statusMap.put(type, status);
+        }
+        
+        return statusMap;
+    }
+
+    @Override
+    public List<DocumentType> getRequiredDocumentsForLoanType(String loanType) {
+        return Arrays.asList(DocumentType.getDocumentsByLoanType(loanType));
+    }
+
+    // =============================================================================
+    // BULK ОПЕРАЦИУД / BATCH OPERATIONS
+    // =============================================================================
+
+    @Override
+    public List<DocumentDto> uploadMultipleDocuments(UUID customerId, UUID loanApplicationId,
+                                                   Map<DocumentType, MultipartFile> files) throws IOException {
+        List<DocumentDto> uploadedDocuments = new ArrayList<>();
+        
+        for (Map.Entry<DocumentType, MultipartFile> entry : files.entrySet()) {
+            DocumentDto document = uploadDocument(customerId, loanApplicationId, entry.getKey(), entry.getValue(), null, null);
+            uploadedDocuments.add(document);
+        }
+        
+        return uploadedDocuments;
+    }
+
+    @Override
+    public int updateVerificationStatusForDocuments(List<UUID> documentIds, 
+                                                   Document.VerificationStatus newStatus,
+                                                   String verifierName, String notes) {
+        return documentRepository.updateVerificationStatus(documentIds, newStatus, 
+                verifierName, LocalDateTime.now(), notes);
+    }
+
+    @Override
+    public int markExpiredDocuments() {
+        return documentRepository.markExpiredDocuments();
+    }
+
+    @Override
+    public byte[] exportDocumentsToZip(List<UUID> documentIds) {
+        return new byte[0];
+    }
+
+    // =============================================================================
+    // ЦЭВЭРЛЭЛТ / CLEANUP OPERATIONS
+    // =============================================================================
+
+    @Override
+    public void archiveOldDocuments(int daysOld) {
+        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysOld);
+        List<Document> oldDocuments = documentRepository.findOldDocuments(cutoffDate);
+        
+        for (Document document : oldDocuments) {
+            logger.info("Archiving document: {}", document.getId());
         }
     }
 
     @Override
-    public DocumentDto extractDataWithAI(UUID id) {
-        logger.info("Extracting data with AI: {}", id);
-        
-        Document document = documentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-
-        try {
-            String extractedData = performAIExtraction(document);
-            document.setExtractedData(extractedData);
-            document.setProcessingStatus("COMPLETED");
-            Document savedDocument = documentRepository.save(document);
-            logger.info("AI data extraction completed for document: {}", id);
-            return DocumentDto.fromEntity(savedDocument);
-        } catch (Exception e) {
-            logger.error("AI data extraction failed for document: {}", id, e);
-            document.setProcessingStatus("FAILED");
-            document.setProcessingError(e.getMessage());
-            Document savedDocument = documentRepository.save(document);
-            return DocumentDto.fromEntity(savedDocument);
-        }
-    }
-
-    // Validation methods
-    @Override
-    public boolean isValidFileType(String filename, String contentType) {
-        if (filename == null || contentType == null) {
-            return false;
-        }
-        
-        String extension = getFileExtension(filename);
-        
-        Set<String> allowedExtensions = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx");
-        Set<String> allowedContentTypes = Set.of(
-            "application/pdf",
-            "image/jpeg", "image/jpg", "image/png",
-            "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        );
-        
-        return allowedExtensions.contains(extension.toLowerCase()) && 
-               allowedContentTypes.contains(contentType);
+    public void cleanupTempFiles() {
+        logger.info("Cleaning up temporary files");
     }
 
     @Override
-    public boolean isFileSizeValid(long fileSize) {
-        return fileSize > 0 && fileSize <= maxFileSize;
+    public int cleanupDeletedDocuments() {
+        return 0;
     }
+
+    @Override
+    public int cleanupUnusedDocuments(int unusedDays) {
+        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(unusedDays);
+        List<Document> unusedDocuments = documentRepository.findUnusedDocuments(cutoffDate);
+        return unusedDocuments.size();
+    }
+
+    // =============================================================================
+    // ВАЛИДАЦИ / VALIDATION
+    // =============================================================================
 
     @Override
     public boolean isFileTypeAllowed(DocumentType documentType, String contentType, String filename) {
         String extension = getFileExtension(filename);
         return documentType.isExtensionAllowed(extension);
+    }
+
+    @Override
+    public boolean isFileSizeValid(Long fileSize) {
+        if (fileSize == null) {
+            return false;
+        }
+        return fileSize > 0 && fileSize <= maxFileSize;
     }
 
     @Override
@@ -572,7 +790,224 @@ public class DocumentServiceImpl implements DocumentService {
                document.getVersionNumber() > 1;
     }
 
-    // Helper methods
+    // =============================================================================
+    // СТАТИСТИК БОЛОН ТАЙЛАН / STATISTICS AND REPORTING
+    // =============================================================================
+
+    @Override
+    public Map<String, Object> getDocumentStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+        
+        long totalDocuments = documentRepository.count();
+        stats.put("totalDocuments", totalDocuments);
+        
+        for (Document.VerificationStatus status : Document.VerificationStatus.values()) {
+            long count = documentRepository.countByVerificationStatus(status);
+            stats.put(status.name().toLowerCase() + "Count", count);
+        }
+        
+        Map<String, Long> typeStats = new HashMap<>();
+        for (DocumentType type : DocumentType.values()) {
+            long count = documentRepository.countByDocumentType(type);
+            typeStats.put(type.name(), count);
+        }
+        stats.put("byType", typeStats);
+        
+        return stats;
+    }
+
+    @Override
+    public Map<String, Object> getDocumentMetrics(LocalDateTime startDate, LocalDateTime endDate) {
+        Map<String, Object> metrics = new HashMap<>();
+        
+        long uploadCount = documentRepository.countUploadsBetween(startDate, endDate);
+        long verificationCount = documentRepository.countVerificationsBetween(startDate, endDate);
+        
+        metrics.put("uploads", uploadCount);
+        metrics.put("verifications", verificationCount);
+        
+        return metrics;
+    }
+
+    @Override
+    public Map<DocumentType, Long> getDocumentCountByType() {
+        List<Object[]> results = documentRepository.countByDocumentType();
+        Map<DocumentType, Long> countMap = new HashMap<>();
+        
+        for (Object[] row : results) {
+            DocumentType type = (DocumentType) row[0];
+            Long count = (Long) row[1];
+            countMap.put(type, count);
+        }
+        
+        return countMap;
+    }
+
+    @Override
+    public Map<Document.VerificationStatus, Long> getDocumentCountByVerificationStatus() {
+        List<Object[]> results = documentRepository.countByVerificationStatus();
+        Map<Document.VerificationStatus, Long> countMap = new HashMap<>();
+        
+        for (Object[] row : results) {
+            Document.VerificationStatus status = (Document.VerificationStatus) row[0];
+            Long count = (Long) row[1];
+            countMap.put(status, count);
+        }
+        
+        return countMap;
+    }
+
+    @Override
+    public List<Map<String, Object>> getMonthlyDocumentStats(int months) {
+        LocalDateTime startDate = LocalDateTime.now().minusMonths(months);
+        List<Object[]> results = documentRepository.getMonthlyDocumentStats(startDate);
+        
+        return results.stream()
+                .map(row -> {
+                    Map<String, Object> monthStats = new HashMap<>();
+                    monthStats.put("month", row[0]);
+                    monthStats.put("count", row[1]);
+                    monthStats.put("averageSize", row[2]);
+                    return monthStats;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Map<String, Object>> getVerifierStats() {
+        List<Object[]> results = documentRepository.getVerifierStats();
+        
+        return results.stream()
+                .map(row -> {
+                    Map<String, Object> verifierStats = new HashMap<>();
+                    verifierStats.put("verifier", row[0]);
+                    verifierStats.put("count", row[1]);
+                    verifierStats.put("averageHours", row[2]);
+                    return verifierStats;
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, Object> getTodayDocumentStats() {
+        Object[] results = documentRepository.getTodayDocumentStats();
+        Map<String, Object> stats = new HashMap<>();
+        
+        if (results != null && results.length >= 4) {
+            stats.put("todayUploaded", results[0]);
+            stats.put("pendingVerification", results[1]);
+            stats.put("todayVerified", results[2]);
+            stats.put("rejected", results[3]);
+        }
+        
+        return stats;
+    }
+
+    @Override
+    public Map<String, Long> getTopContentTypes() {
+        List<Object[]> results = documentRepository.getTopContentTypes();
+        return results.stream()
+                .collect(Collectors.toMap(
+                        row -> (String) row[0],
+                        row -> (Long) row[1]));
+    }
+
+    // =============================================================================
+    // PERFORMANCE ХЯНАЛТ / PERFORMANCE MONITORING
+    // =============================================================================
+
+    @Override
+    public Double getAverageVerificationTimeHours() {
+        return documentRepository.getAverageVerificationTimeHours();
+    }
+
+    @Override
+    public Page<DocumentDto> getSlowestVerifiedDocuments(Pageable pageable) {
+        return documentRepository.findSlowestVerified(pageable)
+                .map(DocumentDto::fromEntity);
+    }
+
+    // =============================================================================
+    // МЭДЭГДЭЛ / NOTIFICATIONS
+    // =============================================================================
+
+    @Override
+    public boolean sendExpiryNotification(UUID documentId) { 
+        return true; 
+    }
+
+    @Override
+    public boolean sendResubmissionNotification(UUID documentId) { 
+        return true; 
+    }
+
+    @Override
+    public boolean sendVerificationResultNotification(UUID documentId) { 
+        return true; 
+    }
+
+    // =============================================================================
+    // TAGS УДИРДЛАГА / TAGS MANAGEMENT
+    // =============================================================================
+
+    @Override
+    public DocumentDto addTagsToDocument(UUID id, String tags) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(surfaceDocumentNotFound(id));
+        
+        String existingTags = document.getTags();
+        String newTags = existingTags != null ? existingTags + "," + tags : tags;
+        document.setTags(newTags);
+        
+        return DocumentDto.fromEntity(documentRepository.save(document));
+    }
+
+    @Override
+    public DocumentDto removeTagsFromDocument(UUID id, String tags) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(surfaceDocumentNotFound(id));
+        
+        String existingTags = document.getTags();
+        if (existingTags != null) {
+            String newTags = existingTags.replace(tags, "").replace(",,", ",");
+            document.setTags(newTags);
+        }
+        
+        return DocumentDto.fromEntity(documentRepository.save(document));
+    }
+
+    // =============================================================================
+    // АУДИТ БОЛОН ТҮҮХ / AUDIT AND HISTORY
+    // =============================================================================
+
+    @Override
+    public List<Map<String, Object>> getDocumentAuditHistory(UUID id) { 
+        return new ArrayList<>(); 
+    }
+
+    @Override
+    public List<Map<String, Object>> getDocumentActivityLog(UUID id) { 
+        return new ArrayList<>(); 
+    }
+
+    // =============================================================================
+    // ЧАНАРЫН БАТАЛГАА / QUALITY ASSURANCE
+    // =============================================================================
+
+    @Override
+    public Map<String, Object> reviewDocumentQuality(UUID id) { 
+        return new HashMap<>(); 
+    }
+
+    @Override
+    public Map<String, Object> validateDataIntegrity() { 
+        return new HashMap<>(); 
+    }
+
+    // =============================================================================
+    // HELPER METHODS
+    // =============================================================================
+
     private void validateFileUpload(MultipartFile file, DocumentType documentType) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Файл хоосон байна");
@@ -640,19 +1075,6 @@ public class DocumentServiceImpl implements DocumentService {
         return lastDotIndex > 0 ? filename.substring(lastDotIndex + 1).toLowerCase() : "";
     }
 
-    private List<DocumentType> getRequiredDocumentTypes(DocumentType documentType, Customer.CustomerType customerType) {
-        List<DocumentType> required = new ArrayList<>();
-        required.add(DocumentType.NATIONAL_ID);
-        required.add(DocumentType.INCOME_STATEMENT);
-        
-        if (customerType == Customer.CustomerType.BUSINESS) {
-            required.add(DocumentType.BUSINESS_LICENSE);
-            required.add(DocumentType.TAX_STATEMENT);
-        }
-        
-        return required;
-    }
-
     private String performOCR(Document document) {
         // TODO: Implement OCR processing
         return "OCR text would be extracted here";
@@ -663,429 +1085,31 @@ public class DocumentServiceImpl implements DocumentService {
         return "{}"; // Empty JSON object
     }
 
-    // Additional methods from original implementation
-    @Override
-    public Page<DocumentDto> searchDocumentsWithFilters(DocumentType documentType,
-                                                       Document.VerificationStatus verificationStatus,
-                                                       Customer.CustomerType customerType,
-                                                       String verifiedBy, Long minSize, Long maxSize,
-                                                       LocalDateTime startDate, LocalDateTime endDate,
-                                                       Boolean hasExpiry, Pageable pageable) {
-        return documentRepository.findByAdvancedFilters(documentType, verificationStatus, customerType,
-                verifiedBy, minSize, maxSize, startDate, endDate, hasExpiry, pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public Page<DocumentDto> getPendingVerificationDocuments(Pageable pageable) {
-        return documentRepository.findPendingVerification(pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public List<DocumentDto> getDocumentsInReviewByReviewer(String reviewerName) {
-        return documentRepository.findInReviewByReviewer(reviewerName)
-                .stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Page<DocumentDto> getApprovedDocuments(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
-        return documentRepository.findApprovedBetween(startDate, endDate, pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public Page<DocumentDto> getRejectedDocuments(String reviewerName, Pageable pageable) {
-        return documentRepository.findRejectedByReviewer(reviewerName, pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public Page<DocumentDto> getDocumentsRequiringResubmission(Pageable pageable) {
-        return documentRepository.findRequiringResubmission(pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public DocumentDto extendDocumentExpiry(UUID id, LocalDate newExpiryDate) {
-        Document document = documentRepository.findById(id)
-                .orElseThrow(surfaceDocumentNotFound(id));
-        
-        document.setExpiryDate(newExpiryDate);
-        return DocumentDto.fromEntity(documentRepository.save(document));
-    }
-
-    @Override
-    public DocumentDto startOcrProcessing(UUID id) {
-        Document document = documentRepository.findById(id)
-                .orElseThrow(surfaceDocumentNotFound(id));
-        
-        document.setProcessingStatus("PROCESSING");
-        return DocumentDto.fromEntity(documentRepository.save(document));
-    }
-
-    @Override
-    public DocumentDto saveOcrResults(UUID id, String ocrText, String extractedData, BigDecimal confidenceScore) {
-        Document document = documentRepository.findById(id)
-                .orElseThrow(surfaceDocumentNotFound(id));
-        
-        document.updateOcrResults(ocrText, extractedData, confidenceScore);
-        return DocumentDto.fromEntity(documentRepository.save(document));
-    }
-
-    @Override
-    public List<DocumentDto> getOcrFailedDocuments() {
-        return documentRepository.findOcrFailed()
-                .stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Page<DocumentDto> getHighConfidenceDocuments(BigDecimal minScore, Pageable pageable) {
-        return documentRepository.findByHighConfidenceScore(minScore, pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public List<DocumentDto> getLowConfidenceDocuments(BigDecimal threshold) {
-        return documentRepository.findLowConfidenceDocuments(threshold)
-                .stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<DocumentDto> findDuplicateDocuments(String filename, Long fileSize, String checksum, UUID excludeCustomerId) {
-        Customer excludeCustomer = customerRepository.findById(excludeCustomerId).orElse(null);
-        return documentRepository.findDuplicates(filename, fileSize, checksum, excludeCustomer)
-                .stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<DocumentDto> findDocumentsByChecksum(String checksum, UUID excludeCustomerId) {
-        Customer excludeCustomer = customerRepository.findById(excludeCustomerId).orElse(null);
-        return documentRepository.findByChecksumAndCustomerNot(checksum, excludeCustomer)
-                .stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<DocumentType> getMissingRequiredDocuments(UUID loanApplicationId) {
-        return documentRepository.findMissingRequiredDocuments(loanApplicationId);
-    }
-
-    @Override
-    public Map<DocumentType, Document.VerificationStatus> getRequiredDocumentStatus(UUID customerId) {
-        List<DocumentType> requiredTypes = Arrays.asList(DocumentType.getRequiredDocuments());
-        List<Object[]> results = documentRepository.getRequiredDocumentStatus(customerId, requiredTypes);
-        
-        Map<DocumentType, Document.VerificationStatus> statusMap = new HashMap<>();
-        for (Object[] row : results) {
-            DocumentType type = (DocumentType) row[0];
-            Document.VerificationStatus status = (Document.VerificationStatus) row[1];
-            statusMap.put(type, status);
-        }
-        
-        return statusMap;
-    }
-
-    @Override
-    public List<DocumentType> getRequiredDocumentsForLoanType(String loanType) {
-        return Arrays.asList(DocumentType.getDocumentsByLoanType(loanType));
-    }
-
-    @Override
-    public Map<String, Object> getDocumentStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        
-        long totalDocuments = documentRepository.count();
-        stats.put("totalDocuments", totalDocuments);
-        
-        for (Document.VerificationStatus status : Document.VerificationStatus.values()) {
-            long count = documentRepository.countByVerificationStatus(status);
-            stats.put(status.name().toLowerCase() + "Count", count);
-        }
-        
-        Map<String, Long> typeStats = new HashMap<>();
-        for (DocumentType type : DocumentType.values()) {
-            long count = documentRepository.countByDocumentType(type);
-            typeStats.put(type.name(), count);
-        }
-        stats.put("byType", typeStats);
-        
-        return stats;
-    }
-
-    @Override
-    public Map<DocumentType, Long> getDocumentCountByType() {
-        List<Object[]> results = documentRepository.countByDocumentType();
-        Map<DocumentType, Long> countMap = new HashMap<>();
-        
-        for (Object[] row : results) {
-            DocumentType type = (DocumentType) row[0];
-            Long count = (Long) row[1];
-            countMap.put(type, count);
-        }
-        
-        return countMap;
-    }
-
-    @Override
-    public Map<Document.VerificationStatus, Long> getDocumentCountByVerificationStatus() {
-        List<Object[]> results = documentRepository.countByVerificationStatus();
-        Map<Document.VerificationStatus, Long> countMap = new HashMap<>();
-        
-        for (Object[] row : results) {
-            Document.VerificationStatus status = (Document.VerificationStatus) row[0];
-            Long count = (Long) row[1];
-            countMap.put(status, count);
-        }
-        
-        return countMap;
-    }
-
-    @Override
-    public List<Map<String, Object>> getMonthlyDocumentStats(int months) {
-        LocalDateTime startDate = LocalDateTime.now().minusMonths(months);
-        List<Object[]> results = documentRepository.getMonthlyDocumentStats(startDate);
-        
-        return results.stream()
-                .map(row -> {
-                    Map<String, Object> monthStats = new HashMap<>();
-                    monthStats.put("month", row[0]);
-                    monthStats.put("count", row[1]);
-                    monthStats.put("averageSize", row[2]);
-                    return monthStats;
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<Map<String, Object>> getVerifierStats() {
-        List<Object[]> results = documentRepository.getVerifierStats();
-        
-        return results.stream()
-                .map(row -> {
-                    Map<String, Object> verifierStats = new HashMap<>();
-                    verifierStats.put("verifier", row[0]);
-                    verifierStats.put("count", row[1]);
-                    verifierStats.put("averageHours", row[2]);
-                    return verifierStats;
-                })
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public Double getAverageVerificationTimeHours() {
-        return documentRepository.getAverageVerificationTimeHours();
-    }
-
-    @Override
-    public Page<DocumentDto> getSlowestVerifiedDocuments(Pageable pageable) {
-        return documentRepository.findSlowestVerified(pageable)
-                .map(DocumentDto::fromEntity);
-    }
-
-    @Override
-    public Map<String, Object> getTodayDocumentStats() {
-        Object[] results = documentRepository.getTodayDocumentStats();
-        Map<String, Object> stats = new HashMap<>();
-        
-        if (results != null && results.length >= 4) {
-            stats.put("todayUploaded", results[0]);
-            stats.put("pendingVerification", results[1]);
-            stats.put("todayVerified", results[2]);
-            stats.put("rejected", results[3]);
-        }
-        
-        return stats;
-    }
-
-    @Override
-    public Map<String, Long> getTopContentTypes() {
-        List<Object[]> results = documentRepository.getTopContentTypes();
-        return results.stream()
-                .collect(Collectors.toMap(
-                        row -> (String) row[0],
-                        row -> (Long) row[1]));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<DocumentDto> getRecentDocuments(int limit) {
-        logger.debug("Getting {} recent documents", limit);
-        
-        List<Document> documents = documentRepository.findRecentDocuments(limit);
-        return documents.stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<DocumentDto> uploadMultipleDocuments(UUID customerId, UUID loanApplicationId,
-                                                   Map<DocumentType, MultipartFile> files) throws IOException {
-        List<DocumentDto> uploadedDocuments = new ArrayList<>();
-        
-        for (Map.Entry<DocumentType, MultipartFile> entry : files.entrySet()) {
-            DocumentDto document = uploadDocument(customerId, loanApplicationId, entry.getKey(), entry.getValue(), null, null);
-            uploadedDocuments.add(document);
-        }
-        
-        return uploadedDocuments;
-    }
-
-    @Override
-    public void archiveOldDocuments(int daysOld) {
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysOld);
-        List<Document> oldDocuments = documentRepository.findOldDocuments(cutoffDate);
-        
-        for (Document document : oldDocuments) {
-            logger.info("Archiving document: {}", document.getId());
-        }
-    }
-
-    @Override
-    public void cleanupTempFiles() {
-        logger.info("Cleaning up temporary files");
-    }
-
-    @Override
-    public Map<String, Object> getDocumentMetrics(LocalDateTime startDate, LocalDateTime endDate) {
-        Map<String, Object> metrics = new HashMap<>();
-        
-        long uploadCount = documentRepository.countUploadsBetween(startDate, endDate);
-        long verificationCount = documentRepository.countVerificationsBetween(startDate, endDate);
-        
-        metrics.put("uploads", uploadCount);
-        metrics.put("verifications", verificationCount);
-        
-        return metrics;
-    }
-
-    @Override
-    public DocumentDto getLatestDocumentVersion(UUID customerId, DocumentType documentType) {
-        return documentRepository.findLatestVersion(customerId, documentType)
-                .map(DocumentDto::fromEntity)
-                .orElse(null);
-    }
-
-    @Override
-    public List<DocumentDto> getAllDocumentVersions(UUID customerId, DocumentType documentType) {
-        return documentRepository.findAllVersions(customerId, documentType)
-                .stream()
-                .map(DocumentDto::fromEntity)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public DocumentDto createNewVersion(UUID originalDocumentId, MultipartFile newFile, String changeReason) throws IOException {
-        Document originalDocument = documentRepository.findById(originalDocumentId)
-                .orElseThrow(surfaceDocumentNotFound(originalDocumentId));
-        
-        return uploadDocument(
-                originalDocument.getCustomer().getId(),
-                originalDocument.getLoanApplication() != null ? originalDocument.getLoanApplication().getId() : null,
-                originalDocument.getDocumentType(),
-                newFile,
-                changeReason,
-                originalDocument.getTags()
-        );
-    }
-
-    @Override
-    public int updateVerificationStatusForDocuments(List<UUID> documentIds, 
-                                                   Document.VerificationStatus newStatus,
-                                                   String verifierName, String notes) {
-        return documentRepository.updateVerificationStatus(documentIds, newStatus, 
-                verifierName, LocalDateTime.now(), notes);
-    }
-
-    @Override
-    public int markExpiredDocuments() {
-        return documentRepository.markExpiredDocuments();
-    }
-
-    @Override
-    public byte[] exportDocumentsToZip(List<UUID> documentIds) {
-        return new byte[0];
-    }
-
-    @Override
-    public int cleanupDeletedDocuments() {
-        return 0;
-    }
-
-    @Override
-    public int cleanupUnusedDocuments(int unusedDays) {
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(unusedDays);
-        List<Document> unusedDocuments = documentRepository.findUnusedDocuments(cutoffDate);
-        return unusedDocuments.size();
-    }
-
-    @Override
-    public List<String> getDeletedDocumentPaths() {
-        return documentRepository.findDeletedDocumentPaths();
-    }
-
-    @Override
-    public boolean sendExpiryNotification(UUID documentId) { return true; }
-
-    @Override
-    public boolean sendResubmissionNotification(UUID documentId) { return true; }
-
-    @Override
-    public boolean sendVerificationResultNotification(UUID documentId) { return true; }
-
-    @Override
-    public DocumentDto addTagsToDocument(UUID id, String tags) {
-        Document document = documentRepository.findById(id)
-                .orElseThrow(surfaceDocumentNotFound(id));
-        
-        String existingTags = document.getTags();
-        String newTags = existingTags != null ? existingTags + "," + tags : tags;
-        document.setTags(newTags);
-        
-        return DocumentDto.fromEntity(documentRepository.save(document));
-    }
-
-    @Override
-    public DocumentDto removeTagsFromDocument(UUID id, String tags) {
-        Document document = documentRepository.findById(id)
-                .orElseThrow(surfaceDocumentNotFound(id));
-        
-        String existingTags = document.getTags();
-        if (existingTags != null) {
-            String newTags = existingTags.replace(tags, "").replace(",,", ",");
-            document.setTags(newTags);
-        }
-        
-        return DocumentDto.fromEntity(documentRepository.save(document));
-    }
-
-    @Override
-    public Page<DocumentDto> getDocumentsByTags(String tags, Pageable pageable) {
-        return Page.empty();
-    }
-
-    @Override
-    public List<Map<String, Object>> getDocumentAuditHistory(UUID id) { return new ArrayList<>(); }
-
-    @Override
-    public List<Map<String, Object>> getDocumentActivityLog(UUID id) { return new ArrayList<>(); }
-
-    @Override
-    public Map<String, Object> reviewDocumentQuality(UUID id) { return new HashMap<>(); }
-
-    @Override
-    public Map<String, Object> validateDataIntegrity() { return new HashMap<>(); }
-
     private Supplier<IllegalArgumentException> surfaceDocumentNotFound(UUID id) {
         return () -> new IllegalArgumentException("Баримт олдсонгүй: " + id);
+    }
+
+    // Additional validation helper methods
+    public boolean isValidFileType(String filename, String contentType) {
+        if (filename == null || contentType == null) {
+            return false;
+        }
+        
+        String extension = getFileExtension(filename);
+        
+        Set<String> allowedExtensions = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx");
+        Set<String> allowedContentTypes = Set.of(
+            "application/pdf",
+            "image/jpeg", "image/jpg", "image/png",
+            "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+        
+        return allowedExtensions.contains(extension.toLowerCase()) && 
+               allowedContentTypes.contains(contentType);
+    }
+
+    public boolean isFileSizeValid(long fileSize) {
+        return fileSize > 0 && fileSize <= maxFileSize;
     }
 }

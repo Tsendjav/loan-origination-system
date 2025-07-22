@@ -147,7 +147,7 @@ public class CustomerDto {
         dto.setCreatedBy(customer.getCreatedBy());
         dto.setUpdatedBy(customer.getUpdatedBy());
         
-        // Null-safe getter calls for potentially missing methods
+        // Null-safe getter calls with default values
         try {
             dto.setBirthDate(customer.getBirthDate());
         } catch (Exception e) { /* Ignore if getter not available */ }
@@ -158,56 +158,56 @@ public class CustomerDto {
         
         try {
             dto.setAddress(customer.getAddress());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setAddress(null); } // Changed to null to match NON_NULL include
         
         try {
             dto.setCity(customer.getCity());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setCity(null); } // Changed to null
         
         try {
             dto.setProvince(customer.getProvince());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setProvince(null); } // Changed to null
         
         try {
             dto.setPostalCode(customer.getPostalCode());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setPostalCode(null); } // Changed to null
         
         try {
             dto.setEmployerName(customer.getEmployerName());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setEmployerName(null); } // Changed to null
         
         try {
             dto.setJobTitle(customer.getJobTitle());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setJobTitle(null); } // Changed to null
         
         try {
             dto.setWorkExperienceYears(customer.getWorkExperienceYears());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setWorkExperienceYears(null); } // Changed to null
         
         try {
             dto.setMonthlyIncome(customer.getMonthlyIncome());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) { dto.setMonthlyIncome(null); } // Changed to null
         
         try {
             dto.setCompanyName(customer.getCompanyName());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
+        } catch (Exception e) { dto.setCompanyName(null); } // Changed to null
+
         try {
             dto.setBusinessRegistrationNumber(customer.getBusinessRegistrationNumber());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
+        } catch (Exception e) { dto.setBusinessRegistrationNumber(null); } // Changed to null
+
         try {
             dto.setTaxNumber(customer.getTaxNumber());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
+        } catch (Exception e) { dto.setTaxNumber(null); } // Changed to null
+
         try {
             dto.setBusinessType(customer.getBusinessType());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
+        } catch (Exception e) { dto.setBusinessType(null); } // Changed to null
+
         try {
             dto.setAnnualRevenue(customer.getAnnualRevenue());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
+        } catch (Exception e) { dto.setAnnualRevenue(null); } // Changed to null
+
         try {
             dto.setKycCompletedAt(customer.getKycCompletedAt());
         } catch (Exception e) { /* Ignore if getter not available */ }
@@ -223,19 +223,23 @@ public class CustomerDto {
             if (customer.getFirstName() != null && customer.getLastName() != null) {
                 dto.setFullName(customer.getFirstName() + " " + customer.getLastName());
                 dto.setDisplayName(dto.getFullName());
+            } else {
+                dto.setFullName(null);
+                dto.setDisplayName(null);
             }
+            dto.setAge(null); // Set to null if not available
             dto.setIsKycCompleted(customer.getKycStatus() == Customer.KycStatus.COMPLETED);
         }
-        
+
         try {
-            dto.setTotalLoanApplications(customer.getLoanApplications().size());
-            dto.setActiveLoanApplications((int) customer.getLoanApplications().stream()
-                    .filter(la -> la.getStatus().isActiveStatus()).count());
+            dto.setTotalLoanApplications(customer.getLoanApplications() != null ? customer.getLoanApplications().size() : 0);
+            dto.setActiveLoanApplications(customer.getLoanApplications() != null ? (int) customer.getLoanApplications().stream()
+                    .filter(la -> la.getStatus().isActiveStatus()).count() : 0);
         } catch (Exception e) {
             dto.setTotalLoanApplications(0);
             dto.setActiveLoanApplications(0);
         }
-        
+
         return dto;
     }
 
@@ -261,6 +265,9 @@ public class CustomerDto {
             if (customer.getFirstName() != null && customer.getLastName() != null) {
                 dto.setFullName(customer.getFirstName() + " " + customer.getLastName());
                 dto.setDisplayName(dto.getFullName());
+            } else {
+                dto.setFullName(null);
+                dto.setDisplayName(null);
             }
             dto.setIsKycCompleted(customer.getKycStatus() == Customer.KycStatus.COMPLETED);
         }
