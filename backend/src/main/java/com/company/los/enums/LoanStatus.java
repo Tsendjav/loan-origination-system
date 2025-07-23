@@ -1,60 +1,63 @@
 package com.company.los.enums;
 
 /**
- * Зээлийн хүсэлтийн статус
- * Loan Application Status Enum
+ * Зээлийн хүсэлтийн статус enum
+ * Loan Application Status Enumeration
  */
 public enum LoanStatus {
     // Шинэ хүсэлт
-    DRAFT("Ноорог", "Draft application"),
+    DRAFT("DRAFT", "Ноорог"),
     
     // Хүсэлт илгээсэн
-    SUBMITTED("Илгээсэн", "Submitted for review"),
+    SUBMITTED("SUBMITTED", "Илгээсэн"),
+    
+    // Хүлээгдэж байна
+    PENDING("PENDING", "Хүлээгдэж байгаа"),
     
     // Документ шалгаж байна
-    DOCUMENT_REVIEW("Документ шалгалт", "Document review in progress"),
+    DOCUMENT_REVIEW("DOCUMENT_REVIEW", "Баримт шалгаж байгаа"),
     
     // КТС шалгаж байна
-    CREDIT_CHECK("Зээлийн түүх шалгалт", "Credit history check"),
+    CREDIT_CHECK("CREDIT_CHECK", "Зээлийн түүх шалгаж байгаа"),
     
     // Эрсдэлийн үнэлгээ
-    RISK_ASSESSMENT("Эрсдэлийн үнэлгээ", "Risk assessment"),
+    RISK_ASSESSMENT("RISK_ASSESSMENT", "Эрсдэл үнэлж байгаа"),
     
     // Менежер шалгаж байна
-    MANAGER_REVIEW("Менежерийн шалгалт", "Manager review"),
+    MANAGER_REVIEW("MANAGER_REVIEW", "Менежер хянаж байгаа"),
     
     // Зөвшөөрсөн
-    APPROVED("Зөвшөөрсөн", "Approved"),
+    APPROVED("APPROVED", "Зөвшөөрсөн"),
     
     // Татгалзсан
-    REJECTED("Татгалзсан", "Rejected"),
-    
-    // Зээл олгосон
-    DISBURSED("Зээл олгосон", "Loan disbursed"),
+    REJECTED("REJECTED", "Татгалзсан"),
     
     // Цуцалсан
-    CANCELLED("Цуцалсан", "Cancelled"),
+    CANCELLED("CANCELLED", "Цуцалсан"),
+    
+    // Зээл олгосон
+    DISBURSED("DISBURSED", "Олгосон"),
     
     // Нэмэлт мэдээлэл хэрэгтэй
-    PENDING_INFO("Нэмэлт мэдээлэл", "Pending additional information"),
+    PENDING_INFO("PENDING_INFO", "Нэмэлт мэдээлэл"),
     
     // Хүлээлгэн өгсөн (гадаад систем)
-    DELEGATED("Хүлээлгэн өгсөн", "Delegated to external system");
+    DELEGATED("DELEGATED", "Хүлээлгэн өгсөн");
 
+    private final String code;
     private final String mongolianName;
-    private final String englishDescription;
 
-    LoanStatus(String mongolianName, String englishDescription) {
+    LoanStatus(String code, String mongolianName) {
+        this.code = code;
         this.mongolianName = mongolianName;
-        this.englishDescription = englishDescription;
     }
 
-    public String getMongolianName() {
-        return mongolianName;
+    public String getCode() { 
+        return code; 
     }
-
-    public String getEnglishDescription() {
-        return englishDescription;
+    
+    public String getMongolianName() { 
+        return mongolianName; 
     }
 
     /**
@@ -64,39 +67,46 @@ public enum LoanStatus {
         switch (this) {
             case DRAFT: return 1;
             case SUBMITTED: return 2;
-            case DOCUMENT_REVIEW: return 3;
-            case CREDIT_CHECK: return 4;
-            case RISK_ASSESSMENT: return 5;
-            case MANAGER_REVIEW: return 6;
-            case APPROVED: return 7;
-            case DISBURSED: return 8;
-            case REJECTED: return 9;
-            case CANCELLED: return 10;
-            case PENDING_INFO: return 11;
-            case DELEGATED: return 12;
+            case PENDING: return 3;
+            case DOCUMENT_REVIEW: return 4;
+            case CREDIT_CHECK: return 5;
+            case RISK_ASSESSMENT: return 6;
+            case MANAGER_REVIEW: return 7;
+            case APPROVED: return 8;
+            case DISBURSED: return 9;
+            case REJECTED: return 10;
+            case CANCELLED: return 11;
+            case PENDING_INFO: return 12;
+            case DELEGATED: return 13;
             default: return 0;
         }
-    }
-
-    /**
-     * Төгссөн статус эсэхийг шалгах
-     */
-    public boolean isFinalStatus() {
-        return this == APPROVED || 
-               this == REJECTED || 
-               this == DISBURSED || 
-               this == CANCELLED;
     }
 
     /**
      * Идэвхтэй статус эсэхийг шалгах
      */
     public boolean isActiveStatus() {
-        return this == SUBMITTED || 
-               this == DOCUMENT_REVIEW || 
-               this == CREDIT_CHECK || 
-               this == RISK_ASSESSMENT || 
-               this == MANAGER_REVIEW ||
+        return this == SUBMITTED || this == PENDING || this == DOCUMENT_REVIEW || 
+               this == CREDIT_CHECK || this == RISK_ASSESSMENT || this == MANAGER_REVIEW ||
                this == PENDING_INFO;
+    }
+
+    /**
+     * Төгссөн статус эсэхийг шалгах
+     */
+    public boolean isFinalStatus() {
+        return this == APPROVED || this == REJECTED || this == CANCELLED || this == DISBURSED;
+    }
+
+    /**
+     * Код-оор статус олох
+     */
+    public static LoanStatus fromCode(String code) {
+        for (LoanStatus status : values()) {
+            if (status.code.equals(code)) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Алдаатай статусын код: " + code);
     }
 }

@@ -3,7 +3,7 @@ package com.company.los.service;
 import com.company.los.dto.DocumentDto;
 import com.company.los.entity.Customer;
 import com.company.los.entity.Document;
-import com.company.los.enums.DocumentType;
+import com.company.los.entity.DocumentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;

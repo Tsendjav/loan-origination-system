@@ -2,7 +2,7 @@ package com.company.los.repository;
 
 import com.company.los.entity.Customer;
 import com.company.los.entity.LoanApplication;
-import com.company.los.enums.LoanStatus;
+import com.company.los.entity.LoanProduct;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,18 +12,16 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Зээлийн хүсэлтийн Repository
  * Loan Application Repository Interface
  */
 @Repository
-public interface LoanApplicationRepository extends JpaRepository<LoanApplication, UUID> {
+public interface LoanApplicationRepository extends JpaRepository<LoanApplication, String> {
 
     // Суурь хайлтууд
     /**
@@ -32,255 +30,324 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     Optional<LoanApplication> findByApplicationNumber(String applicationNumber);
 
     /**
-     * Харилцагчийн бүх зээлийн хүсэлт
+     * Хүсэлтийн дугаар байгаа эсэхийг шалгах
+     */
+    boolean existsByApplicationNumber(String applicationNumber);
+
+    // Харилцагчаар хайх
+    /**
+     * Харилцагчийн зээлийн хүсэлтүүд
      */
     Page<LoanApplication> findByCustomer(Customer customer, Pageable pageable);
 
     /**
      * Харилцагчийн ID-гаар хайх
      */
-    Page<LoanApplication> findByCustomerId(UUID customerId, Pageable pageable);
+    Page<LoanApplication> findByCustomerId(String customerId, Pageable pageable);
 
+    /**
+     * Харилцагчийн идэвхтэй хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.customer.id = :customerId AND " +
+           "la.status IN ('PENDING', 'UNDER_REVIEW', 'APPROVED')")
+    List<LoanApplication> findActiveApplicationsByCustomer(@Param("customerId") String customerId);
+
+    /**
+     * Харилцагчийн батлагдсан хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.customer.id = :customerId AND la.status = 'APPROVED'")
+    List<LoanApplication> findApprovedApplicationsByCustomer(@Param("customerId") String customerId);
+
+    // Бүтээгдэхүүнээр хайх
+    /**
+     * Зээлийн бүтээгдэхүүний хүсэлтүүд
+     */
+    Page<LoanApplication> findByLoanProduct(LoanProduct loanProduct, Pageable pageable);
+
+    /**
+     * Бүтээгдэхүүний ID-гаар хайх
+     */
+    Page<LoanApplication> findByLoanProductId(String loanProductId, Pageable pageable);
+
+    /**
+     * Бүтээгдэхүүний нэрээр хайх
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.loanProduct.name = :productName")
+    Page<LoanApplication> findByLoanProductName(@Param("productName") String productName, Pageable pageable);
+
+    // Статусаар хайх
     /**
      * Статусаар хайх
      */
-    Page<LoanApplication> findByStatus(LoanStatus status, Pageable pageable);
+    Page<LoanApplication> findByStatus(String status, Pageable pageable);
 
     /**
-     * Зээлийн төрлөөр хайх
+     * Хүлээгдэж байгаа хүсэлтүүд
      */
-    Page<LoanApplication> findByLoanType(LoanApplication.LoanType loanType, Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'PENDING' ORDER BY la.appliedAt ASC")
+    Page<LoanApplication> findPendingApplications(Pageable pageable);
 
     /**
-     * Хүсэлтийн дугаар байгаа эсэхийг шалгах
+     * Шалгагдаж байгаа хүсэлтүүд
      */
-    boolean existsByApplicationNumber(String applicationNumber);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'UNDER_REVIEW' ORDER BY la.appliedAt ASC")
+    Page<LoanApplication> findUnderReviewApplications(Pageable pageable);
 
-    // Статус болон огноогоор хайх
     /**
-     * Статус болон огнооны хязгаараар хайх
+     * Батлагдсан хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.status = :status AND la.submittedDate BETWEEN :startDate AND :endDate")
-    Page<LoanApplication> findByStatusAndSubmittedDateBetween(
-            @Param("status") LoanStatus status,
-            @Param("startDate") LocalDateTime startDate,
-            @Param("endDate") LocalDateTime endDate,
-            Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'APPROVED' ORDER BY la.approvedAt DESC")
+    Page<LoanApplication> findApprovedApplications(Pageable pageable);
 
     /**
-     * Өнөөдөр илгээсэн хүсэлтүүд
+     * Цуцлагдсан хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE DATE(la.submittedDate) = CURRENT_DATE")
-    List<LoanApplication> findTodaySubmitted();
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'REJECTED' ORDER BY la.rejectedAt DESC")
+    Page<LoanApplication> findRejectedApplications(Pageable pageable);
 
     /**
-     * Энэ сард илгээсэн хүсэлтүүд
+     * Олон статустай хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "YEAR(la.submittedDate) = YEAR(CURRENT_DATE) AND " +
-           "MONTH(la.submittedDate) = MONTH(CURRENT_DATE)")
-    List<LoanApplication> findThisMonthSubmitted();
+    @Query("SELECT la FROM LoanApplication la WHERE la.status IN :statuses")
+    Page<LoanApplication> findByStatusIn(@Param("statuses") List<String> statuses, Pageable pageable);
 
-    // Дүнгийн хязгаараар хайх
     /**
-     * Хүсэх дүнгийн хязгаараар хайх
+     * Идэвхтэй хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.requestedAmount BETWEEN :minAmount AND :maxAmount")
-    Page<LoanApplication> findByRequestedAmountBetween(
-            @Param("minAmount") BigDecimal minAmount,
-            @Param("maxAmount") BigDecimal maxAmount,
-            Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status IN ('PENDING', 'UNDER_REVIEW', 'APPROVED')")
+    Page<LoanApplication> findActiveApplications(Pageable pageable);
 
     /**
-     * Зөвшөөрсөн дүнгийн хязгаараар хайх
+     * Хаагдсан хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.approvedAmount BETWEEN :minAmount AND :maxAmount")
-    Page<LoanApplication> findByApprovedAmountBetween(
-            @Param("minAmount") BigDecimal minAmount,
-            @Param("maxAmount") BigDecimal maxAmount,
-            Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status IN ('REJECTED', 'CANCELLED', 'WITHDRAWN')")
+    Page<LoanApplication> findClosedApplications(Pageable pageable);
 
-    // Workflow холбоотой
+    // Дүнгээр хайх
     /**
-     * Хүлээлгэн өгсөн хүсэлтүүд
+     * Дүнгийн хязгаараар хайх
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.assignedTo = :assignedTo AND la.status IN :activeStatuses")
-    Page<LoanApplication> findAssignedApplications(
-            @Param("assignedTo") String assignedTo,
-            @Param("activeStatuses") List<LoanStatus> activeStatuses,
-            Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.requestedAmount BETWEEN :minAmount AND :maxAmount")
+    Page<LoanApplication> findByAmountRange(@Param("minAmount") BigDecimal minAmount,
+                                          @Param("maxAmount") BigDecimal maxAmount,
+                                          Pageable pageable);
 
     /**
-     * Одоогийн алхамаар хайх
+     * Том дүнтэй хүсэлтүүд
      */
-    Page<LoanApplication> findByCurrentStep(String currentStep, Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.requestedAmount >= :largeAmountThreshold " +
+           "ORDER BY la.requestedAmount DESC")
+    Page<LoanApplication> findLargeAmountApplications(@Param("largeAmountThreshold") BigDecimal largeAmountThreshold,
+                                                    Pageable pageable);
 
     /**
-     * Тэргүүлэх эрэмбээр хайх
+     * Жижиг дүнтэй хүсэлтүүд
      */
-    Page<LoanApplication> findByPriority(Integer priority, Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.requestedAmount <= :smallAmountThreshold " +
+           "ORDER BY la.requestedAmount ASC")
+    Page<LoanApplication> findSmallAmountApplications(@Param("smallAmountThreshold") BigDecimal smallAmountThreshold,
+                                                    Pageable pageable);
 
-    // Хугацаа хэтэрсэн хүсэлтүүд
+    // Хугацаагаар хайх
     /**
-     * Хугацаа хэтэрсэн хүсэлтүүд (14 хоногоос илүү идэвхтэй)
+     * Хугацааны хязгаараар хайх
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.status IN :activeStatuses AND " +
-           "la.submittedDate < :overdueDate")
-    Page<LoanApplication> findOverdueApplications(
-            @Param("activeStatuses") List<LoanStatus> activeStatuses,
-            @Param("overdueDate") LocalDateTime overdueDate,
-            Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.requestedTermMonths BETWEEN :minTerm AND :maxTerm")
+    Page<LoanApplication> findByTermRange(@Param("minTerm") Integer minTerm,
+                                        @Param("maxTerm") Integer maxTerm,
+                                        Pageable pageable);
 
     /**
-     * Урт хугацаа хүлээж байгаа хүсэлтүүд
+     * Богино хугацаатай хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.status = :status AND " +
-           "la.submittedDate < :thresholdDate")
-    List<LoanApplication> findPendingTooLong(
-            @Param("status") LoanStatus status,
-            @Param("thresholdDate") LocalDateTime thresholdDate);
+    @Query("SELECT la FROM LoanApplication la WHERE la.requestedTermMonths <= :shortTermThreshold " +
+           "ORDER BY la.requestedTermMonths ASC")
+    Page<LoanApplication> findShortTermApplications(@Param("shortTermThreshold") Integer shortTermThreshold,
+                                                  Pageable pageable);
 
-    // Хянах хүсэлтүүд
     /**
-     * Хянахад хүлээж байгаа хүсэлтүүд
+     * Урт хугацаатай хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.status IN ('SUBMITTED', 'DOCUMENT_REVIEW', 'CREDIT_CHECK', 'RISK_ASSESSMENT', 'MANAGER_REVIEW') " +
-           "ORDER BY la.submittedDate ASC")
-    List<LoanApplication> findApplicationsForReview();
+    @Query("SELECT la FROM LoanApplication la WHERE la.requestedTermMonths >= :longTermThreshold " +
+           "ORDER BY la.requestedTermMonths DESC")
+    Page<LoanApplication> findLongTermApplications(@Param("longTermThreshold") Integer longTermThreshold,
+                                                 Pageable pageable);
 
-    // Ерөнхий хайлт
+    // Огноогоор хайх
     /**
-     * Ерөнхий хайлт - хүсэлтийн дугаар, харилцагчийн нэр
+     * Хүсэлт гаргасан огноогоор хайх
      */
-    @Query("SELECT la FROM LoanApplication la JOIN la.customer c WHERE " +
-           "LOWER(la.applicationNumber) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(c.registerNumber) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(c.phone) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "(c.customerType = 'INDIVIDUAL' AND (" +
-           "LOWER(COALESCE(c.firstName, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(c.lastName, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')))) OR " +
-           "(c.customerType = 'BUSINESS' AND " +
-           "LOWER(COALESCE(c.companyName, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')))")
-    Page<LoanApplication> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.appliedAt BETWEEN :startDate AND :endDate")
+    Page<LoanApplication> findByAppliedAtBetween(@Param("startDate") LocalDateTime startDate,
+                                               @Param("endDate") LocalDateTime endDate,
+                                               Pageable pageable);
 
-    // Статистик
     /**
-     * Статусаар тоолох
+     * Өнөөдөр гаргасан хүсэлтүүд
      */
-    @Query("SELECT la.status, COUNT(la) FROM LoanApplication la GROUP BY la.status")
-    List<Object[]> countByStatus();
+    @Query("SELECT la FROM LoanApplication la WHERE DATE(la.appliedAt) = CURRENT_DATE " +
+           "ORDER BY la.appliedAt DESC")
+    List<LoanApplication> findTodayApplications();
 
     /**
-     * Зээлийн төрлөөр тоолох
-     */
-    @Query("SELECT la.loanType, COUNT(la) FROM LoanApplication la GROUP BY la.loanType")
-    List<Object[]> countByLoanType();
-
-    /**
-     * Сарын статистик
-     */
-    @Query("SELECT DATE_FORMAT(la.submittedDate, '%Y-%m'), COUNT(la), AVG(la.requestedAmount) " +
-           "FROM LoanApplication la WHERE la.submittedDate >= :startDate " +
-           "GROUP BY DATE_FORMAT(la.submittedDate, '%Y-%m') " +
-           "ORDER BY DATE_FORMAT(la.submittedDate, '%Y-%m')")
-    List<Object[]> getMonthlyStats(@Param("startDate") LocalDateTime startDate);
-
-    /**
-     * Зөвшөөрөл хувь тооцоолох
-     */
-    @Query("SELECT " +
-           "COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) as approved, " +
-           "COUNT(CASE WHEN la.status = 'REJECTED' THEN 1 END) as rejected, " +
-           "COUNT(la) as total " +
-           "FROM LoanApplication la WHERE la.submittedDate >= :startDate")
-    Object[] getApprovalRates(@Param("startDate") LocalDateTime startDate);
-
-    // Performance хяналт
-    /**
-     * Дундаж хугацаа (илгээснээс зөвшөөрөх хүртэл)
-     */
-    @Query("SELECT AVG(DATEDIFF(la.approvedDate, la.submittedDate)) " +
-           "FROM LoanApplication la WHERE la.approvedDate IS NOT NULL AND la.submittedDate IS NOT NULL")
-    Double getAverageProcessingDays();
-
-    /**
-     * Хамгийн хурдан зөвшөөрсөн хүсэлтүүд
+     * Энэ сард гаргасан хүсэлтүүд
      */
     @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.approvedDate IS NOT NULL AND la.submittedDate IS NOT NULL " +
-           "ORDER BY DATEDIFF(la.approvedDate, la.submittedDate) ASC")
-    Page<LoanApplication> findFastestApproved(Pageable pageable);
+           "YEAR(la.appliedAt) = YEAR(CURRENT_DATE) AND " +
+           "MONTH(la.appliedAt) = MONTH(CURRENT_DATE)")
+    List<LoanApplication> findThisMonthApplications();
+
+    /**
+     * Шинэ хүсэлтүүд (сүүлийн 7 хоногт)
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.appliedAt >= :oneWeekAgo ORDER BY la.appliedAt DESC")
+    List<LoanApplication> findRecentApplications(@Param("oneWeekAgo") LocalDateTime oneWeekAgo);
+
+    /**
+     * Батлагдсан огноогоор хайх
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.approvedAt BETWEEN :startDate AND :endDate")
+    Page<LoanApplication> findByApprovedAtBetween(@Param("startDate") LocalDateTime startDate,
+                                                @Param("endDate") LocalDateTime endDate,
+                                                Pageable pageable);
+
+    /**
+     * Хүчингүй болсон огноогоор хайх
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.expiresAt < CURRENT_TIMESTAMP AND " +
+           "la.status IN ('PENDING', 'UNDER_REVIEW')")
+    List<LoanApplication> findExpiredApplications();
+
+    /**
+     * Удахгүй хүчингүй болох хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.expiresAt BETWEEN CURRENT_TIMESTAMP AND :futureDate AND " +
+           "la.status IN ('PENDING', 'UNDER_REVIEW')")
+    List<LoanApplication> findExpiringSoonApplications(@Param("futureDate") LocalDateTime futureDate);
+
+    // Баримттай холбоотой
+    /**
+     * Баримттай хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE SIZE(la.documents) > 0")
+    Page<LoanApplication> findApplicationsWithDocuments(Pageable pageable);
+
+    /**
+     * Баримтгүй хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE SIZE(la.documents) = 0")
+    Page<LoanApplication> findApplicationsWithoutDocuments(Pageable pageable);
+
+    /**
+     * Баримтын тоогоор хайх
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE SIZE(la.documents) >= :minDocuments")
+    List<LoanApplication> findApplicationsWithMinimumDocuments(@Param("minDocuments") int minDocuments);
+
+    /**
+     * Дутуу баримттай хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE SIZE(la.documents) < :requiredDocuments AND " +
+           "la.status IN ('PENDING', 'UNDER_REVIEW')")
+    List<LoanApplication> findApplicationsWithIncompleteDocuments(@Param("requiredDocuments") int requiredDocuments);
 
     // Дэвшилтэт хайлт
     /**
      * Дэвшилтэт филтертэй хайлт
      */
-    @Query("SELECT la FROM LoanApplication la JOIN la.customer c WHERE " +
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "(:customerId IS NULL OR la.customer.id = :customerId) AND " +
+           "(:loanProductId IS NULL OR la.loanProduct.id = :loanProductId) AND " +
            "(:status IS NULL OR la.status = :status) AND " +
-           "(:loanType IS NULL OR la.loanType = :loanType) AND " +
-           "(:customerType IS NULL OR c.customerType = :customerType) AND " +
            "(:minAmount IS NULL OR la.requestedAmount >= :minAmount) AND " +
            "(:maxAmount IS NULL OR la.requestedAmount <= :maxAmount) AND " +
-           "(:startDate IS NULL OR la.submittedDate >= :startDate) AND " +
-           "(:endDate IS NULL OR la.submittedDate <= :endDate) AND " +
-           "(:assignedTo IS NULL OR la.assignedTo = :assignedTo) AND " +
-           "(:priority IS NULL OR la.priority = :priority)")
+           "(:minTerm IS NULL OR la.requestedTermMonths >= :minTerm) AND " +
+           "(:maxTerm IS NULL OR la.requestedTermMonths <= :maxTerm) AND " +
+           "(:startDate IS NULL OR la.appliedAt >= :startDate) AND " +
+           "(:endDate IS NULL OR la.appliedAt <= :endDate) AND " +
+           "(:hasDocuments IS NULL OR (SIZE(la.documents) > 0) = :hasDocuments) AND " +
+           "(:isExpired IS NULL OR (la.expiresAt < CURRENT_TIMESTAMP) = :isExpired)")
     Page<LoanApplication> findByAdvancedFilters(
-            @Param("status") LoanStatus status,
-            @Param("loanType") LoanApplication.LoanType loanType,
-            @Param("customerType") Customer.CustomerType customerType,
+            @Param("customerId") String customerId,
+            @Param("loanProductId") String loanProductId,
+            @Param("status") String status,
             @Param("minAmount") BigDecimal minAmount,
             @Param("maxAmount") BigDecimal maxAmount,
+            @Param("minTerm") Integer minTerm,
+            @Param("maxTerm") Integer maxTerm,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
-            @Param("assignedTo") String assignedTo,
-            @Param("priority") Integer priority,
+            @Param("hasDocuments") Boolean hasDocuments,
+            @Param("isExpired") Boolean isExpired,
             Pageable pageable);
 
-    // Dashboard статистик
+    // Статистик
     /**
-     * Өнөөдрийн dashboard статистик
+     * Хүсэлтийн үндсэн статистик
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN DATE(la.submittedDate) = CURRENT_DATE THEN 1 END) as todaySubmitted, " +
-           "COUNT(CASE WHEN la.status IN ('SUBMITTED', 'DOCUMENT_REVIEW', 'CREDIT_CHECK', 'RISK_ASSESSMENT', 'MANAGER_REVIEW') THEN 1 END) as pending, " +
-           "COUNT(CASE WHEN DATE(la.approvedDate) = CURRENT_DATE THEN 1 END) as todayApproved, " +
-           "COUNT(CASE WHEN DATE(la.disbursedDate) = CURRENT_DATE THEN 1 END) as todayDisbursed " +
+           "COUNT(la) as totalApplications, " +
+           "COUNT(CASE WHEN la.status = 'PENDING' THEN 1 END) as pendingCount, " +
+           "COUNT(CASE WHEN la.status = 'UNDER_REVIEW' THEN 1 END) as reviewCount, " +
+           "COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) as approvedCount, " +
+           "COUNT(CASE WHEN la.status = 'REJECTED' THEN 1 END) as rejectedCount, " +
+           "AVG(la.requestedAmount) as avgAmount, " +
+           "SUM(la.requestedAmount) as totalAmount " +
            "FROM LoanApplication la")
-    Object[] getTodayDashboardStats();
+    Object[] getApplicationStats();
 
     /**
-     * Энэ сарын dashboard статистик
+     * Статусаар тоолох
+     */
+    @Query("SELECT la.status, COUNT(la) FROM LoanApplication la " +
+           "GROUP BY la.status ORDER BY COUNT(la) DESC")
+    List<Object[]> countByStatus();
+
+    /**
+     * Бүтээгдэхүүнээр тоолох
+     */
+    @Query("SELECT lp.name, COUNT(la) FROM LoanApplication la JOIN la.loanProduct lp " +
+           "GROUP BY lp.name ORDER BY COUNT(la) DESC")
+    List<Object[]> countByLoanProduct();
+
+    /**
+     * Сарын хүсэлтийн статистик
+     */
+    @Query("SELECT DATE_FORMAT(la.appliedAt, '%Y-%m'), COUNT(la) FROM LoanApplication la " +
+           "WHERE la.appliedAt >= :startDate " +
+           "GROUP BY DATE_FORMAT(la.appliedAt, '%Y-%m') " +
+           "ORDER BY DATE_FORMAT(la.appliedAt, '%Y-%m')")
+    List<Object[]> getMonthlyApplicationStats(@Param("startDate") LocalDateTime startDate);
+
+    /**
+     * Дүнгийн бүлгээр тоолох
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN YEAR(la.submittedDate) = YEAR(CURRENT_DATE) AND MONTH(la.submittedDate) = MONTH(CURRENT_DATE) THEN 1 END) as thisMonthSubmitted, " +
-           "SUM(CASE WHEN YEAR(la.approvedDate) = YEAR(CURRENT_DATE) AND MONTH(la.approvedDate) = MONTH(CURRENT_DATE) THEN la.approvedAmount ELSE 0 END) as thisMonthApprovedAmount, " +
-           "COUNT(CASE WHEN YEAR(la.approvedDate) = YEAR(CURRENT_DATE) AND MONTH(la.approvedDate) = MONTH(CURRENT_DATE) THEN 1 END) as thisMonthApproved " +
-           "FROM LoanApplication la")
-    Object[] getThisMonthDashboardStats();
+           "CASE " +
+           "WHEN la.requestedAmount < 1000000 THEN 'Under 1M' " +
+           "WHEN la.requestedAmount BETWEEN 1000000 AND 5000000 THEN '1M-5M' " +
+           "WHEN la.requestedAmount BETWEEN 5000001 AND 10000000 THEN '5M-10M' " +
+           "WHEN la.requestedAmount BETWEEN 10000001 AND 50000000 THEN '10M-50M' " +
+           "ELSE 'Over 50M' END as amountGroup, " +
+           "COUNT(la) " +
+           "FROM LoanApplication la " +
+           "GROUP BY " +
+           "CASE " +
+           "WHEN la.requestedAmount < 1000000 THEN 'Under 1M' " +
+           "WHEN la.requestedAmount BETWEEN 1000000 AND 5000000 THEN '1M-5M' " +
+           "WHEN la.requestedAmount BETWEEN 5000001 AND 10000000 THEN '5M-10M' " +
+           "WHEN la.requestedAmount BETWEEN 10000001 AND 50000000 THEN '10M-50M' " +
+           "ELSE 'Over 50M' END")
+    List<Object[]> countByAmountGroup();
 
-    // Эрсдэлийн шинжилгээ
     /**
-     * Өндөр эрсдэлийн хүсэлтүүд
+     * Батлалтын хувь
      */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.riskScore IS NOT NULL AND la.riskScore >= :highRiskThreshold")
-    Page<LoanApplication> findHighRiskApplications(@Param("highRiskThreshold") BigDecimal highRiskThreshold, 
-                                                 Pageable pageable);
-
-    /**
-     * Бага эрсдэлийн хүсэлтүүд
-     */
-    @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.riskScore IS NOT NULL AND la.riskScore <= :lowRiskThreshold")
-    Page<LoanApplication> findLowRiskApplications(@Param("lowRiskThreshold") BigDecimal lowRiskThreshold, 
-                                                Pageable pageable);
+    @Query("SELECT " +
+           "COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) * 100.0 / COUNT(la) as approvalRate, " +
+           "COUNT(CASE WHEN la.status = 'REJECTED' THEN 1 END) * 100.0 / COUNT(la) as rejectionRate " +
+           "FROM LoanApplication la WHERE la.status IN ('APPROVED', 'REJECTED')")
+    Object[] getApprovalStats();
 
     // Bulk операциуд
     /**
@@ -288,72 +355,172 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      */
     @Modifying
     @Query("UPDATE LoanApplication la SET la.status = :newStatus, la.updatedBy = :updatedBy " +
-           "WHERE la.id IN :applicationIds AND la.status = :currentStatus")
-    int updateStatusForApplications(@Param("applicationIds") List<UUID> applicationIds,
-                                  @Param("currentStatus") LoanStatus currentStatus,
-                                  @Param("newStatus") LoanStatus newStatus,
+           "WHERE la.id IN :applicationIds")
+    int updateStatusForApplications(@Param("applicationIds") List<String> applicationIds,
+                                  @Param("newStatus") String newStatus,
                                   @Param("updatedBy") String updatedBy);
 
     /**
-     * Хүлээлгэн өгөх
+     * Хүчингүй болсон хүсэлтүүдийг цуцлах
      */
     @Modifying
-    @Query("UPDATE LoanApplication la SET la.assignedTo = :assignedTo, la.updatedBy = :updatedBy " +
+    @Query("UPDATE LoanApplication la SET la.status = 'EXPIRED', la.updatedBy = :updatedBy " +
+           "WHERE la.expiresAt < CURRENT_TIMESTAMP AND la.status IN ('PENDING', 'UNDER_REVIEW')")
+    int expireOverdueApplications(@Param("updatedBy") String updatedBy);
+
+    /**
+     * Батлалтын огноо тохируулах
+     */
+    @Modifying
+    @Query("UPDATE LoanApplication la SET la.approvedAt = CURRENT_TIMESTAMP, la.updatedBy = :updatedBy " +
            "WHERE la.id IN :applicationIds")
-    int assignApplications(@Param("applicationIds") List<UUID> applicationIds,
-                         @Param("assignedTo") String assignedTo,
-                         @Param("updatedBy") String updatedBy);
+    int setApprovedDate(@Param("applicationIds") List<String> applicationIds,
+                      @Param("updatedBy") String updatedBy);
 
-    // Тэргүүлэх эрэмбэ өөрчлөх
+    /**
+     * Цуцлалтын огноо тохируулах
+     */
     @Modifying
-    @Query("UPDATE LoanApplication la SET la.priority = :priority, la.updatedBy = :updatedBy " +
-           "WHERE la.id = :applicationId")
-    int updatePriority(@Param("applicationId") UUID applicationId,
-                     @Param("priority") Integer priority,
-                     @Param("updatedBy") String updatedBy);
+    @Query("UPDATE LoanApplication la SET la.rejectedAt = CURRENT_TIMESTAMP, la.updatedBy = :updatedBy " +
+           "WHERE la.id IN :applicationIds")
+    int setRejectedDate(@Param("applicationIds") List<String> applicationIds,
+                      @Param("updatedBy") String updatedBy);
 
-    // Тайлангийн query-ууд
+    // Validation
     /**
-     * Хугацааны зээлийн тайлан
+     * Хүсэлтийн дугаар давхцаж байгаа эсэхийг шалгах
+     */
+    @Query("SELECT COUNT(la) > 0 FROM LoanApplication la WHERE " +
+           "la.applicationNumber = :applicationNumber AND la.id != :excludeId")
+    boolean existsByApplicationNumberAndIdNot(@Param("applicationNumber") String applicationNumber,
+                                            @Param("excludeId") String excludeId);
+
+    /**
+     * Харилцагчийн идэвхтэй хүсэлт байгаа эсэхийг шалгах
+     */
+    @Query("SELECT COUNT(la) > 0 FROM LoanApplication la WHERE " +
+           "la.customer.id = :customerId AND la.status IN ('PENDING', 'UNDER_REVIEW', 'APPROVED')")
+    boolean hasActiveApplications(@Param("customerId") String customerId);
+
+    // Business logic
+    /**
+     * Шаардагатай анхаарал хүсэлтүүд (урт хугацаанд шалгагдаагүй)
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.status IN ('PENDING', 'UNDER_REVIEW') AND " +
+           "la.appliedAt < :attentionThreshold " +
+           "ORDER BY la.appliedAt ASC")
+    List<LoanApplication> findApplicationsNeedingAttention(@Param("attentionThreshold") LocalDateTime attentionThreshold);
+
+    /**
+     * Эрсдэлтэй хүсэлтүүд (том дүн, урт хугацаа)
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.requestedAmount >= :highRiskAmount OR " +
+           "la.requestedTermMonths >= :highRiskTerm " +
+           "ORDER BY la.requestedAmount DESC")
+    List<LoanApplication> findHighRiskApplications(@Param("highRiskAmount") BigDecimal highRiskAmount,
+                                                 @Param("highRiskTerm") Integer highRiskTerm);
+
+    /**
+     * Хурдан батлах боломжтой хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.requestedAmount <= :fastApprovalAmount AND " +
+           "la.requestedTermMonths <= :fastApprovalTerm AND " +
+           "la.status = 'PENDING' AND " +
+           "SIZE(la.documents) >= :minDocuments " +
+           "ORDER BY la.appliedAt ASC")
+    List<LoanApplication> findFastApprovalCandidates(@Param("fastApprovalAmount") BigDecimal fastApprovalAmount,
+                                                   @Param("fastApprovalTerm") Integer fastApprovalTerm,
+                                                   @Param("minDocuments") int minDocuments);
+
+    // Dashboard статистик
+    /**
+     * Өнөөдрийн хүсэлтийн статистик
      */
     @Query("SELECT " +
-           "la.loanType, " +
-           "COUNT(la) as count, " +
-           "SUM(la.requestedAmount) as totalRequested, " +
-           "SUM(CASE WHEN la.status = 'APPROVED' THEN la.approvedAmount ELSE 0 END) as totalApproved, " +
-           "AVG(la.requestedAmount) as avgRequested " +
-           "FROM LoanApplication la " +
-           "WHERE la.submittedDate BETWEEN :startDate AND :endDate " +
-           "GROUP BY la.loanType")
-    List<Object[]> getLoanReport(@Param("startDate") LocalDateTime startDate,
-                               @Param("endDate") LocalDateTime endDate);
+           "COUNT(CASE WHEN DATE(la.appliedAt) = CURRENT_DATE THEN 1 END) as newToday, " +
+           "COUNT(CASE WHEN DATE(la.approvedAt) = CURRENT_DATE THEN 1 END) as approvedToday, " +
+           "COUNT(CASE WHEN DATE(la.rejectedAt) = CURRENT_DATE THEN 1 END) as rejectedToday, " +
+           "COUNT(CASE WHEN la.status = 'PENDING' THEN 1 END) as pendingTotal " +
+           "FROM LoanApplication la")
+    Object[] getTodayApplicationStats();
 
     /**
-     * Performance тайлан
+     * Ажлын ачаалалын статистик
      */
     @Query("SELECT " +
-           "DATE_FORMAT(la.submittedDate, '%Y-%m-%d') as date, " +
-           "COUNT(la) as submitted, " +
-           "COUNT(CASE WHEN la.approvedDate IS NOT NULL THEN 1 END) as approved, " +
-           "AVG(CASE WHEN la.approvedDate IS NOT NULL THEN DATEDIFF(la.approvedDate, la.submittedDate) END) as avgProcessingDays " +
-           "FROM LoanApplication la " +
-           "WHERE la.submittedDate BETWEEN :startDate AND :endDate " +
-           "GROUP BY DATE_FORMAT(la.submittedDate, '%Y-%m-%d') " +
-           "ORDER BY date")
-    List<Object[]> getPerformanceReport(@Param("startDate") LocalDateTime startDate,
-                                      @Param("endDate") LocalDateTime endDate);
+           "COUNT(CASE WHEN la.status = 'PENDING' THEN 1 END) as pendingWorkload, " +
+           "COUNT(CASE WHEN la.status = 'UNDER_REVIEW' THEN 1 END) as reviewWorkload, " +
+           "COUNT(CASE WHEN la.expiresAt < :nearExpiry AND la.status IN ('PENDING', 'UNDER_REVIEW') THEN 1 END) as nearExpiryCount " +
+           "FROM LoanApplication la")
+    Object[] getWorkloadStats(@Param("nearExpiry") LocalDateTime nearExpiry);
+
+    // Performance monitoring
+    /**
+     * Хамгийн их хүсэлттэй харилцагчид
+     */
+    @Query("SELECT c.firstName, c.lastName, COUNT(la) as applicationCount FROM LoanApplication la " +
+           "JOIN la.customer c " +
+           "GROUP BY c.id, c.firstName, c.lastName " +
+           "ORDER BY applicationCount DESC")
+    Page<Object[]> findCustomersWithMostApplications(Pageable pageable);
 
     /**
-     * Харилцагчийн сүүлийн зээлийн хүсэлт
+     * Хамгийн их ашиглагддаг бүтээгдэхүүн
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.customer.id = :customerId " +
-           "ORDER BY la.submittedDate DESC LIMIT 1")
-    Optional<LoanApplication> findLatestByCustomerId(@Param("customerId") UUID customerId);
+    @Query("SELECT lp.name, COUNT(la) as applicationCount FROM LoanApplication la " +
+           "JOIN la.loanProduct lp " +
+           "GROUP BY lp.id, lp.name " +
+           "ORDER BY applicationCount DESC")
+    Page<Object[]> findMostPopularProducts(Pageable pageable);
 
     /**
-     * Харилцагчийн идэвхтэй зээлийн тоо
+     * Сүүлийн өөрчлөлт хийсэн хүсэлтүүд
      */
-    @Query("SELECT COUNT(la) FROM LoanApplication la WHERE " +
-           "la.customer.id = :customerId AND la.status = 'DISBURSED'")
-    int countActiveLoansForCustomer(@Param("customerId") UUID customerId);
+    @Query("SELECT la FROM LoanApplication la ORDER BY la.updatedAt DESC")
+    Page<LoanApplication> findRecentlyModified(Pageable pageable);
+
+    // Data quality
+    /**
+     * Дутуу мэдээлэлтэй хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.requestedAmount IS NULL OR " +
+           "la.requestedTermMonths IS NULL OR " +
+           "la.purpose IS NULL OR la.purpose = ''")
+    List<LoanApplication> findApplicationsWithIncompleteData();
+
+    /**
+     * Хүчингүй хязгаартай хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.requestedAmount <= 0 OR " +
+           "la.requestedTermMonths <= 0")
+    List<LoanApplication> findApplicationsWithInvalidData();
+
+    // Cleanup
+    /**
+     * Хуучин цуцлагдсан хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE " +
+           "la.status IN ('REJECTED', 'CANCELLED', 'WITHDRAWN', 'EXPIRED') AND " +
+           "la.updatedAt < :oldDate")
+    List<LoanApplication> findOldClosedApplications(@Param("oldDate") LocalDateTime oldDate);
+
+    // Processing queue
+    /**
+     * Дараагийн боловсруулах хүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'PENDING' " +
+           "ORDER BY la.appliedAt ASC")
+    Page<LoanApplication> findNextToProcess(Pageable pageable);
+
+    /**
+     * Шалгалт хийх ээлжиндхүсэлтүүд
+     */
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'UNDER_REVIEW' " +
+           "ORDER BY la.appliedAt ASC")
+    Page<LoanApplication> findForReview(Pageable pageable);
 }

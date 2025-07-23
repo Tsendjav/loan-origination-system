@@ -1,21 +1,24 @@
 package com.company.los.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.company.los.entity.Permission;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Permission DTO for data transfer
+ * Эрхийн DTO
+ * Permission Data Transfer Object
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class PermissionDto {
 
-    private UUID id;
+    private String id;
 
     @NotBlank(message = "Эрхийн нэр заавал бөглөх ёстой")
     @Size(min = 3, max = 100, message = "Эрхийн нэр 3-100 тэмдэгт байх ёстой")
@@ -35,33 +38,54 @@ public class PermissionDto {
     @Size(max = 50, message = "Ресурс 50 тэмдэгтээс ихгүй байх ёстой")
     private String resource;
 
-    @NotNull(message = "Үйлдэл заавал сонгох ёстой")
-    private Permission.Action action;
+    @NotBlank(message = "Үйлдэл заавал тодорхойлох ёстой")
+    @Size(max = 20, message = "Үйлдэл 20 тэмдэгтээс ихгүй байх ёстой")
+    private String action;
 
-    @NotNull(message = "Категори заавал сонгох ёстой")
-    private Permission.Category category;
+    @NotBlank(message = "Категори заавал тодорхойлох ёстой")
+    @Size(max = 50, message = "Категори 50 тэмдэгтээс ихгүй байх ёстой")
+    private String category;
+
+    @Size(max = 20, message = "Хамрах хүрээ 20 тэмдэгтээс ихгүй байх ёстой")
+    private String scope;
 
     private Boolean isSystemPermission = false;
 
+    @Min(value = 1, message = "Тэргүүлэх эрэмбэ 1-ээс бага байж болохгүй")
+    @Max(value = 10, message = "Тэргүүлэх эрэмбэ 10-аас их байж болохгүй")
     private Integer priority = 5;
 
-    private String scope;
-
+    // Role information
     private Set<String> roleNames;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
 
     private String createdBy;
-
     private String updatedBy;
 
-    // Constructors
-    public PermissionDto() {}
+    private Boolean isDeleted = false;
+    private Boolean isActive = true;
 
-    public PermissionDto(String name, String displayName, String resource, 
-                        Permission.Action action, Permission.Category category) {
+    // Computed fields
+    private String fullName;
+    private String localizedDisplayName;
+    private String actionDisplay;
+    private Integer assignedRoleCount;
+    private Integer assignedUserCount;
+    private Boolean isHighPriority;
+    private Boolean isMediumPriority;
+    private Boolean isLowPriority;
+    private Boolean canBeDeleted;
+
+    // Constructors
+    public PermissionDto() {
+    }
+
+    public PermissionDto(String name, String displayName, String resource, String action, String category) {
         this.name = name;
         this.displayName = displayName;
         this.resource = resource;
@@ -69,7 +93,12 @@ public class PermissionDto {
         this.category = category;
     }
 
-    // Static factory method to convert from Entity
+    public PermissionDto(String name, String displayName, String displayNameMn, String resource, String action, String category) {
+        this(name, displayName, resource, action, category);
+        this.displayNameMn = displayNameMn;
+    }
+
+    // Static factory methods
     public static PermissionDto fromEntity(Permission permission) {
         if (permission == null) {
             return null;
@@ -84,28 +113,46 @@ public class PermissionDto {
         dto.setResource(permission.getResource());
         dto.setAction(permission.getAction());
         dto.setCategory(permission.getCategory());
+        dto.setScope(permission.getScope());
         dto.setIsSystemPermission(permission.getIsSystemPermission());
         dto.setPriority(permission.getPriority());
-        dto.setScope(permission.getScope());
-        dto.setCreatedAt(permission.getCreatedAt());
-        dto.setUpdatedAt(permission.getUpdatedAt());
-        dto.setCreatedBy(permission.getCreatedBy());
-        dto.setUpdatedBy(permission.getUpdatedBy());
 
-        // Convert role names
+        // Role information
         if (permission.getRoles() != null) {
             dto.setRoleNames(permission.getRoles().stream()
                     .map(role -> role.getName())
                     .collect(Collectors.toSet()));
         }
 
+        // Audit fields
+        dto.setCreatedAt(permission.getCreatedAt());
+        dto.setUpdatedAt(permission.getUpdatedAt());
+        dto.setCreatedBy(permission.getCreatedBy());
+        dto.setUpdatedBy(permission.getUpdatedBy());
+        dto.setIsDeleted(permission.getIsDeleted());
+        dto.setIsActive(permission.getIsActive());
+
+        // Computed fields
+        dto.setFullName(permission.getFullName());
+        dto.setLocalizedDisplayName(permission.getLocalizedDisplayName());
+        dto.setActionDisplay(permission.getActionDisplay());
+        dto.setAssignedRoleCount(permission.getAssignedRoleCount());
+        dto.setAssignedUserCount(permission.getAssignedUserCount());
+        dto.setIsHighPriority(permission.isHighPriority());
+        dto.setIsMediumPriority(permission.isMediumPriority());
+        dto.setIsLowPriority(permission.isLowPriority());
+        dto.setCanBeDeleted(permission.canBeDeleted());
+
         return dto;
     }
 
-    // Convert to Entity
     public Permission toEntity() {
         Permission permission = new Permission();
-        permission.setId(this.id);
+        
+        if (this.id != null) {
+            permission.setId(this.id);
+        }
+        
         permission.setName(this.name);
         permission.setDisplayName(this.displayName);
         permission.setDisplayNameMn(this.displayNameMn);
@@ -113,175 +160,209 @@ public class PermissionDto {
         permission.setResource(this.resource);
         permission.setAction(this.action);
         permission.setCategory(this.category);
-        permission.setIsSystemPermission(this.isSystemPermission);
-        permission.setPriority(this.priority);
         permission.setScope(this.scope);
+        
+        if (this.isSystemPermission != null) {
+            permission.setIsSystemPermission(this.isSystemPermission);
+        }
+        if (this.priority != null) {
+            permission.setPriority(this.priority);
+        }
+
+        // Audit fields
+        permission.setCreatedAt(this.createdAt);
+        permission.setUpdatedAt(this.updatedAt);
+        permission.setCreatedBy(this.createdBy);
+        permission.setUpdatedBy(this.updatedBy);
+        
+        if (this.isDeleted != null) {
+            permission.setIsDeleted(this.isDeleted);
+        }
+        if (this.isActive != null) {
+            permission.setIsActive(this.isActive);
+        }
+
         return permission;
     }
 
     // Business methods
-    public String getFullName() {
-        return resource != null && action != null ? 
-               resource.toUpperCase() + "_" + action.name() : "";
+    public boolean isSystemPermission() {
+        return Boolean.TRUE.equals(isSystemPermission);
     }
 
-    public String getLocalizedDisplayName() {
-        return displayNameMn != null && !displayNameMn.trim().isEmpty() ? 
-               displayNameMn : displayName;
+    public boolean isAssignedToRole(String roleName) {
+        return roleNames != null && roleNames.contains(roleName);
     }
 
-    public boolean isHighPriority() {
-        return priority != null && priority >= 8;
+    public String getComputedDisplayName() {
+        if (displayNameMn != null && !displayNameMn.trim().isEmpty()) {
+            return displayNameMn;
+        }
+        return displayName != null ? displayName : name;
     }
 
-    public boolean isMediumPriority() {
-        return priority != null && priority >= 4 && priority < 8;
+    public String getRoleNamesAsString() {
+        if (roleNames != null && !roleNames.isEmpty()) {
+            return String.join(", ", roleNames);
+        }
+        return "Дүргүй";
     }
 
-    public boolean isLowPriority() {
-        return priority != null && priority < 4;
+    public String getPriorityText() {
+        if (priority == null) return "Дундаж";
+        if (priority >= 8) return "Өндөр";
+        if (priority >= 4) return "Дундаж";
+        return "Бага";
+    }
+
+    public String getScopeText() {
+        if (scope == null) return "";
+        switch (scope.toUpperCase()) {
+            case "OWN": return "Өөрийн";
+            case "BRANCH": return "Салбарын";
+            case "ALL": return "Бүгдийн";
+            default: return scope;
+        }
+    }
+
+    public String getCategoryText() {
+        if (category == null) return "";
+        switch (category) {
+            case "CUSTOMER_MANAGEMENT": return "Харилцагч удирдлага";
+            case "LOAN_PROCESSING": return "Зээлийн боловсруулалт";
+            case "DOCUMENT_MANAGEMENT": return "Баримт удирдлага";
+            case "USER_MANAGEMENT": return "Хэрэглэгч удирдлага";
+            case "ROLE_MANAGEMENT": return "Дүр удирдлага";
+            case "REPORTING": return "Тайлан";
+            case "SYSTEM_ADMINISTRATION": return "Системийн удирдлага";
+            case "FINANCIAL_OPERATIONS": return "Санхүүгийн үйл ажиллагаа";
+            case "COMPLIANCE": return "Дүрэм баримтлалт";
+            case "AUDIT": return "Аудит";
+            default: return category;
+        }
+    }
+
+    // Validation methods
+    public boolean isValidForCreation() {
+        return name != null && !name.trim().isEmpty() &&
+               displayName != null && !displayName.trim().isEmpty() &&
+               resource != null && !resource.trim().isEmpty() &&
+               action != null && !action.trim().isEmpty() &&
+               category != null && !category.trim().isEmpty();
     }
 
     // Getters and Setters
-    public UUID getId() {
-        return id;
-    }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
-    public void setId(UUID id) {
-        this.id = id;
-    }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
-    public String getName() {
-        return name;
-    }
+    public String getDisplayName() { return displayName; }
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+    public String getDisplayNameMn() { return displayNameMn; }
+    public void setDisplayNameMn(String displayNameMn) { this.displayNameMn = displayNameMn; }
 
-    public String getDisplayName() {
-        return displayName;
-    }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public void setDisplayName(String displayName) {
-        this.displayName = displayName;
-    }
+    public String getResource() { return resource; }
+    public void setResource(String resource) { this.resource = resource; }
 
-    public String getDisplayNameMn() {
-        return displayNameMn;
-    }
+    public String getAction() { return action; }
+    public void setAction(String action) { this.action = action; }
 
-    public void setDisplayNameMn(String displayNameMn) {
-        this.displayNameMn = displayNameMn;
-    }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
-    public String getDescription() {
-        return description;
-    }
+    public String getScope() { return scope; }
+    public void setScope(String scope) { this.scope = scope; }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+    public Boolean getIsSystemPermission() { return isSystemPermission; }
+    public void setIsSystemPermission(Boolean isSystemPermission) { this.isSystemPermission = isSystemPermission; }
 
-    public String getResource() {
-        return resource;
-    }
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { this.priority = priority; }
 
-    public void setResource(String resource) {
-        this.resource = resource;
-    }
+    public Set<String> getRoleNames() { return roleNames; }
+    public void setRoleNames(Set<String> roleNames) { this.roleNames = roleNames; }
 
-    public Permission.Action getAction() {
-        return action;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public void setAction(Permission.Action action) {
-        this.action = action;
-    }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    public Permission.Category getCategory() {
-        return category;
-    }
+    public String getCreatedBy() { return createdBy; }
+    public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
 
-    public void setCategory(Permission.Category category) {
-        this.category = category;
-    }
+    public String getUpdatedBy() { return updatedBy; }
+    public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
-    public Boolean getIsSystemPermission() {
-        return isSystemPermission;
-    }
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
 
-    public void setIsSystemPermission(Boolean isSystemPermission) {
-        this.isSystemPermission = isSystemPermission;
-    }
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    public Integer getPriority() {
-        return priority;
-    }
+    // Computed fields getters and setters
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
 
-    public void setPriority(Integer priority) {
-        this.priority = priority;
-    }
+    public String getLocalizedDisplayName() { return localizedDisplayName; }
+    public void setLocalizedDisplayName(String localizedDisplayName) { this.localizedDisplayName = localizedDisplayName; }
 
-    public String getScope() {
-        return scope;
-    }
+    public String getActionDisplay() { return actionDisplay; }
+    public void setActionDisplay(String actionDisplay) { this.actionDisplay = actionDisplay; }
 
-    public void setScope(String scope) {
-        this.scope = scope;
-    }
+    public Integer getAssignedRoleCount() { return assignedRoleCount; }
+    public void setAssignedRoleCount(Integer assignedRoleCount) { this.assignedRoleCount = assignedRoleCount; }
 
-    public Set<String> getRoleNames() {
-        return roleNames;
-    }
+    public Integer getAssignedUserCount() { return assignedUserCount; }
+    public void setAssignedUserCount(Integer assignedUserCount) { this.assignedUserCount = assignedUserCount; }
 
-    public void setRoleNames(Set<String> roleNames) {
-        this.roleNames = roleNames;
-    }
+    public Boolean getIsHighPriority() { return isHighPriority; }
+    public void setIsHighPriority(Boolean isHighPriority) { this.isHighPriority = isHighPriority; }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
+    public Boolean getIsMediumPriority() { return isMediumPriority; }
+    public void setIsMediumPriority(Boolean isMediumPriority) { this.isMediumPriority = isMediumPriority; }
 
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
+    public Boolean getIsLowPriority() { return isLowPriority; }
+    public void setIsLowPriority(Boolean isLowPriority) { this.isLowPriority = isLowPriority; }
 
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public String getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(String createdBy) {
-        this.createdBy = createdBy;
-    }
-
-    public String getUpdatedBy() {
-        return updatedBy;
-    }
-
-    public void setUpdatedBy(String updatedBy) {
-        this.updatedBy = updatedBy;
-    }
+    public Boolean getCanBeDeleted() { return canBeDeleted; }
+    public void setCanBeDeleted(Boolean canBeDeleted) { this.canBeDeleted = canBeDeleted; }
 
     @Override
     public String toString() {
         return "PermissionDto{" +
-                "id=" + id +
+                "id='" + id + '\'' +
                 ", name='" + name + '\'' +
                 ", displayName='" + displayName + '\'' +
                 ", resource='" + resource + '\'' +
-                ", action=" + action +
-                ", category=" + category +
+                ", action='" + action + '\'' +
+                ", category='" + category + '\'' +
                 ", priority=" + priority +
                 ", scope='" + scope + '\'' +
+                ", isSystemPermission=" + isSystemPermission +
+                ", assignedRoleCount=" + assignedRoleCount +
+                ", assignedUserCount=" + assignedUserCount +
+                ", isActive=" + isActive +
+                ", isDeleted=" + isDeleted +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PermissionDto)) return false;
+        PermissionDto that = (PermissionDto) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

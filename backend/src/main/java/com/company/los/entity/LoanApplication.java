@@ -1,14 +1,11 @@
 package com.company.los.entity;
 
-import com.company.los.entity.BaseEntity;
-import com.company.los.enums.LoanStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,247 +16,284 @@ import java.util.List;
  */
 @Entity
 @Table(name = "loan_applications", indexes = {
+        @Index(name = "idx_loan_application_customer", columnList = "customer_id"),
         @Index(name = "idx_loan_application_number", columnList = "application_number", unique = true),
-        @Index(name = "idx_loan_status", columnList = "status"),
-        @Index(name = "idx_loan_customer", columnList = "customer_id"),
-        @Index(name = "idx_loan_type", columnList = "loan_type"),
-        @Index(name = "idx_loan_submitted_date", columnList = "submitted_date")
+        @Index(name = "idx_loan_application_status", columnList = "status"),
+        @Index(name = "idx_loan_application_created", columnList = "created_at")
 })
 @SQLDelete(sql = "UPDATE loan_applications SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
 public class LoanApplication extends BaseEntity {
 
-    @Column(name = "application_number", unique = true, nullable = false, length = 50)
-    @NotBlank(message = "Хүсэлтийн дугаар заавал байх ёстой")
-    private String applicationNumber;
+    // Enum definitions
+    public enum LoanType {
+        PERSONAL("PERSONAL", "Хувийн зээл"),
+        BUSINESS("BUSINESS", "Бизнесийн зээл"),
+        MORTGAGE("MORTGAGE", "Орон сууцны зээл"),
+        CAR_LOAN("CAR_LOAN", "Автомашины зээл"),
+        CONSUMER("CONSUMER", "Хэрэглээний зээл"),
+        EDUCATION("EDUCATION", "Боловсролын зээл"),
+        MEDICAL("MEDICAL", "Эмнэлгийн зээл");
+
+        private final String code;
+        private final String mongolianName;
+
+        LoanType(String code, String mongolianName) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
+    }
+
+    public enum ApplicationStatus {
+        DRAFT("DRAFT", "Ноорог"),
+        SUBMITTED("SUBMITTED", "Илгээсэн"),
+        PENDING("PENDING", "Хүлээгдэж байгаа"),
+        UNDER_REVIEW("UNDER_REVIEW", "Хянаж байгаа"),
+        APPROVED("APPROVED", "Зөвшөөрсөн"),
+        REJECTED("REJECTED", "Татгалзсан"),
+        CANCELLED("CANCELLED", "Цуцалсан"),
+        DISBURSED("DISBURSED", "Олгосон");
+
+        private final String code;
+        private final String mongolianName;
+
+        ApplicationStatus(String code, String mongolianName) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
+
+        public boolean isActiveStatus() {
+            return this == SUBMITTED || this == PENDING || this == UNDER_REVIEW;
+        }
+    }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_loan_customer"))
+    @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_loan_application_customer"))
     @NotNull(message = "Харилцагч заавал байх ёстой")
     private Customer customer;
 
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "loan_product_id", nullable = false, foreignKey = @ForeignKey(name = "fk_loan_application_product"))
+    @NotNull(message = "Зээлийн бүтээгдэхүүн заавал сонгох ёстой")
+    private LoanProduct loanProduct;
+
+    @Column(name = "application_number", unique = true, nullable = false, length = 50)
+    @NotBlank(message = "Хүсэлтийн дугаар заавал байх ёстой")
+    @Size(max = 50, message = "Хүсэлтийн дугаар 50 тэмдэгтээс ихгүй байх ёстой")
+    private String applicationNumber;
+
+    @Column(name = "loan_type", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    @Column(name = "loan_type", nullable = false, length = 30)
     @NotNull(message = "Зээлийн төрөл заавал сонгох ёстой")
     private LoanType loanType;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 30)
-    @NotNull(message = "Статус заавал байх ёстой")
-    private LoanStatus status = LoanStatus.DRAFT;
-
-    // Хүсэх зээлийн мэдээлэл
+    // Хүсэлтийн мэдээлэл
     @Column(name = "requested_amount", nullable = false, precision = 15, scale = 2)
     @NotNull(message = "Хүсэх дүн заавал бөглөх ёстой")
-    @DecimalMin(value = "100000.0", message = "Хамгийн бага зээлийн хэмжээ 100,000₮")
-    @DecimalMax(value = "100000000.0", message = "Хамгийн их зээлийн хэмжээ 100,000,000₮")
+    @DecimalMin(value = "1000.0", message = "Хүсэх дүн 1,000-аас их байх ёстой")
     private BigDecimal requestedAmount;
 
     @Column(name = "requested_term_months", nullable = false)
     @NotNull(message = "Хүсэх хугацаа заавал бөглөх ёстой")
-    @Min(value = 3, message = "Хамгийн бага хугацаа 3 сар")
-    @Max(value = 300, message = "Хамгийн их хугацаа 300 сар")
+    @Min(value = 1, message = "Хүсэх хугацаа 1 сараас их байх ёстой")
+    @Max(value = 360, message = "Хүсэх хугацаа 360 сараас бага байх ёстой")
     private Integer requestedTermMonths;
 
-    @Column(name = "purpose", length = 500)
-    @Size(max = 500, message = "Зорилго 500 тэмдэгтээс ихгүй байх ёстой")
+    @Column(name = "purpose", columnDefinition = "TEXT")
     private String purpose;
 
-    @Column(name = "declared_income", precision = 15, scale = 2)
-    @DecimalMin(value = "0.0", message = "Орлого сөрөг байж болохгүй")
-    private BigDecimal declaredIncome;
-
-    // Зөвшөөрсөн зээлийн мэдээлэл
+    // Зөвшөөрөгдсөн мэдээлэл
     @Column(name = "approved_amount", precision = 15, scale = 2)
     @DecimalMin(value = "0.0", message = "Зөвшөөрсөн дүн сөрөг байж болохгүй")
     private BigDecimal approvedAmount;
 
     @Column(name = "approved_term_months")
-    @Min(value = 1, message = "Зөвшөөрсөн хугацаа 1 сараас бага байж болохгүй")
+    @Min(value = 1, message = "Зөвшөөрсөн хугацаа 1 сараас их байх ёстой")
     private Integer approvedTermMonths;
 
-    @Column(name = "approved_rate", precision = 5, scale = 2)
+    @Column(name = "approved_rate", precision = 5, scale = 4)
     @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
-    @DecimalMax(value = "50.0", message = "Хүү 50%-аас их байж болохгүй")
+    @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal approvedRate;
 
     @Column(name = "monthly_payment", precision = 15, scale = 2)
     @DecimalMin(value = "0.0", message = "Сарын төлбөр сөрөг байж болохгүй")
     private BigDecimal monthlyPayment;
 
-    // Огноонууд
-    @Column(name = "submitted_date")
-    private LocalDateTime submittedDate;
+    // Санхүүгийн мэдээлэл
+    @Column(name = "declared_income", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Мэдүүлсэн орлого сөрөг байж болохгүй")
+    private BigDecimal declaredIncome;
+
+    @Column(name = "debt_to_income_ratio", precision = 5, scale = 4)
+    @DecimalMin(value = "0.0", message = "Өр орлогын харьцаа сөрөг байж болохгүй")
+    private BigDecimal debtToIncomeRatio;
+
+    @Column(name = "credit_score")
+    @Min(value = 300, message = "Зээлийн оноо 300-аас бага байж болохгүй")
+    @Max(value = 850, message = "Зээлийн оноо 850-аас их байж болохгүй")
+    private Integer creditScore;
+
+    // Статус болон ажлын урсгал
+    @Column(name = "status", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @NotNull(message = "Статус заавал байх ёстой")
+    private ApplicationStatus status = ApplicationStatus.DRAFT;
+
+    @Column(name = "current_step", length = 100)
+    @Size(max = 100, message = "Одоогийн алхам 100 тэмдэгтээс ихгүй байх ёстой")
+    private String currentStep;
+
+    @Column(name = "assigned_to", length = 100)
+    @Size(max = 100, message = "Хариуцагч 100 тэмдэгтээс ихгүй байх ёстой")
+    private String assignedTo;
+
+    @Column(name = "priority")
+    @Min(value = 1, message = "Чухал байдал 1-ээс бага байж болохгүй")
+    @Max(value = 5, message = "Чухал байдал 5-аас их байж болохгүй")
+    private Integer priority = 3;
+
+    // Шийдвэрийн мэдээлэл
+    @Column(name = "decision_reason", columnDefinition = "TEXT")
+    private String decisionReason;
+
+    @Column(name = "decision_date")
+    private LocalDateTime decisionDate;
+
+    @Column(name = "approved_by", length = 100)
+    @Size(max = 100, message = "Зөвшөөрсөн хүн 100 тэмдэгтээс ихгүй байх ёстой")
+    private String approvedBy;
 
     @Column(name = "approved_date")
     private LocalDateTime approvedDate;
 
+    @Column(name = "rejected_by", length = 100)
+    @Size(max = 100, message = "Татгалзсан хүн 100 тэмдэгтээс ихгүй байх ёстой")
+    private String rejectedBy;
+
     @Column(name = "rejected_date")
     private LocalDateTime rejectedDate;
+
+    // Олголт
+    @Column(name = "disbursed_amount", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Олгосон дүн сөрөг байж болохгүй")
+    private BigDecimal disbursedAmount;
 
     @Column(name = "disbursed_date")
     private LocalDateTime disbursedDate;
 
-    @Column(name = "expected_disbursement_date")
-    private LocalDate expectedDisbursementDate;
+    @Column(name = "disbursed_by", length = 100)
+    @Size(max = 100, message = "Олгосон хүн 100 тэмдэгтээс ихгүй байх ёстой")
+    private String disbursedBy;
 
-    // Шийдвэрийн мэдээлэл
-    @Column(name = "decision_reason", length = 1000)
-    @Size(max = 1000, message = "Шийдвэрийн үндэслэл 1000 тэмдэгтээс ихгүй байх ёстой")
-    private String decisionReason;
-
+    // Эрсдэлийн үнэлгээ
     @Column(name = "risk_score", precision = 5, scale = 2)
     @DecimalMin(value = "0.0", message = "Эрсдэлийн оноо сөрөг байж болохгүй")
     @DecimalMax(value = "100.0", message = "Эрсдэлийн оноо 100-аас их байж болохгүй")
     private BigDecimal riskScore;
 
-    @Column(name = "credit_score", precision = 5, scale = 2)
-    @DecimalMin(value = "0.0", message = "Зээлийн оноо сөрөг байж болохгүй")
-    @DecimalMax(value = "850.0", message = "Зээлийн оноо 850-аас их байж болохгүй")
-    private BigDecimal creditScore;
+    @Column(name = "risk_factors", columnDefinition = "TEXT")
+    private String riskFactors;
 
-    // Workflow мэдээлэл
-    @Column(name = "current_step", length = 100)
-    private String currentStep;
+    // Чухал огноонууд
+    @Column(name = "submitted_date")
+    private LocalDateTime submittedDate;
 
-    @Column(name = "assigned_to", length = 100)
-    private String assignedTo;
-
-    @Column(name = "priority")
-    private Integer priority = 3; // 1=High, 2=Medium, 3=Low
+    @Column(name = "due_date")
+    private LocalDateTime dueDate;
 
     // Баримт бичгүүд
     @OneToMany(mappedBy = "loanApplication", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Document> documents = new ArrayList<>();
-
-    // Зээлийн төрлүүд
-    public enum LoanType {
-        CONSUMER("Хэрэглээний зээл", 500000, 50000000, 6, 60),
-        BUSINESS("Бизнесийн зээл", 1000000, 100000000, 12, 120),
-        MORTGAGE("Орон сууцны зээл", 5000000, 200000000, 60, 300),
-        AUTO("Автомашины зээл", 2000000, 50000000, 12, 84),
-        EDUCATION("Боловсролын зээл", 500000, 10000000, 12, 120),
-        AGRICULTURAL("Хөдөө аж ахуйн зээл", 1000000, 50000000, 12, 60);
-
-        private final String mongolianName;
-        private final long minAmount;
-        private final long maxAmount;
-        private final int minTermMonths;
-        private final int maxTermMonths;
-
-        LoanType(String mongolianName, long minAmount, long maxAmount, int minTermMonths, int maxTermMonths) {
-            this.mongolianName = mongolianName;
-            this.minAmount = minAmount;
-            this.maxAmount = maxAmount;
-            this.minTermMonths = minTermMonths;
-            this.maxTermMonths = maxTermMonths;
-        }
-
-        public String getMongolianName() { return mongolianName; }
-        public long getMinAmount() { return minAmount; }
-        public long getMaxAmount() { return maxAmount; }
-        public int getMinTermMonths() { return minTermMonths; }
-        public int getMaxTermMonths() { return maxTermMonths; }
-    }
 
     // Constructors
     public LoanApplication() {
         super();
     }
 
-    public LoanApplication(Customer customer, LoanType loanType, BigDecimal requestedAmount, Integer requestedTermMonths) {
+    public LoanApplication(Customer customer, LoanProduct loanProduct, LoanType loanType,
+                          BigDecimal requestedAmount, Integer requestedTermMonths) {
         this();
         this.customer = customer;
+        this.loanProduct = loanProduct;
         this.loanType = loanType;
         this.requestedAmount = requestedAmount;
         this.requestedTermMonths = requestedTermMonths;
-        this.applicationNumber = generateApplicationNumber();
     }
 
     // Business methods
     public void submit() {
-        if (this.status == LoanStatus.DRAFT) {
-            this.status = LoanStatus.SUBMITTED;
-            this.submittedDate = LocalDateTime.now();
-        }
+        this.status = ApplicationStatus.SUBMITTED;
+        this.submittedDate = LocalDateTime.now();
     }
 
-    public void approve(BigDecimal amount, Integer termMonths, BigDecimal rate, String reason) {
-        this.status = LoanStatus.APPROVED;
-        this.approvedAmount = amount;
-        this.approvedTermMonths = termMonths;
-        this.approvedRate = rate;
-        this.decisionReason = reason;
+    public void approve(String approvedBy, BigDecimal approvedAmount, Integer approvedTermMonths, BigDecimal approvedRate) {
+        this.status = ApplicationStatus.APPROVED;
+        this.approvedBy = approvedBy;
         this.approvedDate = LocalDateTime.now();
-        
-        // Сарын төлбөр тооцоолох
-        this.monthlyPayment = calculateMonthlyPayment(amount, termMonths, rate);
+        this.decisionDate = LocalDateTime.now();
+        this.approvedAmount = approvedAmount;
+        this.approvedTermMonths = approvedTermMonths;
+        this.approvedRate = approvedRate;
     }
 
-    public void reject(String reason) {
-        this.status = LoanStatus.REJECTED;
-        this.decisionReason = reason;
+    public void reject(String rejectedBy, String reason) {
+        this.status = ApplicationStatus.REJECTED;
+        this.rejectedBy = rejectedBy;
         this.rejectedDate = LocalDateTime.now();
+        this.decisionDate = LocalDateTime.now();
+        this.decisionReason = reason;
     }
 
-    public void disburse() {
-        if (this.status == LoanStatus.APPROVED) {
-            this.status = LoanStatus.DISBURSED;
-            this.disbursedDate = LocalDateTime.now();
-        }
+    public void disburse(String disbursedBy, BigDecimal disbursedAmount) {
+        this.status = ApplicationStatus.DISBURSED;
+        this.disbursedBy = disbursedBy;
+        this.disbursedDate = LocalDateTime.now();
+        this.disbursedAmount = disbursedAmount;
+    }
+
+    public boolean isSubmitted() {
+        return !ApplicationStatus.DRAFT.equals(status);
+    }
+
+    public boolean isApproved() {
+        return ApplicationStatus.APPROVED.equals(status);
+    }
+
+    public boolean isRejected() {
+        return ApplicationStatus.REJECTED.equals(status);
     }
 
     public boolean canBeEdited() {
-        return this.status == LoanStatus.DRAFT || this.status == LoanStatus.PENDING_INFO;
+        return ApplicationStatus.DRAFT.equals(status) || ApplicationStatus.SUBMITTED.equals(status);
     }
 
-    public boolean isFinalStatus() {
-        return this.status.isFinalStatus();
+    public String getStatusDisplay() {
+        return status != null ? status.getMongolianName() : "Тодорхойгүй";
     }
 
-    public boolean isActive() {
-        return this.status.isActiveStatus();
-    }
-
-    private String generateApplicationNumber() {
-        // LA + YYYYMMDD + sequential number
-        String dateStr = LocalDate.now().toString().replace("-", "");
-        return "LA" + dateStr + String.format("%04d", System.currentTimeMillis() % 10000);
-    }
-
-    private BigDecimal calculateMonthlyPayment(BigDecimal principal, Integer termMonths, BigDecimal annualRate) {
-        if (principal == null || termMonths == null || annualRate == null) {
-            return BigDecimal.ZERO;
-        }
-        
-        BigDecimal monthlyRate = annualRate.divide(BigDecimal.valueOf(1200), 10, BigDecimal.ROUND_HALF_UP);
-        BigDecimal factor = BigDecimal.ONE.add(monthlyRate).pow(termMonths);
-        
-        return principal.multiply(monthlyRate).multiply(factor)
-                .divide(factor.subtract(BigDecimal.ONE), 2, BigDecimal.ROUND_HALF_UP);
-    }
-
-    public String getPriorityText() {
-        switch (priority) {
-            case 1: return "Өндөр";
-            case 2: return "Дунд";
-            case 3: return "Бага";
-            default: return "Тодорхойгүй";
-        }
+    public String getLoanTypeDisplay() {
+        return loanType != null ? loanType.getMongolianName() : "Тодорхойгүй";
     }
 
     // Getters and Setters
-    public String getApplicationNumber() { return applicationNumber; }
-    public void setApplicationNumber(String applicationNumber) { this.applicationNumber = applicationNumber; }
-
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
 
+    public LoanProduct getLoanProduct() { return loanProduct; }
+    public void setLoanProduct(LoanProduct loanProduct) { this.loanProduct = loanProduct; }
+
+    public String getApplicationNumber() { return applicationNumber; }
+    public void setApplicationNumber(String applicationNumber) { this.applicationNumber = applicationNumber; }
+
     public LoanType getLoanType() { return loanType; }
     public void setLoanType(LoanType loanType) { this.loanType = loanType; }
-
-    public LoanStatus getStatus() { return status; }
-    public void setStatus(LoanStatus status) { this.status = status; }
 
     public BigDecimal getRequestedAmount() { return requestedAmount; }
     public void setRequestedAmount(BigDecimal requestedAmount) { this.requestedAmount = requestedAmount; }
@@ -269,9 +303,6 @@ public class LoanApplication extends BaseEntity {
 
     public String getPurpose() { return purpose; }
     public void setPurpose(String purpose) { this.purpose = purpose; }
-
-    public BigDecimal getDeclaredIncome() { return declaredIncome; }
-    public void setDeclaredIncome(BigDecimal declaredIncome) { this.declaredIncome = declaredIncome; }
 
     public BigDecimal getApprovedAmount() { return approvedAmount; }
     public void setApprovedAmount(BigDecimal approvedAmount) { this.approvedAmount = approvedAmount; }
@@ -285,29 +316,17 @@ public class LoanApplication extends BaseEntity {
     public BigDecimal getMonthlyPayment() { return monthlyPayment; }
     public void setMonthlyPayment(BigDecimal monthlyPayment) { this.monthlyPayment = monthlyPayment; }
 
-    public LocalDateTime getSubmittedDate() { return submittedDate; }
-    public void setSubmittedDate(LocalDateTime submittedDate) { this.submittedDate = submittedDate; }
+    public BigDecimal getDeclaredIncome() { return declaredIncome; }
+    public void setDeclaredIncome(BigDecimal declaredIncome) { this.declaredIncome = declaredIncome; }
 
-    public LocalDateTime getApprovedDate() { return approvedDate; }
-    public void setApprovedDate(LocalDateTime approvedDate) { this.approvedDate = approvedDate; }
+    public BigDecimal getDebtToIncomeRatio() { return debtToIncomeRatio; }
+    public void setDebtToIncomeRatio(BigDecimal debtToIncomeRatio) { this.debtToIncomeRatio = debtToIncomeRatio; }
 
-    public LocalDateTime getRejectedDate() { return rejectedDate; }
-    public void setRejectedDate(LocalDateTime rejectedDate) { this.rejectedDate = rejectedDate; }
+    public Integer getCreditScore() { return creditScore; }
+    public void setCreditScore(Integer creditScore) { this.creditScore = creditScore; }
 
-    public LocalDateTime getDisbursedDate() { return disbursedDate; }
-    public void setDisbursedDate(LocalDateTime disbursedDate) { this.disbursedDate = disbursedDate; }
-
-    public LocalDate getExpectedDisbursementDate() { return expectedDisbursementDate; }
-    public void setExpectedDisbursementDate(LocalDate expectedDisbursementDate) { this.expectedDisbursementDate = expectedDisbursementDate; }
-
-    public String getDecisionReason() { return decisionReason; }
-    public void setDecisionReason(String decisionReason) { this.decisionReason = decisionReason; }
-
-    public BigDecimal getRiskScore() { return riskScore; }
-    public void setRiskScore(BigDecimal riskScore) { this.riskScore = riskScore; }
-
-    public BigDecimal getCreditScore() { return creditScore; }
-    public void setCreditScore(BigDecimal creditScore) { this.creditScore = creditScore; }
+    public ApplicationStatus getStatus() { return status; }
+    public void setStatus(ApplicationStatus status) { this.status = status; }
 
     public String getCurrentStep() { return currentStep; }
     public void setCurrentStep(String currentStep) { this.currentStep = currentStep; }
@@ -317,6 +336,45 @@ public class LoanApplication extends BaseEntity {
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { this.priority = priority; }
+
+    public String getDecisionReason() { return decisionReason; }
+    public void setDecisionReason(String decisionReason) { this.decisionReason = decisionReason; }
+
+    public LocalDateTime getDecisionDate() { return decisionDate; }
+    public void setDecisionDate(LocalDateTime decisionDate) { this.decisionDate = decisionDate; }
+
+    public String getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(String approvedBy) { this.approvedBy = approvedBy; }
+
+    public LocalDateTime getApprovedDate() { return approvedDate; }
+    public void setApprovedDate(LocalDateTime approvedDate) { this.approvedDate = approvedDate; }
+
+    public String getRejectedBy() { return rejectedBy; }
+    public void setRejectedBy(String rejectedBy) { this.rejectedBy = rejectedBy; }
+
+    public LocalDateTime getRejectedDate() { return rejectedDate; }
+    public void setRejectedDate(LocalDateTime rejectedDate) { this.rejectedDate = rejectedDate; }
+
+    public BigDecimal getDisbursedAmount() { return disbursedAmount; }
+    public void setDisbursedAmount(BigDecimal disbursedAmount) { this.disbursedAmount = disbursedAmount; }
+
+    public LocalDateTime getDisbursedDate() { return disbursedDate; }
+    public void setDisbursedDate(LocalDateTime disbursedDate) { this.disbursedDate = disbursedDate; }
+
+    public String getDisbursedBy() { return disbursedBy; }
+    public void setDisbursedBy(String disbursedBy) { this.disbursedBy = disbursedBy; }
+
+    public BigDecimal getRiskScore() { return riskScore; }
+    public void setRiskScore(BigDecimal riskScore) { this.riskScore = riskScore; }
+
+    public String getRiskFactors() { return riskFactors; }
+    public void setRiskFactors(String riskFactors) { this.riskFactors = riskFactors; }
+
+    public LocalDateTime getSubmittedDate() { return submittedDate; }
+    public void setSubmittedDate(LocalDateTime submittedDate) { this.submittedDate = submittedDate; }
+
+    public LocalDateTime getDueDate() { return dueDate; }
+    public void setDueDate(LocalDateTime dueDate) { this.dueDate = dueDate; }
 
     public List<Document> getDocuments() { return documents; }
     public void setDocuments(List<Document> documents) { this.documents = documents; }
@@ -328,9 +386,9 @@ public class LoanApplication extends BaseEntity {
                 "id=" + getId() +
                 ", applicationNumber='" + applicationNumber + '\'' +
                 ", loanType=" + loanType +
-                ", status=" + status +
                 ", requestedAmount=" + requestedAmount +
-                ", requestedTermMonths=" + requestedTermMonths +
+                ", status=" + status +
+                ", customer=" + (customer != null ? customer.getDisplayName() : "null") +
                 '}';
     }
 }

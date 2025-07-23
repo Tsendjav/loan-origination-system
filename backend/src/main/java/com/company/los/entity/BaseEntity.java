@@ -1,8 +1,8 @@
 package com.company.los.entity;
 
 import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Суурь Entity класс - бүх entity-д нийтлэг талбарууд
- * Base Entity class - common fields for all entities
+ * Base Entity Class - common fields for all entities
  */
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
@@ -21,15 +21,15 @@ public abstract class BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "uuid")
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @CreationTimestamp
+    @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
-    @UpdateTimestamp
-    @Column(name = "updated_at")
+    @LastModifiedDate
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     @CreatedBy
@@ -40,84 +40,29 @@ public abstract class BaseEntity {
     @Column(name = "updated_by", length = 100)
     private String updatedBy;
 
-    @Version
-    @Column(name = "version")
-    private Long version;
-
-    @Column(name = "is_active", nullable = false)
-    private Boolean isActive = true;
-
     @Column(name = "is_deleted", nullable = false)
     private Boolean isDeleted = false;
 
     // Constructors
-    protected BaseEntity() {
-        // JPA үүсгэгч
+    public BaseEntity() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
     }
 
-    // Getters and Setters
-    public UUID getId() {
-        return id;
+    // Lifecycle callbacks
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        if (this.createdAt == null) {
+            this.createdAt = now;
+        }
+        this.updatedAt = now;
     }
 
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
-
-    public String getCreatedBy() {
-        return createdBy;
-    }
-
-    public void setCreatedBy(String createdBy) {
-        this.createdBy = createdBy;
-    }
-
-    public String getUpdatedBy() {
-        return updatedBy;
-    }
-
-    public void setUpdatedBy(String updatedBy) {
-        this.updatedBy = updatedBy;
-    }
-
-    public Long getVersion() {
-        return version;
-    }
-
-    public void setVersion(Long version) {
-        this.version = version;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
-    }
-
-    public Boolean getIsDeleted() {
-        return isDeleted;
-    }
-
-    public void setIsDeleted(Boolean isDeleted) {
-        this.isDeleted = isDeleted;
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
     }
 
     // Business methods
@@ -126,7 +71,7 @@ public abstract class BaseEntity {
      */
     public void markAsDeleted() {
         this.isDeleted = true;
-        this.isActive = false;
+        this.updatedAt = LocalDateTime.now();
     }
 
     /**
@@ -134,47 +79,14 @@ public abstract class BaseEntity {
      */
     public void restore() {
         this.isDeleted = false;
-        this.isActive = true;
+        this.updatedAt = LocalDateTime.now();
     }
 
     /**
-     * Deactivate - идэвхгүй болгох
+     * Устгагдсан эсэхийг шалгах
      */
-    public void deactivate() {
-        this.isActive = false;
-    }
-
-    /**
-     * Activate - идэвхтэй болгох
-     */
-    public void activate() {
-        this.isActive = true;
-    }
-
-    // equals and hashCode
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BaseEntity that = (BaseEntity) o;
-        return Objects.equals(id, that.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id);
-    }
-
-    // toString
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + "{" +
-                "id=" + id +
-                ", createdAt=" + createdAt +
-                ", updatedAt=" + updatedAt +
-                ", isActive=" + isActive +
-                ", isDeleted=" + isDeleted +
-                '}';
+    public boolean isDeleted() {
+        return this.isDeleted != null && this.isDeleted;
     }
 
     /**
@@ -192,5 +104,86 @@ public abstract class BaseEntity {
             this.createdBy = username;
         }
         this.updatedBy = username;
+    }
+
+    /**
+     * Идэвхтэй эсэхийг шалгах (устгагдаагүй)
+     */
+    public boolean isActiveEntity() {
+        return !isDeleted();
+    }
+
+    // Getters and Setters
+    public UUID getId() { 
+        return id; 
+    }
+    
+    public void setId(UUID id) { 
+        this.id = id; 
+    }
+
+    public LocalDateTime getCreatedAt() { 
+        return createdAt; 
+    }
+    
+    public void setCreatedAt(LocalDateTime createdAt) { 
+        this.createdAt = createdAt; 
+    }
+
+    public LocalDateTime getUpdatedAt() { 
+        return updatedAt; 
+    }
+    
+    public void setUpdatedAt(LocalDateTime updatedAt) { 
+        this.updatedAt = updatedAt; 
+    }
+
+    public String getCreatedBy() { 
+        return createdBy; 
+    }
+    
+    public void setCreatedBy(String createdBy) { 
+        this.createdBy = createdBy; 
+    }
+
+    public String getUpdatedBy() { 
+        return updatedBy; 
+    }
+    
+    public void setUpdatedBy(String updatedBy) { 
+        this.updatedBy = updatedBy; 
+    }
+
+    public Boolean getIsDeleted() { 
+        return isDeleted; 
+    }
+    
+    public void setIsDeleted(Boolean isDeleted) { 
+        this.isDeleted = isDeleted; 
+    }
+
+    // equals and hashCode
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BaseEntity that = (BaseEntity) o;
+        return id != null && id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return id != null ? id.hashCode() : 0;
+    }
+
+    // toString
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "{" +
+                "id=" + id +
+                ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", isDeleted=" + isDeleted +
+                '}';
     }
 }

@@ -1,7 +1,6 @@
 package com.company.los.entity;
 
 import com.company.los.entity.BaseEntity;
-import com.company.los.enums.DocumentType;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -19,13 +18,35 @@ import java.math.BigDecimal;
 @Table(name = "documents", indexes = {
         @Index(name = "idx_document_customer", columnList = "customer_id"),
         @Index(name = "idx_document_loan_application", columnList = "loan_application_id"),
-        @Index(name = "idx_document_type", columnList = "document_type"),
+        @Index(name = "idx_document_type", columnList = "document_type_id"),
         @Index(name = "idx_document_status", columnList = "verification_status"),
         @Index(name = "idx_document_upload_date", columnList = "uploaded_at")
 })
 @SQLDelete(sql = "UPDATE documents SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
 public class Document extends BaseEntity {
+
+    // Enum definitions
+    public enum VerificationStatus {
+        PENDING("PENDING", "Хүлээгдэж байгаа"),
+        IN_REVIEW("IN_REVIEW", "Шалгаж байгаа"),
+        APPROVED("APPROVED", "Баталгаажуулсан"),
+        REJECTED("REJECTED", "Татгалзсан"),
+        EXPIRED("EXPIRED", "Хугацаа дууссан"),
+        RESUBMIT_REQUIRED("RESUBMIT_REQUIRED", "Дахин илгээх"),
+        ON_HOLD("ON_HOLD", "Түр зогсоосон");
+
+        private final String code;
+        private final String mongolianName;
+
+        VerificationStatus(String code, String mongolianName) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
+    }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_document_customer"))
@@ -36,57 +57,85 @@ public class Document extends BaseEntity {
     @JoinColumn(name = "loan_application_id", foreignKey = @ForeignKey(name = "fk_document_loan_application"))
     private LoanApplication loanApplication;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "document_type", nullable = false, length = 50)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "document_type_id", nullable = false, foreignKey = @ForeignKey(name = "fk_document_document_type"))
     @NotNull(message = "Баримтын төрөл заавал сонгох ёстой")
     private DocumentType documentType;
 
-    @Column(name = "original_filename", nullable = false, length = 255)
+    @Column(name = "original_filename", nullable = false, length = 500)
     @NotBlank(message = "Файлын нэр заавал байх ёстой")
-    @Size(max = 255, message = "Файлын нэр 255 тэмдэгтээс ихгүй байх ёстой")
+    @Size(max = 500, message = "Файлын нэр 500 тэмдэгтээс ихгүй байх ёстой")
     private String originalFilename;
 
     @Column(name = "stored_filename", nullable = false, length = 500)
     @NotBlank(message = "Хадгалсан файлын нэр заавал байх ёстой")
+    @Size(max = 500, message = "Хадгалсан файлын нэр 500 тэмдэгтээс ихгүй байх ёстой")
     private String storedFilename;
 
-    @Column(name = "file_path", nullable = false, length = 1000)
+    @Column(name = "file_path", nullable = false, columnDefinition = "TEXT")
     @NotBlank(message = "Файлын зам заавал байх ёстой")
     private String filePath;
 
     @Column(name = "content_type", nullable = false, length = 100)
     @NotBlank(message = "Файлын төрөл заавал байх ёстой")
+    @Size(max = 100, message = "Файлын төрөл 100 тэмдэгтээс ихгүй байх ёстой")
     private String contentType;
 
     @Column(name = "file_size", nullable = false)
     @NotNull(message = "Файлын хэмжээ заавал байх ёстой")
     @Min(value = 1, message = "Файлын хэмжээ 0-ээс их байх ёстой")
-    @Max(value = 52428800, message = "Файлын хэмжээ 50MB-аас бага байх ёстой")
     private Long fileSize;
 
-    @Column(name = "checksum", length = 64)
-    @Size(max = 64, message = "Checksum 64 тэмдэгтээс ихгүй байх ёстой")
+    @Column(name = "checksum", length = 256)
+    @Size(max = 256, message = "Checksum 256 тэмдэгтээс ихгүй байх ёстой")
     private String checksum;
 
-    @Column(name = "uploaded_at", nullable = false)
-    @NotNull(message = "Илгээсэн огноо заавал байх ёстой")
-    private LocalDateTime uploadedAt;
+    @Column(name = "description", length = 1000)
+    @Size(max = 1000, message = "Тайлбар 1000 тэмдэгтээс ихгүй байх ёстой")
+    private String description;
 
+    @Column(name = "tags", length = 1000)
+    @Size(max = 1000, message = "Таг 1000 тэмдэгтээс ихгүй байх ёстой")
+    private String tags;
+
+    @Column(name = "version_number")
+    @Min(value = 1, message = "Хувилбарын дугаар 1-ээс бага байж болохгүй")
+    private Integer versionNumber = 1;
+
+    @Column(name = "previous_document_id", columnDefinition = "VARCHAR(36)")
+    private String previousDocumentId;
+
+    // Баталгаажуулалтын мэдээлэл
+    @Column(name = "verification_status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    @Column(name = "verification_status", nullable = false, length = 30)
     @NotNull(message = "Баталгаажуулалтын статус заавал байх ёстой")
     private VerificationStatus verificationStatus = VerificationStatus.PENDING;
-
-    @Column(name = "verified_at")
-    private LocalDateTime verifiedAt;
 
     @Column(name = "verified_by", length = 100)
     @Size(max = 100, message = "Баталгаажуулсан хүний нэр 100 тэмдэгтээс ихгүй байх ёстой")
     private String verifiedBy;
 
-    @Column(name = "verification_notes", length = 1000)
-    @Size(max = 1000, message = "Баталгаажуулалтын тэмдэглэл 1000 тэмдэгтээс ихгүй байх ёстой")
+    @Column(name = "verified_at")
+    private LocalDateTime verifiedAt;
+
+    @Column(name = "verification_notes", columnDefinition = "TEXT")
     private String verificationNotes;
+
+    // Хугацаа
+    @Column(name = "expiry_date")
+    private LocalDate expiryDate;
+
+    // Шаардлага
+    @Column(name = "is_required", nullable = false)
+    private Boolean isRequired = false;
+
+    // Боловсруулалтын мэдээлэл
+    @Column(name = "processing_status", length = 50)
+    @Size(max = 50, message = "Боловсруулалтын статус 50 тэмдэгтээс ихгүй байх ёстой")
+    private String processingStatus;
+
+    @Column(name = "processing_error", columnDefinition = "TEXT")
+    private String processingError;
 
     @Column(name = "ocr_text", columnDefinition = "TEXT")
     private String ocrText;
@@ -94,68 +143,19 @@ public class Document extends BaseEntity {
     @Column(name = "extracted_data", columnDefinition = "TEXT")
     private String extractedData;
 
-    @Column(name = "ai_confidence_score", precision = 5, scale = 2)
+    @Column(name = "ai_confidence_score", precision = 5, scale = 4)
     @DecimalMin(value = "0.0", message = "AI итгэлцлийн оноо сөрөг байж болохгүй")
-    @DecimalMax(value = "100.0", message = "AI итгэлцлийн оноо 100-аас их байж болохгүй")
+    @DecimalMax(value = "1.0", message = "AI итгэлцлийн оноо 1.0-аас их байж болохгүй")
     private BigDecimal aiConfidenceScore;
 
-    @Column(name = "processing_status", length = 30)
-    private String processingStatus;
+    // Илгээх мэдээлэл
+    @Column(name = "uploaded_at", nullable = false)
+    @NotNull(message = "Илгээсэн огноо заавал байх ёстой")
+    private LocalDateTime uploadedAt;
 
-    @Column(name = "processing_error", length = 500)
-    @Size(max = 500, message = "Процессын алдаа 500 тэмдэгтээс ихгүй байх ёстой")
-    private String processingError;
-
-    @Column(name = "description", length = 500)
-    @Size(max = 500, message = "Тайлбар 500 тэмдэгтээс ихгүй байх ёстой")
-    private String description;
-
-    @Column(name = "tags", length = 255)
-    @Size(max = 255, message = "Таг 255 тэмдэгтээс ихгүй байх ёстой")
-    private String tags;
-
-    @Column(name = "expiry_date")
-    private LocalDate expiryDate;
-
-    @Column(name = "is_required", nullable = false)
-    private Boolean isRequired = false;
-
-    @Column(name = "version_number")
-    @Min(value = 1, message = "Хувилбарын дугаар 1-ээс бага байж болохгүй")
-    private Integer versionNumber = 1;
-
-    @Column(name = "previous_document_id", columnDefinition = "uuid")
-    private java.util.UUID previousDocumentId;
-
-    // Баталгаажуулалтын статус
-    public enum VerificationStatus {
-        PENDING("Хүлээгдэж байгаа", "Waiting for verification"),
-        IN_REVIEW("Шалгаж байгаа", "Under review"),
-        APPROVED("Баталгаажуулсан", "Verified and approved"),
-        REJECTED("Татгалзсан", "Verification failed"),
-        EXPIRED("Хугацаа дууссан", "Document expired"),
-        RESUBMIT_REQUIRED("Дахин илгээх", "Resubmission required"),
-        ON_HOLD("Түр зогсоосон", "On hold for additional review");
-
-        private final String mongolianName;
-        private final String englishDescription;
-
-        VerificationStatus(String mongolianName, String englishDescription) {
-            this.mongolianName = mongolianName;
-            this.englishDescription = englishDescription;
-        }
-
-        public String getMongolianName() { return mongolianName; }
-        public String getEnglishDescription() { return englishDescription; }
-
-        public boolean isFinalStatus() {
-            return this == APPROVED || this == REJECTED || this == EXPIRED;
-        }
-
-        public boolean isActionRequired() {
-            return this == RESUBMIT_REQUIRED || this == REJECTED;
-        }
-    }
+    @Column(name = "uploaded_by", length = 100)
+    @Size(max = 100, message = "Илгээсэн хүний нэр 100 тэмдэгтээс ихгүй байх ёстой")
+    private String uploadedBy;
 
     // Constructors
     public Document() {
@@ -163,7 +163,8 @@ public class Document extends BaseEntity {
         this.uploadedAt = LocalDateTime.now();
     }
 
-    public Document(Customer customer, DocumentType documentType, String originalFilename, String storedFilename, String filePath, String contentType, Long fileSize) {
+    public Document(Customer customer, DocumentType documentType, String originalFilename, 
+                   String storedFilename, String filePath, String contentType, Long fileSize) {
         this();
         this.customer = customer;
         this.documentType = documentType;
@@ -195,7 +196,7 @@ public class Document extends BaseEntity {
     }
 
     public boolean isVerified() {
-        return verificationStatus == VerificationStatus.APPROVED;
+        return VerificationStatus.APPROVED.equals(verificationStatus);
     }
 
     public boolean isExpired() {
@@ -203,8 +204,8 @@ public class Document extends BaseEntity {
     }
 
     public boolean needsResubmission() {
-        return verificationStatus == VerificationStatus.RESUBMIT_REQUIRED || 
-               verificationStatus == VerificationStatus.REJECTED;
+        return VerificationStatus.RESUBMIT_REQUIRED.equals(verificationStatus) || 
+               VerificationStatus.REJECTED.equals(verificationStatus);
     }
 
     public String getFileExtension() {
@@ -259,6 +260,10 @@ public class Document extends BaseEntity {
         this.processingError = errorMessage;
     }
 
+    public String getVerificationStatusText() {
+        return verificationStatus != null ? verificationStatus.getMongolianName() : "Тодорхойгүй";
+    }
+
     // Getters and Setters
     public Customer getCustomer() { return customer; }
     public void setCustomer(Customer customer) { this.customer = customer; }
@@ -287,20 +292,41 @@ public class Document extends BaseEntity {
     public String getChecksum() { return checksum; }
     public void setChecksum(String checksum) { this.checksum = checksum; }
 
-    public LocalDateTime getUploadedAt() { return uploadedAt; }
-    public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
+    public String getTags() { return tags; }
+    public void setTags(String tags) { this.tags = tags; }
+
+    public Integer getVersionNumber() { return versionNumber; }
+    public void setVersionNumber(Integer versionNumber) { this.versionNumber = versionNumber; }
+
+    public String getPreviousDocumentId() { return previousDocumentId; }
+    public void setPreviousDocumentId(String previousDocumentId) { this.previousDocumentId = previousDocumentId; }
 
     public VerificationStatus getVerificationStatus() { return verificationStatus; }
     public void setVerificationStatus(VerificationStatus verificationStatus) { this.verificationStatus = verificationStatus; }
 
-    public LocalDateTime getVerifiedAt() { return verifiedAt; }
-    public void setVerifiedAt(LocalDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
-
     public String getVerifiedBy() { return verifiedBy; }
     public void setVerifiedBy(String verifiedBy) { this.verifiedBy = verifiedBy; }
 
+    public LocalDateTime getVerifiedAt() { return verifiedAt; }
+    public void setVerifiedAt(LocalDateTime verifiedAt) { this.verifiedAt = verifiedAt; }
+
     public String getVerificationNotes() { return verificationNotes; }
     public void setVerificationNotes(String verificationNotes) { this.verificationNotes = verificationNotes; }
+
+    public LocalDate getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
+
+    public Boolean getIsRequired() { return isRequired; }
+    public void setIsRequired(Boolean isRequired) { this.isRequired = isRequired; }
+
+    public String getProcessingStatus() { return processingStatus; }
+    public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
+
+    public String getProcessingError() { return processingError; }
+    public void setProcessingError(String processingError) { this.processingError = processingError; }
 
     public String getOcrText() { return ocrText; }
     public void setOcrText(String ocrText) { this.ocrText = ocrText; }
@@ -311,36 +337,18 @@ public class Document extends BaseEntity {
     public BigDecimal getAiConfidenceScore() { return aiConfidenceScore; }
     public void setAiConfidenceScore(BigDecimal aiConfidenceScore) { this.aiConfidenceScore = aiConfidenceScore; }
 
-    public String getProcessingStatus() { return processingStatus; }
-    public void setProcessingStatus(String processingStatus) { this.processingStatus = processingStatus; }
+    public LocalDateTime getUploadedAt() { return uploadedAt; }
+    public void setUploadedAt(LocalDateTime uploadedAt) { this.uploadedAt = uploadedAt; }
 
-    public String getProcessingError() { return processingError; }
-    public void setProcessingError(String processingError) { this.processingError = processingError; }
-
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-
-    public String getTags() { return tags; }
-    public void setTags(String tags) { this.tags = tags; }
-
-    public LocalDate getExpiryDate() { return expiryDate; }
-    public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
-
-    public Boolean getIsRequired() { return isRequired; }
-    public void setIsRequired(Boolean isRequired) { this.isRequired = isRequired; }
-
-    public Integer getVersionNumber() { return versionNumber; }
-    public void setVersionNumber(Integer versionNumber) { this.versionNumber = versionNumber; }
-
-    public java.util.UUID getPreviousDocumentId() { return previousDocumentId; }
-    public void setPreviousDocumentId(java.util.UUID previousDocumentId) { this.previousDocumentId = previousDocumentId; }
+    public String getUploadedBy() { return uploadedBy; }
+    public void setUploadedBy(String uploadedBy) { this.uploadedBy = uploadedBy; }
 
     // toString
     @Override
     public String toString() {
         return "Document{" +
                 "id=" + getId() +
-                ", documentType=" + documentType +
+                ", documentType=" + (documentType != null ? documentType.getName() : "null") +
                 ", originalFilename='" + originalFilename + '\'' +
                 ", verificationStatus=" + verificationStatus +
                 ", fileSize=" + getFileSizeFormatted() +

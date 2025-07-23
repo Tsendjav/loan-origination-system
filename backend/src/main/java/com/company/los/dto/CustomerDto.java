@@ -96,8 +96,8 @@ public class CustomerDto {
     // KYC статус
     private Customer.KycStatus kycStatus;
 
-    @JsonFormat(pattern = "yyyy-MM-dd")
-    private LocalDate kycCompletedAt;
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime kycCompletedAt;
 
     // Metadata
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -150,7 +150,12 @@ public class CustomerDto {
         // Null-safe getter calls with default values
         try {
             dto.setBirthDate(customer.getBirthDate());
-        } catch (Exception e) { /* Ignore if getter not available */ }
+        } catch (Exception e) {
+            // Fallback to getDateOfBirth if getBirthDate doesn't exist
+            try {
+                dto.setBirthDate(customer.getDateOfBirth());
+            } catch (Exception ex) { /* Ignore if neither getter is available */ }
+        }
         
         try {
             dto.setGender(customer.getGender());
@@ -158,55 +163,55 @@ public class CustomerDto {
         
         try {
             dto.setAddress(customer.getAddress());
-        } catch (Exception e) { dto.setAddress(null); } // Changed to null to match NON_NULL include
+        } catch (Exception e) { dto.setAddress(null); }
         
         try {
             dto.setCity(customer.getCity());
-        } catch (Exception e) { dto.setCity(null); } // Changed to null
+        } catch (Exception e) { dto.setCity(null); }
         
         try {
             dto.setProvince(customer.getProvince());
-        } catch (Exception e) { dto.setProvince(null); } // Changed to null
+        } catch (Exception e) { dto.setProvince(null); }
         
         try {
             dto.setPostalCode(customer.getPostalCode());
-        } catch (Exception e) { dto.setPostalCode(null); } // Changed to null
+        } catch (Exception e) { dto.setPostalCode(null); }
         
         try {
             dto.setEmployerName(customer.getEmployerName());
-        } catch (Exception e) { dto.setEmployerName(null); } // Changed to null
+        } catch (Exception e) { dto.setEmployerName(null); }
         
         try {
             dto.setJobTitle(customer.getJobTitle());
-        } catch (Exception e) { dto.setJobTitle(null); } // Changed to null
+        } catch (Exception e) { dto.setJobTitle(null); }
         
         try {
             dto.setWorkExperienceYears(customer.getWorkExperienceYears());
-        } catch (Exception e) { dto.setWorkExperienceYears(null); } // Changed to null
+        } catch (Exception e) { dto.setWorkExperienceYears(null); }
         
         try {
             dto.setMonthlyIncome(customer.getMonthlyIncome());
-        } catch (Exception e) { dto.setMonthlyIncome(null); } // Changed to null
+        } catch (Exception e) { dto.setMonthlyIncome(null); }
         
         try {
             dto.setCompanyName(customer.getCompanyName());
-        } catch (Exception e) { dto.setCompanyName(null); } // Changed to null
+        } catch (Exception e) { dto.setCompanyName(null); }
 
         try {
             dto.setBusinessRegistrationNumber(customer.getBusinessRegistrationNumber());
-        } catch (Exception e) { dto.setBusinessRegistrationNumber(null); } // Changed to null
+        } catch (Exception e) { dto.setBusinessRegistrationNumber(null); }
 
         try {
             dto.setTaxNumber(customer.getTaxNumber());
-        } catch (Exception e) { dto.setTaxNumber(null); } // Changed to null
+        } catch (Exception e) { dto.setTaxNumber(null); }
 
         try {
             dto.setBusinessType(customer.getBusinessType());
-        } catch (Exception e) { dto.setBusinessType(null); } // Changed to null
+        } catch (Exception e) { dto.setBusinessType(null); }
 
         try {
             dto.setAnnualRevenue(customer.getAnnualRevenue());
-        } catch (Exception e) { dto.setAnnualRevenue(null); } // Changed to null
+        } catch (Exception e) { dto.setAnnualRevenue(null); }
 
         try {
             dto.setKycCompletedAt(customer.getKycCompletedAt());
@@ -227,7 +232,7 @@ public class CustomerDto {
                 dto.setFullName(null);
                 dto.setDisplayName(null);
             }
-            dto.setAge(null); // Set to null if not available
+            dto.setAge(null);
             dto.setIsKycCompleted(customer.getKycStatus() == Customer.KycStatus.COMPLETED);
         }
 
@@ -288,7 +293,12 @@ public class CustomerDto {
         // Null-safe setter calls for potentially missing methods
         try {
             customer.setBirthDate(this.birthDate);
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        } catch (Exception e) {
+            // Fallback to setDateOfBirth if setBirthDate doesn't exist
+            try {
+                customer.setDateOfBirth(this.birthDate);
+            } catch (Exception ex) { /* Ignore if neither setter is available */ }
+        }
         
         try {
             customer.setGender(this.gender);
@@ -465,8 +475,8 @@ public class CustomerDto {
     public Customer.KycStatus getKycStatus() { return kycStatus; }
     public void setKycStatus(Customer.KycStatus kycStatus) { this.kycStatus = kycStatus; }
 
-    public LocalDate getKycCompletedAt() { return kycCompletedAt; }
-    public void setKycCompletedAt(LocalDate kycCompletedAt) { this.kycCompletedAt = kycCompletedAt; }
+    public LocalDateTime getKycCompletedAt() { return kycCompletedAt; }
+    public void setKycCompletedAt(LocalDateTime kycCompletedAt) { this.kycCompletedAt = kycCompletedAt; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

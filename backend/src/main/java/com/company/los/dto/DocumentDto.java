@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.company.los.entity.Document;
-import com.company.los.enums.DocumentType;
+import com.company.los.entity.DocumentType;
 import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
@@ -104,7 +104,7 @@ public class DocumentDto {
     private LoanApplicationDto loanApplication;
 
     // Computed fields (read-only)
-    private String documentTypeDisplay;
+    private String documentTypeName;
     private String verificationStatusDisplay;
     private String fileSizeFormatted;
     private String fileExtension;
@@ -141,23 +141,42 @@ public class DocumentDto {
         }
         
         DocumentDto dto = new DocumentDto();
-        dto.setId(document.getId());
+        
+        // Safe ID conversion
+        try {
+            if (document.getId() != null) {
+                dto.setId(document.getId());
+            }
+        } catch (Exception e) { /* Ignore if conversion fails */ }
         
         // Safe customer ID extraction
         try {
-            if (document.getCustomer() != null) {
+            if (document.getCustomer() != null && document.getCustomer().getId() != null) {
                 dto.setCustomerId(document.getCustomer().getId());
             }
         } catch (Exception e) { /* Ignore if customer not available */ }
         
         // Safe loan application ID extraction
         try {
-            if (document.getLoanApplication() != null) {
+            if (document.getLoanApplication() != null && document.getLoanApplication().getId() != null) {
                 dto.setLoanApplicationId(document.getLoanApplication().getId());
             }
         } catch (Exception e) { /* Ignore if loan application not available */ }
         
-        dto.setDocumentType(document.getDocumentType());
+        // Safe document type extraction
+        try {
+            if (document.getDocumentType() != null) {
+                dto.setDocumentType(document.getDocumentType());
+                // Try to get name from DocumentType entity
+                try {
+                    dto.setDocumentTypeName(document.getDocumentType().getName());
+                } catch (Exception e) {
+                    // If getName() method doesn't exist, use toString or class name
+                    dto.setDocumentTypeName(document.getDocumentType().toString());
+                }
+            }
+        } catch (Exception e) { /* Ignore if document type not available */ }
+        
         dto.setOriginalFilename(document.getOriginalFilename());
         dto.setStoredFilename(document.getStoredFilename());
         dto.setFilePath(document.getFilePath());
@@ -234,8 +253,11 @@ public class DocumentDto {
         } catch (Exception e) { dto.setVersionNumber(1); }
         
         try {
-            dto.setPreviousDocumentId(document.getPreviousDocumentId());
-        } catch (Exception e) { /* Default if getter not available */ }
+            if (document.getPreviousDocumentId() != null) {
+                // Convert String to UUID safely
+                dto.setPreviousDocumentId(UUID.fromString(document.getPreviousDocumentId()));
+            }
+        } catch (Exception e) { /* Default if getter not available or conversion fails */ }
 
         // Set customer info if needed
         try {
@@ -246,15 +268,11 @@ public class DocumentDto {
 
         // Computed fields with safe method calls
         try {
-            dto.setDocumentTypeDisplay(document.getDocumentType().getMongolianName());
+            dto.setVerificationStatusDisplay(document.getVerificationStatusText());
         } catch (Exception e) {
-            dto.setDocumentTypeDisplay(document.getDocumentType().toString());
-        }
-        
-        try {
-            dto.setVerificationStatusDisplay(document.getVerificationStatus().getMongolianName());
-        } catch (Exception e) {
-            dto.setVerificationStatusDisplay(document.getVerificationStatus().toString());
+            if (document.getVerificationStatus() != null) {
+                dto.setVerificationStatusDisplay(document.getVerificationStatus().toString());
+            }
         }
         
         try {
@@ -331,11 +349,28 @@ public class DocumentDto {
         }
         
         DocumentDto dto = new DocumentDto();
-        dto.setId(document.getId());
-        dto.setDocumentType(document.getDocumentType());
+        
+        // Safe ID conversion
+        try {
+            if (document.getId() != null) {
+                dto.setId(document.getId());
+            }
+        } catch (Exception e) { /* Ignore if conversion fails */ }
+        
         dto.setOriginalFilename(document.getOriginalFilename());
         dto.setVerificationStatus(document.getVerificationStatus());
         dto.setUploadedAt(document.getUploadedAt());
+        
+        try {
+            if (document.getDocumentType() != null) {
+                dto.setDocumentType(document.getDocumentType());
+                try {
+                    dto.setDocumentTypeName(document.getDocumentType().getName());
+                } catch (Exception e) {
+                    dto.setDocumentTypeName(document.getDocumentType().toString());
+                }
+            }
+        } catch (Exception e) { /* Ignore if document type not available */ }
         
         try {
             dto.setFileSize(document.getFileSize() != null ? document.getFileSize() : 0L);
@@ -343,11 +378,11 @@ public class DocumentDto {
         } catch (Exception e) { /* Ignore if getters not available */ }
         
         try {
-            dto.setDocumentTypeDisplay(document.getDocumentType().getMongolianName());
-            dto.setVerificationStatusDisplay(document.getVerificationStatus().getMongolianName());
+            dto.setVerificationStatusDisplay(document.getVerificationStatusText());
         } catch (Exception e) {
-            dto.setDocumentTypeDisplay(document.getDocumentType().toString());
-            dto.setVerificationStatusDisplay(document.getVerificationStatus().toString());
+            if (document.getVerificationStatus() != null) {
+                dto.setVerificationStatusDisplay(document.getVerificationStatus().toString());
+            }
         }
         
         if (dto.getFileSize() != null) {
@@ -369,8 +404,8 @@ public class DocumentDto {
 
     public Document toEntity() {
         Document document = new Document();
-        document.setId(this.id);
-        document.setDocumentType(this.documentType);
+        
+        // Set basic fields
         document.setOriginalFilename(this.originalFilename);
         document.setStoredFilename(this.storedFilename);
         document.setFilePath(this.filePath);
@@ -446,7 +481,9 @@ public class DocumentDto {
         } catch (Exception e) { /* Ignore if setter not available */ }
         
         try {
-            document.setPreviousDocumentId(this.previousDocumentId);
+            if (this.previousDocumentId != null) {
+                document.setPreviousDocumentId(this.previousDocumentId.toString());
+            }
         } catch (Exception e) { /* Ignore if setter not available */ }
         
         return document;
@@ -468,22 +505,6 @@ public class DocumentDto {
                contentType != null && !contentType.trim().isEmpty() &&
                fileSize != null && fileSize > 0 &&
                customerId != null;
-    }
-
-    public boolean isAllowedFileType() {
-        if (documentType == null || contentType == null) {
-            return false;
-        }
-        
-        String extension = getFileExtension();
-        try {
-            return documentType.isExtensionAllowed(extension);
-        } catch (Exception e) {
-            return contentType.startsWith("image/") || 
-                   contentType.equals("application/pdf") ||
-                   contentType.contains("msword") ||
-                   contentType.contains("spreadsheetml");
-        }
     }
 
     public boolean isFileSizeValid() {
@@ -678,8 +699,8 @@ public class DocumentDto {
     public LoanApplicationDto getLoanApplication() { return loanApplication; }
     public void setLoanApplication(LoanApplicationDto loanApplication) { this.loanApplication = loanApplication; }
 
-    public String getDocumentTypeDisplay() { return documentTypeDisplay; }
-    public void setDocumentTypeDisplay(String documentTypeDisplay) { this.documentTypeDisplay = documentTypeDisplay; }
+    public String getDocumentTypeName() { return documentTypeName; }
+    public void setDocumentTypeName(String documentTypeName) { this.documentTypeName = documentTypeName; }
 
     public String getVerificationStatusDisplay() { return verificationStatusDisplay; }
     public void setVerificationStatusDisplay(String verificationStatusDisplay) { this.verificationStatusDisplay = verificationStatusDisplay; }

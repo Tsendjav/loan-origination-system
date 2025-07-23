@@ -19,6 +19,9 @@ public class CreateLoanRequestDto {
     @NotNull(message = "Харилцагч заавал сонгох ёстой")
     private UUID customerId;
 
+    @NotNull(message = "Зээлийн бүтээгдэхүүн заавал сонгох ёстой")
+    private UUID loanProductId;
+
     @NotNull(message = "Зээлийн төрөл заавал сонгох ёстой")
     private LoanApplication.LoanType loanType;
 
@@ -90,10 +93,16 @@ public class CreateLoanRequestDto {
             return false;
         }
         
-        return requestedAmount.compareTo(BigDecimal.valueOf(loanType.getMinAmount())) >= 0 &&
-               requestedAmount.compareTo(BigDecimal.valueOf(loanType.getMaxAmount())) <= 0 &&
-               requestedTermMonths >= loanType.getMinTermMonths() &&
-               requestedTermMonths <= loanType.getMaxTermMonths();
+        // Use hardcoded limits since enum doesn't have these methods
+        BigDecimal minAmount = getLoanTypeMinAmount(loanType);
+        BigDecimal maxAmount = getLoanTypeMaxAmount(loanType);
+        Integer minTermMonths = getLoanTypeMinTermMonths(loanType);
+        Integer maxTermMonths = getLoanTypeMaxTermMonths(loanType);
+        
+        return requestedAmount.compareTo(minAmount) >= 0 &&
+               requestedAmount.compareTo(maxAmount) <= 0 &&
+               requestedTermMonths >= minTermMonths &&
+               requestedTermMonths <= maxTermMonths;
     }
 
     public boolean hasCollateral() {
@@ -233,7 +242,7 @@ public class CreateLoanRequestDto {
         
         // Check amount vs loan type
         if (loanType != null && requestedAmount != null) {
-            BigDecimal maxAmount = BigDecimal.valueOf(loanType.getMaxAmount());
+            BigDecimal maxAmount = getLoanTypeMaxAmount(loanType);
             if (requestedAmount.compareTo(maxAmount.multiply(BigDecimal.valueOf(0.9))) > 0) {
                 hints.append("• Их дүнгийн зээлийн хүсэлт\n");
             }
@@ -241,7 +250,8 @@ public class CreateLoanRequestDto {
         
         // Check term vs loan type
         if (loanType != null && requestedTermMonths != null) {
-            if (requestedTermMonths > loanType.getMaxTermMonths() * 0.8) {
+            Integer maxTermMonths = getLoanTypeMaxTermMonths(loanType);
+            if (requestedTermMonths > maxTermMonths * 0.8) {
                 hints.append("• Урт хугацааны зээлийн хүсэлт\n");
             }
         }
@@ -249,9 +259,65 @@ public class CreateLoanRequestDto {
         return hints.toString();
     }
 
+    // Helper methods for loan type limits (since enum doesn't have these methods)
+    private BigDecimal getLoanTypeMinAmount(LoanApplication.LoanType loanType) {
+        switch (loanType) {
+            case PERSONAL: return new BigDecimal("100000");
+            case BUSINESS: return new BigDecimal("500000");
+            case MORTGAGE: return new BigDecimal("5000000");
+            case CAR_LOAN: return new BigDecimal("2000000");
+            case CONSUMER: return new BigDecimal("50000");
+            case EDUCATION: return new BigDecimal("100000");
+            case MEDICAL: return new BigDecimal("50000");
+            default: return new BigDecimal("100000");
+        }
+    }
+
+    private BigDecimal getLoanTypeMaxAmount(LoanApplication.LoanType loanType) {
+        switch (loanType) {
+            case PERSONAL: return new BigDecimal("10000000");
+            case BUSINESS: return new BigDecimal("100000000");
+            case MORTGAGE: return new BigDecimal("500000000");
+            case CAR_LOAN: return new BigDecimal("50000000");
+            case CONSUMER: return new BigDecimal("5000000");
+            case EDUCATION: return new BigDecimal("20000000");
+            case MEDICAL: return new BigDecimal("10000000");
+            default: return new BigDecimal("10000000");
+        }
+    }
+
+    private Integer getLoanTypeMinTermMonths(LoanApplication.LoanType loanType) {
+        switch (loanType) {
+            case PERSONAL: return 3;
+            case BUSINESS: return 6;
+            case MORTGAGE: return 12;
+            case CAR_LOAN: return 6;
+            case CONSUMER: return 3;
+            case EDUCATION: return 6;
+            case MEDICAL: return 3;
+            default: return 3;
+        }
+    }
+
+    private Integer getLoanTypeMaxTermMonths(LoanApplication.LoanType loanType) {
+        switch (loanType) {
+            case PERSONAL: return 60;
+            case BUSINESS: return 120;
+            case MORTGAGE: return 360;
+            case CAR_LOAN: return 84;
+            case CONSUMER: return 36;
+            case EDUCATION: return 120;
+            case MEDICAL: return 60;
+            default: return 60;
+        }
+    }
+
     // Getters and Setters
     public UUID getCustomerId() { return customerId; }
     public void setCustomerId(UUID customerId) { this.customerId = customerId; }
+
+    public UUID getLoanProductId() { return loanProductId; }
+    public void setLoanProductId(UUID loanProductId) { this.loanProductId = loanProductId; }
 
     public LoanApplication.LoanType getLoanType() { return loanType; }
     public void setLoanType(LoanApplication.LoanType loanType) { this.loanType = loanType; }
@@ -296,6 +362,7 @@ public class CreateLoanRequestDto {
     public String toString() {
         return "CreateLoanRequestDto{" +
                 "customerId=" + customerId +
+                ", loanProductId=" + loanProductId +
                 ", loanType=" + loanType +
                 ", requestedAmount=" + requestedAmount +
                 ", requestedTermMonths=" + requestedTermMonths +

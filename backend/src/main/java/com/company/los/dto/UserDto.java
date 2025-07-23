@@ -9,10 +9,9 @@ import com.company.los.entity.User;
 import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;
-import java.time.Duration; // Duration импорт нэмсэн
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -23,21 +22,20 @@ import java.util.stream.Collectors;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDto {
 
-    private UUID id;
+    private String id;
 
     @NotBlank(message = "Хэрэглэгчийн нэр заавал бөглөх ёстой")
-    @Size(min = 3, max = 50, message = "Хэрэглэгчийн нэр 3-50 тэмдэгт байх ёстой")
+    @Size(min = 3, max = 100, message = "Хэрэглэгчийн нэр 3-100 тэмдэгт байх ёстой")
     @Pattern(regexp = "^[a-zA-Z0-9._-]+$", message = "Хэрэглэгчийн нэрэнд зөвхөн үсэг, тоо, цэг, доор зураас ашиглана уу")
     private String username;
 
     @JsonIgnore // Never serialize password
-    @NotBlank(message = "Нууц үг заавал бөглөх ёстой")
     @Size(min = 8, max = 100, message = "Нууц үг 8-100 тэмдэгт байх ёстой")
     private String password;
 
     @NotBlank(message = "И-мэйл заавал бөглөх ёстой")
     @Email(message = "И-мэйлийн формат буруу")
-    @Size(max = 100, message = "И-мэйл 100 тэмдэгтээс ихгүй байх ёстой")
+    @Size(max = 255, message = "И-мэйл 255 тэмдэгтээс ихгүй байх ёстой")
     private String email;
 
     @NotBlank(message = "Нэр заавал бөглөх ёстой")
@@ -52,7 +50,7 @@ public class UserDto {
     @Size(max = 20, message = "Утасны дугаар 20 тэмдэгтээс ихгүй байх ёстой")
     private String phone;
 
-    @Size(max = 20, message = "Ажилтны дугаар 20 тэмдэгтээс ихгүй байх ёстой")
+    @Size(max = 50, message = "Ажилтны дугаар 50 тэмдэгтээс ихгүй байх ёстой")
     private String employeeId;
 
     @Size(max = 100, message = "Албан тушаал 100 тэмдэгтээс ихгүй байх ёстой")
@@ -64,10 +62,15 @@ public class UserDto {
     @NotNull(message = "Хэрэглэгчийн статус заавал байх ёстой")
     private User.UserStatus status;
 
+    // Spring Security UserDetails compatible fields
     private Boolean accountNonExpired;
     private Boolean accountNonLocked;
     private Boolean credentialsNonExpired;
     private Boolean enabled;
+
+    // Account management fields
+    private Boolean isEmailVerified;
+    private Boolean isLocked;
     private Integer failedLoginAttempts;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -78,6 +81,9 @@ public class UserDto {
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime lockedUntil;
+
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime passwordExpiresAt;
 
     // Two-Factor Authentication
     private Boolean twoFactorEnabled;
@@ -94,7 +100,12 @@ public class UserDto {
     @Size(max = 50, message = "Цагийн бүс 50 тэмдэгтээс ихгүй байх ёстой")
     private String timezone;
 
-    private Set<RoleDto> roles; // DTO for roles
+    // Manager relationship
+    private String managerId;
+    private String managerName;
+
+    // Roles
+    private Set<RoleDto> roles;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
@@ -105,12 +116,12 @@ public class UserDto {
     private String createdBy;
     private String updatedBy;
 
+    private Boolean isDeleted;
+    private Boolean isActive;
+
     // Computed fields
     private String fullName;
     private String displayName;
-    private Boolean isActive;
-    private Boolean isLocked;
-    private Boolean isPasswordExpired;
     private Boolean hasMultipleRoles;
     private Boolean isAdminUser;
     private Integer daysSinceLastLogin;
@@ -130,10 +141,14 @@ public class UserDto {
         this.accountNonLocked = true;
         this.credentialsNonExpired = true;
         this.enabled = false; // By default, not enabled until activated
+        this.isEmailVerified = false;
+        this.isLocked = false;
         this.failedLoginAttempts = 0;
         this.twoFactorEnabled = false;
         this.language = "mn";
         this.timezone = "Asia/Ulaanbaatar";
+        this.isDeleted = false;
+        this.isActive = true;
     }
 
     // Static factory methods
@@ -145,7 +160,7 @@ public class UserDto {
         UserDto dto = new UserDto();
         dto.setId(user.getId());
         dto.setUsername(user.getUsername());
-        // Password and TwoFactorSecret are @JsonIgnore, so don't set them directly from entity for DTO
+        // Password is @JsonIgnore, so don't set it for security
         dto.setEmail(user.getEmail());
         dto.setFirstName(user.getFirstName());
         dto.setLastName(user.getLastName());
@@ -154,39 +169,57 @@ public class UserDto {
         dto.setPosition(user.getPosition());
         dto.setDepartment(user.getDepartment());
         dto.setStatus(user.getStatus());
-        dto.setAccountNonExpired(user.getAccountNonExpired());
-        dto.setAccountNonLocked(user.getAccountNonLocked());
-        dto.setCredentialsNonExpired(user.getCredentialsNonExpired());
-        dto.setEnabled(user.getEnabled());
+
+        // Spring Security UserDetails fields
+        dto.setAccountNonExpired(user.isAccountNonExpired());
+        dto.setAccountNonLocked(user.isAccountNonLocked());
+        dto.setCredentialsNonExpired(user.isCredentialsNonExpired());
+        dto.setEnabled(user.isEnabled());
+
+        // Account management
+        dto.setIsEmailVerified(user.getIsEmailVerified());
+        dto.setIsLocked(user.getIsLocked());
         dto.setFailedLoginAttempts(user.getFailedLoginAttempts());
         dto.setLastLoginAt(user.getLastLoginAt());
         dto.setPasswordChangedAt(user.getPasswordChangedAt());
         dto.setLockedUntil(user.getLockedUntil());
+        dto.setPasswordExpiresAt(user.getPasswordExpiresAt());
+
+        // Two-Factor Authentication
         dto.setTwoFactorEnabled(user.getTwoFactorEnabled());
-        // twoFactorSecret intentionally not set
+        // twoFactorSecret intentionally not set for security
+
+        // Profile
         dto.setProfilePictureUrl(user.getProfilePictureUrl());
         dto.setLanguage(user.getLanguage());
         dto.setTimezone(user.getTimezone());
 
+        // Manager
+        if (user.getManager() != null) {
+            dto.setManagerId(user.getManager().getId());
+            dto.setManagerName(user.getManager().getFullName());
+        }
+
+        // Roles
         if (user.getRoles() != null) {
             dto.setRoles(user.getRoles().stream()
                     .map(RoleDto::fromEntity)
                     .collect(Collectors.toSet()));
         }
 
+        // Audit fields
         dto.setCreatedAt(user.getCreatedAt());
         dto.setUpdatedAt(user.getUpdatedAt());
         dto.setCreatedBy(user.getCreatedBy());
         dto.setUpdatedBy(user.getUpdatedBy());
+        dto.setIsDeleted(user.getIsDeleted());
+        dto.setIsActive(user.getIsActive());
 
         // Set computed fields
         dto.setFullName(user.getFullName());
         dto.setDisplayName(user.getDisplayName());
-        dto.setIsActive(user.isEnabled());
-        dto.setIsLocked(user.isAccountLocked());
-        dto.setIsPasswordExpired(user.isPasswordExpired());
         dto.setHasMultipleRoles(user.getRoles() != null && user.getRoles().size() > 1);
-        dto.setIsAdminUser(user.hasAnyRole("ROLE_SYSTEM_ADMIN", "ROLE_BUSINESS_ADMIN")); // Check for admin roles
+        dto.setIsAdminUser(user.hasAnyRole("ROLE_SYSTEM_ADMIN", "ROLE_BUSINESS_ADMIN"));
 
         // Calculate daysSinceLastLogin and lastLoginText
         if (user.getLastLoginAt() != null) {
@@ -210,9 +243,17 @@ public class UserDto {
 
     public User toEntity() {
         User user = new User();
-        user.setId(this.id);
+        
+        if (this.id != null) {
+            user.setId(this.id);
+        }
+        
         user.setUsername(this.username);
-        user.setPassword(this.password); // Only set if creating/updating password
+        
+        if (this.password != null) {
+            user.setPassword(this.password);
+        }
+        
         user.setEmail(this.email);
         user.setFirstName(this.firstName);
         user.setLastName(this.lastName);
@@ -220,38 +261,64 @@ public class UserDto {
         user.setEmployeeId(this.employeeId);
         user.setPosition(this.position);
         user.setDepartment(this.department);
-        user.setStatus(this.status);
-        user.setAccountNonExpired(this.accountNonExpired);
-        user.setAccountNonLocked(this.accountNonLocked);
-        user.setCredentialsNonExpired(this.credentialsNonExpired);
-        user.setEnabled(this.enabled);
-        user.setFailedLoginAttempts(this.failedLoginAttempts);
+        user.setStatus(this.status != null ? this.status : User.UserStatus.PENDING_ACTIVATION);
+
+        // Account management
+        if (this.isEmailVerified != null) {
+            user.setIsEmailVerified(this.isEmailVerified);
+        }
+        if (this.isLocked != null) {
+            user.setIsLocked(this.isLocked);
+        }
+        if (this.failedLoginAttempts != null) {
+            user.setFailedLoginAttempts(this.failedLoginAttempts);
+        }
+
         user.setLastLoginAt(this.lastLoginAt);
         user.setPasswordChangedAt(this.passwordChangedAt);
         user.setLockedUntil(this.lockedUntil);
-        user.setTwoFactorEnabled(this.twoFactorEnabled);
-        user.setTwoFactorSecret(this.twoFactorSecret); // Only set if creating/updating two-factor secret
-        user.setProfilePictureUrl(this.profilePictureUrl);
-        user.setLanguage(this.language);
-        user.setTimezone(this.timezone);
+        user.setPasswordExpiresAt(this.passwordExpiresAt);
 
+        // Two-Factor Authentication
+        if (this.twoFactorEnabled != null) {
+            user.setTwoFactorEnabled(this.twoFactorEnabled);
+        }
+        if (this.twoFactorSecret != null) {
+            user.setTwoFactorSecret(this.twoFactorSecret);
+        }
+
+        // Profile
+        user.setProfilePictureUrl(this.profilePictureUrl);
+        user.setLanguage(this.language != null ? this.language : "mn");
+        user.setTimezone(this.timezone != null ? this.timezone : "Asia/Ulaanbaatar");
+
+        // Roles conversion
         if (this.roles != null) {
             user.setRoles(this.roles.stream()
                     .map(RoleDto::toEntity)
-                    .collect(Collectors.toSet()));
+                    .collect(Collectors.toList()));
         }
 
+        // Audit fields
         user.setCreatedAt(this.createdAt);
         user.setUpdatedAt(this.updatedAt);
         user.setCreatedBy(this.createdBy);
         user.setUpdatedBy(this.updatedBy);
+
+        if (this.isDeleted != null) {
+            user.setIsDeleted(this.isDeleted);
+        }
+        if (this.isActive != null) {
+            user.setIsActive(this.isActive);
+        }
+
         return user;
     }
 
     // ========== НЭМЭГДСЭН ДУТУУ МЕТОДУУД ==========
 
     /**
-     * Хэрэглэгчийн мэдээлэл бүрэн эсэхийг шалгах - НЭМЭГДСЭН
+     * Хэрэглэгчийн мэдээлэл бүрэн эсэхийг шалгах
      */
     public boolean isValidForRegistration() {
         return username != null && !username.trim().isEmpty() &&
@@ -263,7 +330,7 @@ public class UserDto {
     }
 
     /**
-     * И-мэйл хаягийн формат зөв эсэхийг шалгах - НЭМЭГДСЭН
+     * И-мэйл хаягийн формат зөв эсэхийг шалгах
      */
     private boolean isValidEmail(String email) {
         if (email == null || email.trim().isEmpty()) {
@@ -274,19 +341,18 @@ public class UserDto {
     }
 
     /**
-     * Хэрэглэгчийн нэрийн формат зөв эсэхийг шалгах - НЭМЭГДСЭН
+     * Хэрэглэгчийн нэрийн формат зөв эсэхийг шалгах
      */
     private boolean isValidUsername(String username) {
         if (username == null || username.trim().isEmpty()) {
             return false;
         }
-        // Хэрэглэгчийн нэр дор хаяж 3 тэмдэгт, зөвхөн үсэг, тоо, доор зураас
-        String usernameRegex = "^[a-zA-Z0-9_]{3,50}$";
+        String usernameRegex = "^[a-zA-Z0-9._-]{3,100}$";
         return username.matches(usernameRegex);
     }
 
     /**
-     * Хэрэглэгчийн бүрэн нэрийг авах - НЭМЭГДСЭН
+     * Хэрэглэгчийн бүрэн нэрийг авах
      */
     public String getComputedFullName() {
         if (firstName == null && lastName == null) {
@@ -294,21 +360,21 @@ public class UserDto {
         }
         
         StringBuilder fullName = new StringBuilder();
-        if (firstName != null && !firstName.trim().isEmpty()) {
-            fullName.append(firstName.trim());
-        }
         if (lastName != null && !lastName.trim().isEmpty()) {
+            fullName.append(lastName.trim());
+        }
+        if (firstName != null && !firstName.trim().isEmpty()) {
             if (fullName.length() > 0) {
                 fullName.append(" ");
             }
-            fullName.append(lastName.trim());
+            fullName.append(firstName.trim());
         }
         
         return fullName.length() > 0 ? fullName.toString() : username;
     }
 
     /**
-     * Хэрэглэгчийн харагдах нэрийг авах - НЭМЭГДСЭН
+     * Хэрэглэгчийн харагдах нэрийг авах
      */
     public String getComputedDisplayName() {
         String fullName = getComputedFullName();
@@ -316,7 +382,7 @@ public class UserDto {
     }
 
     /**
-     * Дүр эзэмшдэг эсэхийг шалгах - НЭМЭГДСЭН
+     * Дүр эзэмшдэг эсэхийг шалгах
      */
     public boolean hasRole(String roleName) {
         if (roles == null || roleName == null) {
@@ -327,7 +393,7 @@ public class UserDto {
     }
 
     /**
-     * Аль нэг дүр эзэмшдэг эсэхийг шалгах - НЭМЭГДСЭН
+     * Аль нэг дүр эзэмшдэг эсэхийг шалгах
      */
     public boolean hasAnyRole(String... roleNames) {
         if (roles == null || roleNames == null) {
@@ -342,14 +408,14 @@ public class UserDto {
     }
 
     /**
-     * Админ эрхтэй эсэхийг шалгах - НЭМЭГДСЭН
+     * Админ эрхтэй эсэхийг шалгах
      */
     public boolean isAdmin() {
         return hasAnyRole("ROLE_SYSTEM_ADMIN", "ROLE_BUSINESS_ADMIN");
     }
 
     /**
-     * Дүрүүдийн нэрийг текст болгож буцаах - НЭМЭГДСЭН
+     * Дүрүүдийн нэрийг текст болгож буцаах
      */
     public String getRoleNamesAsString() {
         if (roles == null || roles.isEmpty()) {
@@ -361,7 +427,7 @@ public class UserDto {
     }
 
     /**
-     * Утасны дугаарыг форматлаж буцаах - НЭМЭГДСЭН
+     * Утасны дугаарыг форматлаж буцаах
      */
     public String getFormattedPhone() {
         if (phone == null || phone.trim().isEmpty()) {
@@ -377,16 +443,16 @@ public class UserDto {
     }
 
     /**
-     * Нэвтрэх статусын текст - НЭМЭГДСЭН
+     * Нэвтрэх статусын текст
      */
     public String getAccountStatusText() {
-        if (!enabled) {
+        if (!Boolean.TRUE.equals(enabled)) {
             return "Идэвхгүй";
         }
-        if (!accountNonLocked) {
+        if (!Boolean.TRUE.equals(accountNonLocked)) {
             return "Түгжээтэй";
         }
-        if (!credentialsNonExpired) {
+        if (!Boolean.TRUE.equals(credentialsNonExpired)) {
             return "Нууц үг хуучирсан";
         }
         if (status == User.UserStatus.PENDING_ACTIVATION) {
@@ -400,8 +466,8 @@ public class UserDto {
 
     // ========== GETTERS AND SETTERS ==========
 
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
@@ -445,6 +511,12 @@ public class UserDto {
     public Boolean getEnabled() { return enabled; }
     public void setEnabled(Boolean enabled) { this.enabled = enabled; }
 
+    public Boolean getIsEmailVerified() { return isEmailVerified; }
+    public void setIsEmailVerified(Boolean isEmailVerified) { this.isEmailVerified = isEmailVerified; }
+
+    public Boolean getIsLocked() { return isLocked; }
+    public void setIsLocked(Boolean isLocked) { this.isLocked = isLocked; }
+
     public Integer getFailedLoginAttempts() { return failedLoginAttempts; }
     public void setFailedLoginAttempts(Integer failedLoginAttempts) { this.failedLoginAttempts = failedLoginAttempts; }
 
@@ -456,6 +528,9 @@ public class UserDto {
 
     public LocalDateTime getLockedUntil() { return lockedUntil; }
     public void setLockedUntil(LocalDateTime lockedUntil) { this.lockedUntil = lockedUntil; }
+
+    public LocalDateTime getPasswordExpiresAt() { return passwordExpiresAt; }
+    public void setPasswordExpiresAt(LocalDateTime passwordExpiresAt) { this.passwordExpiresAt = passwordExpiresAt; }
 
     public Boolean getTwoFactorEnabled() { return twoFactorEnabled; }
     public void setTwoFactorEnabled(Boolean twoFactorEnabled) { this.twoFactorEnabled = twoFactorEnabled; }
@@ -472,6 +547,12 @@ public class UserDto {
     public String getTimezone() { return timezone; }
     public void setTimezone(String timezone) { this.timezone = timezone; }
 
+    public String getManagerId() { return managerId; }
+    public void setManagerId(String managerId) { this.managerId = managerId; }
+
+    public String getManagerName() { return managerName; }
+    public void setManagerName(String managerName) { this.managerName = managerName; }
+
     public Set<RoleDto> getRoles() { return roles; }
     public void setRoles(Set<RoleDto> roles) { this.roles = roles; }
 
@@ -487,21 +568,18 @@ public class UserDto {
     public String getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
+    public Boolean getIsDeleted() { return isDeleted; }
+    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
+
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+
     // Computed fields getters and setters
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
 
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
-
-    public Boolean getIsActive() { return isActive; }
-    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
-
-    public Boolean getIsLocked() { return isLocked; }
-    public void setIsLocked(Boolean isLocked) { this.isLocked = isLocked; }
-
-    public Boolean getIsPasswordExpired() { return isPasswordExpired; }
-    public void setIsPasswordExpired(Boolean isPasswordExpired) { this.isPasswordExpired = isPasswordExpired; }
 
     public Boolean getHasMultipleRoles() { return hasMultipleRoles; }
     public void setHasMultipleRoles(Boolean hasMultipleRoles) { this.hasMultipleRoles = hasMultipleRoles; }
@@ -518,7 +596,7 @@ public class UserDto {
     @Override
     public String toString() {
         return "UserDto{" +
-                "id=" + id +
+                "id='" + id + '\'' +
                 ", username='" + username + '\'' +
                 ", email='" + email + '\'' +
                 ", firstName='" + firstName + '\'' +
@@ -528,32 +606,17 @@ public class UserDto {
                 ", position='" + position + '\'' +
                 ", department='" + department + '\'' +
                 ", status=" + status +
-                ", accountNonExpired=" + accountNonExpired +
-                ", accountNonLocked=" + accountNonLocked +
-                ", credentialsNonExpired=" + credentialsNonExpired +
                 ", enabled=" + enabled +
+                ", isEmailVerified=" + isEmailVerified +
+                ", isLocked=" + isLocked +
                 ", failedLoginAttempts=" + failedLoginAttempts +
                 ", lastLoginAt=" + lastLoginAt +
-                ", passwordChangedAt=" + passwordChangedAt +
-                ", lockedUntil=" + lockedUntil +
                 ", twoFactorEnabled=" + twoFactorEnabled +
-                ", profilePictureUrl='" + profilePictureUrl + '\'' +
                 ", language='" + language + '\'' +
                 ", timezone='" + timezone + '\'' +
                 ", roles=" + (roles != null ? roles.stream().map(RoleDto::getName).collect(Collectors.joining(", ")) : "[]") +
-                ", createdAt=" + createdAt +
-                ", updatedAt=" + updatedAt +
-                ", createdBy='" + createdBy + '\'' +
-                ", updatedBy='" + updatedBy + '\'' +
-                ", fullName='" + fullName + '\'' +
-                ", displayName='" + displayName + '\'' +
                 ", isActive=" + isActive +
-                ", isLocked=" + isLocked +
-                ", isPasswordExpired=" + isPasswordExpired +
-                ", hasMultipleRoles=" + hasMultipleRoles +
-                ", isAdminUser=" + isAdminUser +
-                ", daysSinceLastLogin=" + daysSinceLastLogin +
-                ", lastLoginText='" + lastLoginText + '\'' +
+                ", isDeleted=" + isDeleted +
                 '}';
     }
 }
