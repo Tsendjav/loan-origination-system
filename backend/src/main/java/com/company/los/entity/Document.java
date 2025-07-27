@@ -1,6 +1,5 @@
 package com.company.los.entity;
 
-import com.company.los.entity.BaseEntity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -9,6 +8,7 @@ import org.hibernate.annotations.Where;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.UUID;
 
 /**
  * Баримт бичгийн Entity
@@ -16,11 +16,10 @@ import java.math.BigDecimal;
  */
 @Entity
 @Table(name = "documents", indexes = {
-        @Index(name = "idx_document_customer", columnList = "customer_id"),
-        @Index(name = "idx_document_loan_application", columnList = "loan_application_id"),
-        @Index(name = "idx_document_type", columnList = "document_type_id"),
-        @Index(name = "idx_document_status", columnList = "verification_status"),
-        @Index(name = "idx_document_upload_date", columnList = "uploaded_at")
+        @Index(name = "idx_documents_customer_id", columnList = "customer_id"),
+        @Index(name = "idx_documents_loan_application_id", columnList = "loan_application_id"),
+        @Index(name = "idx_documents_document_type_id", columnList = "document_type_id"),
+        @Index(name = "idx_documents_verification_status", columnList = "verification_status")
 })
 @SQLDelete(sql = "UPDATE documents SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
@@ -49,18 +48,27 @@ public class Document extends BaseEntity {
     }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_document_customer"))
+    @JoinColumn(name = "customer_id", nullable = false, columnDefinition = "VARCHAR(36)",
+                foreignKey = @ForeignKey(name = "fk_document_customer"))
     @NotNull(message = "Харилцагч заавал байх ёстой")
     private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loan_application_id", foreignKey = @ForeignKey(name = "fk_document_loan_application"))
+    @JoinColumn(name = "loan_application_id", columnDefinition = "VARCHAR(36)",
+                foreignKey = @ForeignKey(name = "fk_document_loan_app"))
     private LoanApplication loanApplication;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "document_type_id", nullable = false, foreignKey = @ForeignKey(name = "fk_document_document_type"))
+    @JoinColumn(name = "document_type_id", nullable = false, columnDefinition = "VARCHAR(36)",
+                foreignKey = @ForeignKey(name = "fk_document_type"))
     @NotNull(message = "Баримтын төрөл заавал сонгох ёстой")
     private DocumentType documentType;
+
+    // File information (multiple filename fields for compatibility)
+    @Column(name = "file_name", nullable = false, length = 500)
+    @NotBlank(message = "Файлын нэр заавал байх ёстой")
+    @Size(max = 500, message = "Файлын нэр 500 тэмдэгтээс ихгүй байх ёстой")
+    private String fileName;
 
     @Column(name = "original_filename", nullable = false, length = 500)
     @NotBlank(message = "Файлын нэр заавал байх ёстой")
@@ -90,8 +98,7 @@ public class Document extends BaseEntity {
     @Size(max = 256, message = "Checksum 256 тэмдэгтээс ихгүй байх ёстой")
     private String checksum;
 
-    @Column(name = "description", length = 1000)
-    @Size(max = 1000, message = "Тайлбар 1000 тэмдэгтээс ихгүй байх ёстой")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "tags", length = 1000)
@@ -103,7 +110,7 @@ public class Document extends BaseEntity {
     private Integer versionNumber = 1;
 
     @Column(name = "previous_document_id", columnDefinition = "VARCHAR(36)")
-    private String previousDocumentId;
+    private UUID previousDocumentId;
 
     // Баталгаажуулалтын мэдээлэл
     @Column(name = "verification_status", nullable = false, length = 20)
@@ -120,6 +127,11 @@ public class Document extends BaseEntity {
 
     @Column(name = "verification_notes", columnDefinition = "TEXT")
     private String verificationNotes;
+
+    // Additional status field for schema compatibility
+    @Column(name = "status", length = 50)
+    @Size(max = 50, message = "Статус 50 тэмдэгтээс ихгүй байх ёстой")
+    private String status = "PENDING";
 
     // Хугацаа
     @Column(name = "expiry_date")
@@ -157,17 +169,21 @@ public class Document extends BaseEntity {
     @Size(max = 100, message = "Илгээсэн хүний нэр 100 тэмдэгтээс ихгүй байх ёстой")
     private String uploadedBy;
 
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
     // Constructors
     public Document() {
         super();
         this.uploadedAt = LocalDateTime.now();
     }
 
-    public Document(Customer customer, DocumentType documentType, String originalFilename, 
+    public Document(Customer customer, DocumentType documentType, String originalFilename,
                    String storedFilename, String filePath, String contentType, Long fileSize) {
         this();
         this.customer = customer;
         this.documentType = documentType;
+        this.fileName = originalFilename; // Set file_name same as original
         this.originalFilename = originalFilename;
         this.storedFilename = storedFilename;
         this.filePath = filePath;
@@ -181,6 +197,7 @@ public class Document extends BaseEntity {
         this.verifiedAt = LocalDateTime.now();
         this.verifiedBy = verifierName;
         this.verificationNotes = notes;
+        this.status = "APPROVED";
     }
 
     public void reject(String verifierName, String reason) {
@@ -188,11 +205,13 @@ public class Document extends BaseEntity {
         this.verifiedAt = LocalDateTime.now();
         this.verifiedBy = verifierName;
         this.verificationNotes = reason;
+        this.status = "REJECTED";
     }
 
     public void startReview(String reviewerName) {
         this.verificationStatus = VerificationStatus.IN_REVIEW;
         this.verifiedBy = reviewerName;
+        this.status = "IN_REVIEW";
     }
 
     public boolean isVerified() {
@@ -204,7 +223,7 @@ public class Document extends BaseEntity {
     }
 
     public boolean needsResubmission() {
-        return VerificationStatus.RESUBMIT_REQUIRED.equals(verificationStatus) || 
+        return VerificationStatus.RESUBMIT_REQUIRED.equals(verificationStatus) ||
                VerificationStatus.REJECTED.equals(verificationStatus);
     }
 
@@ -216,16 +235,16 @@ public class Document extends BaseEntity {
 
     public String getFileSizeFormatted() {
         if (fileSize == null) return "0 B";
-        
+
         long size = fileSize;
         String[] units = {"B", "KB", "MB", "GB"};
         int unitIndex = 0;
-        
+
         while (size >= 1024 && unitIndex < units.length - 1) {
             size /= 1024;
             unitIndex++;
         }
-        
+
         return String.format("%d %s", size, units[unitIndex]);
     }
 
@@ -239,7 +258,7 @@ public class Document extends BaseEntity {
 
     public boolean isOfficeDocument() {
         return contentType != null && (
-            contentType.contains("document") || 
+            contentType.contains("document") ||
             contentType.contains("spreadsheet") ||
             contentType.contains("presentation") ||
             contentType.contains("msword") ||
@@ -274,8 +293,14 @@ public class Document extends BaseEntity {
     public DocumentType getDocumentType() { return documentType; }
     public void setDocumentType(DocumentType documentType) { this.documentType = documentType; }
 
+    public String getFileName() { return fileName; }
+    public void setFileName(String fileName) { this.fileName = fileName; }
+
     public String getOriginalFilename() { return originalFilename; }
-    public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
+    public void setOriginalFilename(String originalFilename) { 
+        this.originalFilename = originalFilename;
+        this.fileName = originalFilename; // Keep fileName in sync
+    }
 
     public String getStoredFilename() { return storedFilename; }
     public void setStoredFilename(String storedFilename) { this.storedFilename = storedFilename; }
@@ -301,11 +326,14 @@ public class Document extends BaseEntity {
     public Integer getVersionNumber() { return versionNumber; }
     public void setVersionNumber(Integer versionNumber) { this.versionNumber = versionNumber; }
 
-    public String getPreviousDocumentId() { return previousDocumentId; }
-    public void setPreviousDocumentId(String previousDocumentId) { this.previousDocumentId = previousDocumentId; }
+    public UUID getPreviousDocumentId() { return previousDocumentId; }
+    public void setPreviousDocumentId(UUID previousDocumentId) { this.previousDocumentId = previousDocumentId; }
 
     public VerificationStatus getVerificationStatus() { return verificationStatus; }
-    public void setVerificationStatus(VerificationStatus verificationStatus) { this.verificationStatus = verificationStatus; }
+    public void setVerificationStatus(VerificationStatus verificationStatus) { 
+        this.verificationStatus = verificationStatus;
+        this.status = verificationStatus != null ? verificationStatus.getCode() : "PENDING";
+    }
 
     public String getVerifiedBy() { return verifiedBy; }
     public void setVerifiedBy(String verifiedBy) { this.verifiedBy = verifiedBy; }
@@ -315,6 +343,9 @@ public class Document extends BaseEntity {
 
     public String getVerificationNotes() { return verificationNotes; }
     public void setVerificationNotes(String verificationNotes) { this.verificationNotes = verificationNotes; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
     public LocalDate getExpiryDate() { return expiryDate; }
     public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
@@ -342,6 +373,9 @@ public class Document extends BaseEntity {
 
     public String getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(String uploadedBy) { this.uploadedBy = uploadedBy; }
+
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
     // toString
     @Override

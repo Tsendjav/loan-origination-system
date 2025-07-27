@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -29,8 +30,9 @@ import java.util.stream.Collectors;
 public class User implements UserDetails {
 
     @Id
-    @Column(name = "id", length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    @Column(name = "id", columnDefinition = "BINARY(16)")
+    private UUID id;
 
     @Column(name = "username", unique = true, nullable = false, length = 100)
     @NotBlank(message = "Хэрэглэгчийн нэр заавал бөглөх ёстой")
@@ -180,7 +182,6 @@ public class User implements UserDetails {
 
     // Constructors
     public User() {
-        this.id = java.util.UUID.randomUUID().toString();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -390,8 +391,8 @@ public class User implements UserDetails {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public void setUsername(String username) { 
         this.username = username;
@@ -618,9 +619,6 @@ public class User implements UserDetails {
 
     @PrePersist
     protected void onCreate() {
-        if (this.id == null) {
-            this.id = java.util.UUID.randomUUID().toString();
-        }
         LocalDateTime now = LocalDateTime.now();
         if (this.createdAt == null) {
             this.createdAt = now;
@@ -632,7 +630,7 @@ public class User implements UserDetails {
     @Override
     public String toString() {
         return "User{" +
-                "id='" + id + '\'' +
+                "id=" + id +
                 ", username='" + username + '\'' +
                 ", email='" + email + '\'' +
                 ", fullName='" + getFullName() + '\'' +

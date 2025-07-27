@@ -17,7 +17,7 @@ import java.util.List;
  * Audit Log Repository Interface
  */
 @Repository
-public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
+public interface AuditLogRepository extends JpaRepository<AuditLog, String> { // Changed to AuditLog entity
 
     // Суурь хайлтууд
     /**
@@ -52,7 +52,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     /**
      * Өнөөдрийн аудит лог
      */
-    @Query("SELECT al FROM AuditLog al WHERE DATE(al.changedAt) = CURRENT_DATE")
+    @Query("SELECT al FROM AuditLog al WHERE FUNCTION('DATE', al.changedAt) = CURRENT_DATE")
     List<AuditLog> findTodayAuditLogs();
 
     /**
@@ -125,7 +125,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
      * Хэрэглэгчийн өнөөдрийн үйл ажиллагаа
      */
     @Query("SELECT al FROM AuditLog al WHERE al.changedBy = :username AND " +
-           "DATE(al.changedAt) = CURRENT_DATE ORDER BY al.changedAt DESC")
+           "FUNCTION('DATE', al.changedAt) = CURRENT_DATE ORDER BY al.changedAt DESC")
     List<AuditLog> findUserTodayActivity(@Param("username") String username);
 
     // IP хаяг болон User Agent
@@ -178,17 +178,17 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     /**
      * Өдрийн статистик
      */
-    @Query("SELECT DATE(al.changedAt), COUNT(al) FROM AuditLog al " +
+    @Query("SELECT FUNCTION('DATE', al.changedAt), COUNT(al) FROM AuditLog al " +
            "WHERE al.changedAt >= :startDate " +
-           "GROUP BY DATE(al.changedAt) ORDER BY DATE(al.changedAt)")
+           "GROUP BY FUNCTION('DATE', al.changedAt) ORDER BY FUNCTION('DATE', al.changedAt)")
     List<Object[]> getDailyStats(@Param("startDate") LocalDateTime startDate);
 
     /**
      * Цагийн статистик
      */
-    @Query("SELECT HOUR(al.changedAt), COUNT(al) FROM AuditLog al " +
+    @Query("SELECT FUNCTION('HOUR', al.changedAt), COUNT(al) FROM AuditLog al " +
            "WHERE al.changedAt >= :startDate " +
-           "GROUP BY HOUR(al.changedAt) ORDER BY HOUR(al.changedAt)")
+           "GROUP BY FUNCTION('HOUR', al.changedAt) ORDER BY FUNCTION('HOUR', al.changedAt)")
     List<Object[]> getHourlyStats(@Param("startDate") LocalDateTime startDate);
 
     // Дэвшилтэт хайлт
@@ -218,14 +218,14 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
      * Шөнийн үйл ажиллагаа
      */
     @Query("SELECT al FROM AuditLog al WHERE " +
-           "HOUR(al.changedAt) BETWEEN 22 AND 23 OR HOUR(al.changedAt) BETWEEN 0 AND 6")
+           "FUNCTION('HOUR', al.changedAt) BETWEEN 22 AND 23 OR FUNCTION('HOUR', al.changedAt) BETWEEN 0 AND 6")
     Page<AuditLog> findNightTimeActivity(Pageable pageable);
 
     /**
      * Амралтын өдрийн үйл ажиллагаа
      */
     @Query("SELECT al FROM AuditLog al WHERE " +
-           "DAYOFWEEK(al.changedAt) IN (1, 7)") // Sunday=1, Saturday=7
+           "FUNCTION('DAYOFWEEK', al.changedAt) IN (1, 7)") // Sunday=1, Saturday=7
     Page<AuditLog> findWeekendActivity(Pageable pageable);
 
     /**
@@ -266,7 +266,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
     /**
      * Өдрийн үйл ажиллагааны тоо
      */
-    @Query("SELECT COUNT(al) FROM AuditLog al WHERE DATE(al.changedAt) = CURRENT_DATE")
+    @Query("SELECT COUNT(al) FROM AuditLog al WHERE FUNCTION('DATE', al.changedAt) = CURRENT_DATE")
     long countTodayActivity();
 
     /**
@@ -317,7 +317,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, String> {
      */
     @Query("SELECT " +
            "COUNT(al) as totalLogs, " +
-           "COUNT(CASE WHEN DATE(al.changedAt) = CURRENT_DATE THEN 1 END) as todayLogs, " +
+           "COUNT(CASE WHEN FUNCTION('DATE', al.changedAt) = CURRENT_DATE THEN 1 END) as todayLogs, " +
            "COUNT(CASE WHEN al.action = 'INSERT' THEN 1 END) as insertCount, " +
            "COUNT(CASE WHEN al.action = 'UPDATE' THEN 1 END) as updateCount, " +
            "COUNT(CASE WHEN al.action = 'DELETE' THEN 1 END) as deleteCount, " +

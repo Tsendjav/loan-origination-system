@@ -4,273 +4,272 @@ import com.company.los.entity.DocumentType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
- * Баримт бичгийн төрлийн Repository
+ * Баримтын төрөл Repository
  * Document Type Repository Interface
+ * 
+ * Зөвхөн DocumentType entity-д байгаа field-үүдийг ашиглана:
+ * - id, name, description, isRequired, isActive, documents
+ * - createdAt, updatedAt, createdBy, updatedBy, isDeleted (BaseEntity-ээс)
  */
 @Repository
-public interface DocumentTypeRepository extends JpaRepository<DocumentType, String>  {
+public interface DocumentTypeRepository extends JpaRepository<DocumentType, UUID> {
 
-    // Суурь хайлтууд
+    // Суурь хайлтууд - Basic Queries
     /**
      * Нэрээр хайх
+     * Find by name
      */
-    List<DocumentType> findByIsActive(Boolean isActive);
-    
     Optional<DocumentType> findByName(String name);
 
     /**
      * Нэр байгаа эсэхийг шалгах
+     * Check if name exists
      */
     boolean existsByName(String name);
 
-    // Шаардлагатай эсэхээр хайх
+    // Идэвх байдлаар хайх - Active status queries
     /**
-     * Заавал шаардлагатай баримтын төрлүүд
+     * Идэвхтэй төрлүүд
+     * Find active types
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = true ORDER BY dt.name")
-    List<DocumentType> findRequiredDocumentTypes();
+    List<DocumentType> findByIsActiveTrue();
 
     /**
-     * Сонголттой баримтын төрлүүд
+     * Идэвхгүй төрлүүд
+     * Find inactive types
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = false ORDER BY dt.name")
-    List<DocumentType> findOptionalDocumentTypes();
+    List<DocumentType> findByIsActiveFalse();
 
     /**
-     * Шаардлагатай эсэхээр хайх (pageable)
+     * Идэвх байдлаар хайх
+     * Find by active status
+     */
+    Page<DocumentType> findByIsActive(Boolean isActive, Pageable pageable);
+
+    // Шаардлагатай эсэхээр хайх - Required status queries
+    /**
+     * Заавал шаардлагатай төрлүүд
+     * Find required types
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = true AND dt.isActive = true")
+    List<DocumentType> findByIsRequiredTrue();
+
+    /**
+     * Заавал шаардлагагүй төрлүүд
+     * Find not required types
+     */
+    List<DocumentType> findByIsRequiredFalse();
+
+    /**
+     * Шаардлагатай эсэхээр хайх
+     * Find by required status
      */
     Page<DocumentType> findByIsRequired(Boolean isRequired, Pageable pageable);
 
-    // Нэрээр хайх
+    // Хайлтын тоо - Count queries
     /**
-     * Нэрээр хайх (хэсэгчилсэн)
+     * Идэвхтэй төрлүүдийн тоо
+     * Count active types
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE LOWER(dt.name) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<DocumentType> findByNameContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
+    long countByIsActiveTrue();
 
     /**
-     * Тайлбараар хайх
+     * Шаардлагатай төрлүүдийн тоо
+     * Count required types
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE " +
-           "LOWER(COALESCE(dt.description, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<DocumentType> findByDescriptionContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
+    long countByIsRequiredTrue();
+
+    // Огноогоор хайх - Date queries
+    /**
+     * Үүссэн огноогоор хайх
+     * Find by creation date range
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.createdAt BETWEEN :startDate AND :endDate")
+    Page<DocumentType> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, 
+                                            @Param("endDate") LocalDateTime endDate, 
+                                            Pageable pageable);
 
     /**
-     * Ерөнхий хайлт
+     * Шинэчлэгдсэн огноогоор хайх
+     * Find by update date range
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.updatedAt BETWEEN :startDate AND :endDate")
+    Page<DocumentType> findByUpdatedAtBetween(@Param("startDate") LocalDateTime startDate, 
+                                            @Param("endDate") LocalDateTime endDate, 
+                                            Pageable pageable);
+
+    /**
+     * Сүүлийн үүссэн төрлүүд
+     * Find recently created
+     */
+    @Query("SELECT dt FROM DocumentType dt ORDER BY dt.createdAt DESC")
+    Page<DocumentType> findRecentlyCreated(Pageable pageable);
+
+    // Дэвшилтэт хайлт - Advanced search
+    /**
+     * Нэр эсвэл тайлбараар хайх
+     * Search by name or description
      */
     @Query("SELECT dt FROM DocumentType dt WHERE " +
            "LOWER(dt.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(COALESCE(dt.description, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<DocumentType> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
+    Page<DocumentType> searchByTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
 
-    // Баримттай холбоотой
     /**
-     * Баримттай баримтын төрлүүд
+     * Энгийн дэвшилтэт филтер хайлт
+     * Simple advanced filters using only existing fields
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) > 0")
-    Page<DocumentType> findDocumentTypesWithDocuments(Pageable pageable);
+    @Query("SELECT dt FROM DocumentType dt WHERE " +
+           "(:isRequired IS NULL OR dt.isRequired = :isRequired) AND " +
+           "(:isActive IS NULL OR dt.isActive = :isActive) AND " +
+           "(:minDocuments IS NULL OR SIZE(dt.documents) >= :minDocuments) AND " +
+           "(:maxDocuments IS NULL OR SIZE(dt.documents) <= :maxDocuments)")
+    Page<DocumentType> findByAdvancedFilters(
+            @Param("isRequired") Boolean isRequired,
+            @Param("isActive") Boolean isActive,
+            @Param("minDocuments") Integer minDocuments,
+            @Param("maxDocuments") Integer maxDocuments,
+            Pageable pageable);
 
+    // Статистик - Statistics
     /**
-     * Баримтгүй баримтын төрлүүд
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) = 0")
-    List<DocumentType> findDocumentTypesWithoutDocuments();
-
-    /**
-     * Баримтын тоогоор хайх
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) >= :minDocuments")
-    List<DocumentType> findDocumentTypesWithMinimumDocuments(@Param("minDocuments") int minDocuments);
-
-    // Статистик
-    /**
-     * Шаардлагатай эсэхээр тоолох
+     * Төрөл тутмын статистик
+     * Type statistics
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN dt.isRequired = true THEN 1 END) as requiredTypes, " +
-           "COUNT(CASE WHEN dt.isRequired = false THEN 1 END) as optionalTypes, " +
-           "COUNT(dt) as totalTypes " +
+           "COUNT(dt) as totalTypes, " +
+           "COUNT(CASE WHEN dt.isActive = true THEN 1 END) as activeTypes, " +
+           "COUNT(CASE WHEN dt.isRequired = true THEN 1 END) as requiredTypes " +
            "FROM DocumentType dt")
-    Object[] getDocumentTypeStats();
+    Object[] getTypeStatistics();
 
     /**
-     * Баримтын тоогоор статистик
+     * Баримттай холбогдсон статистик
+     * Document association statistics
      */
     @Query("SELECT dt.name, SIZE(dt.documents) as documentCount FROM DocumentType dt " +
            "ORDER BY SIZE(dt.documents) DESC")
     List<Object[]> getDocumentCountByType();
 
+    // Validation queries
     /**
-     * Хамгийн их ашиглагддаг баримтын төрлүүд
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) > 0 " +
-           "ORDER BY SIZE(dt.documents) DESC")
-    Page<DocumentType> findMostUsedDocumentTypes(Pageable pageable);
-
-    /**
-     * Хамгийн бага ашиглагддаг баримтын төрлүүд
-     */
-    @Query("SELECT dt FROM DocumentType dt " +
-           "ORDER BY SIZE(dt.documents) ASC")
-    Page<DocumentType> findLeastUsedDocumentTypes(Pageable pageable);
-
-    // Дэвшилтэт хайлт
-    /**
-     * Дэвшилтэт филтертэй хайлт
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE " +
-           "(:isRequired IS NULL OR dt.isRequired = :isRequired) AND " +
-           "(:hasDocuments IS NULL OR (SIZE(dt.documents) > 0) = :hasDocuments) AND " +
-           "(:minDocuments IS NULL OR SIZE(dt.documents) >= :minDocuments) AND " +
-           "(:maxDocuments IS NULL OR SIZE(dt.documents) <= :maxDocuments)")
-    Page<DocumentType> findByAdvancedFilters(
-            @Param("isRequired") Boolean isRequired,
-            @Param("hasDocuments") Boolean hasDocuments,
-            @Param("minDocuments") Integer minDocuments,
-            @Param("maxDocuments") Integer maxDocuments,
-            Pageable pageable);
-
-    // Bulk операциуд
-    /**
-     * Олон баримтын төрлийг шаардлагатай гэж тэмдэглэх
-     */
-    @Modifying
-    @Query("UPDATE DocumentType dt SET dt.isRequired = true, dt.updatedBy = :updatedBy " +
-           "WHERE dt.id IN :documentTypeIds")
-    int markAsRequired(@Param("documentTypeIds") List<String> documentTypeIds,
-                     @Param("updatedBy") String updatedBy);
-
-    /**
-     * Олон баримтын төрлийг сонголттой гэж тэмдэглэх
-     */
-    @Modifying
-    @Query("UPDATE DocumentType dt SET dt.isRequired = false, dt.updatedBy = :updatedBy " +
-           "WHERE dt.id IN :documentTypeIds")
-    int markAsOptional(@Param("documentTypeIds") List<String> documentTypeIds,
-                     @Param("updatedBy") String updatedBy);
-
-    /**
-     * Тайлбар өөрчлөх
-     */
-    @Modifying
-    @Query("UPDATE DocumentType dt SET dt.description = :description, dt.updatedBy = :updatedBy " +
-           "WHERE dt.id = :documentTypeId")
-    int updateDescription(@Param("documentTypeId") String documentTypeId,
-                        @Param("description") String description,
-                        @Param("updatedBy") String updatedBy);
-
-    // Validation
-    /**
-     * Нэр давхцаж байгаа эсэхийг шалгах
+     * Нэр давхардсан эсэхийг шалгах (өөрийгөө эс тооцох)
+     * Check name uniqueness excluding self
      */
     @Query("SELECT COUNT(dt) > 0 FROM DocumentType dt WHERE " +
-           "LOWER(dt.name) = LOWER(:name) AND dt.id != :excludeId")
-    boolean existsByNameIgnoreCaseAndIdNot(@Param("name") String name, @Param("excludeId") String excludeId);
+           "dt.name = :name AND dt.id != :excludeId")
+    boolean existsByNameAndIdNot(@Param("name") String name, @Param("excludeId") UUID excludeId);
 
-    // Business logic
+    // Maintenance queries
     /**
-     * Зээлийн төрлөөр шаардлагатай баримтын төрлүүд
+     * Устгаж болох төрлүүд (баримт байхгүй)
+     * Types that can be deleted (no documents)
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = true")
-    List<DocumentType> findRequiredForAllLoans();
+    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) = 0")
+    List<DocumentType> findTypesWithoutDocuments();
 
     /**
-     * Системд хэрэглэгддэг бүх баримтын төрлүүд
+     * Хэрэглэгдээгүй төрлүүд
+     * Unused types for specified days
      */
-    @Query("SELECT dt FROM DocumentType dt ORDER BY dt.isRequired DESC, dt.name ASC")
-    List<DocumentType> findAllOrderedByRequiredAndName();
+    @Query("SELECT dt FROM DocumentType dt WHERE " +
+           "dt.createdAt < :oldDate AND SIZE(dt.documents) = 0")
+    List<DocumentType> findUnusedTypes(@Param("oldDate") LocalDateTime oldDate);
+
+    /**
+     * Архивлах төрлүүд
+     * Types to archive
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE " +
+           "dt.isActive = false AND dt.updatedAt < :archiveDate")
+    List<DocumentType> findTypesToArchive(@Param("archiveDate") LocalDateTime archiveDate);
+
+    // Business logic queries (simplified without non-existent fields)
+    /**
+     * Шаардлагатай баримтын төрлүүд (энгийн хувилбар)
+     * Required document types (simple version)
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = true AND dt.isActive = true")
+    List<DocumentType> findRequiredDocumentTypes();
 
     /**
      * Идэвхтэй баримтын төрлүүд
+     * Active document types
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.isActive = true ORDER BY dt.name")
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.isActive = true ORDER BY dt.name ASC")
     List<DocumentType> findActiveDocumentTypes();
 
     /**
-     * Идэвхгүй баримтын төрлүүд
+     * Дутуу баримттай төрлүүд
+     * Types with missing documents
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.isActive = false")
-    List<DocumentType> findInactiveDocumentTypes();
-
-    // Data quality
-    /**
-     * Тайлбаргүй баримтын төрлүүд
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.description IS NULL OR dt.description = ''")
-    List<DocumentType> findDocumentTypesWithoutDescription();
+    @Query("SELECT dt FROM DocumentType dt WHERE " +
+           "dt.isRequired = true AND dt.isActive = true AND " +
+           "SIZE(dt.documents) = 0")
+    List<DocumentType> findRequiredTypesWithoutDocuments();
 
     /**
-     * Нэр алдаатай баримтын төрлүүд
+     * Хэт их баримттай төрлүүд
+     * Types with too many documents
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.name IS NULL OR dt.name = ''")
-    List<DocumentType> findDocumentTypesWithInvalidNames();
+    @Query("SELECT dt FROM DocumentType dt WHERE " +
+           "SIZE(dt.documents) > :threshold " +
+           "ORDER BY SIZE(dt.documents) DESC")
+    List<DocumentType> findTypesWithManyDocuments(@Param("threshold") int threshold);
 
-    // Dashboard статистик
+    // Business methods adapted for current entity structure
     /**
-     * Dashboard-ийн статистик
+     * Зээлийн хүсэлтийн шаардлагатай баримтын төрлүүд
+     * Required document types for loan applications
+     * (Simplified version without applicableLoanTypes field)
      */
-    @Query("SELECT " +
-           "COUNT(dt) as totalTypes, " +
-           "COUNT(CASE WHEN dt.isRequired = true THEN 1 END) as requiredTypes, " +
-           "COUNT(CASE WHEN SIZE(dt.documents) > 0 THEN 1 END) as usedTypes, " +
-           "COUNT(CASE WHEN SIZE(dt.documents) = 0 THEN 1 END) as unusedTypes, " +
-           "AVG(SIZE(dt.documents)) as avgDocumentsPerType " +
-           "FROM DocumentType dt")
-    Object[] getDashboardStats();
-
-    // Cleanup
-    /**
-     * Ашиглагдаагүй баримтын төрлүүд
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) = 0 AND dt.isRequired = false")
-    List<DocumentType> findUnusedNonRequiredTypes();
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = true AND dt.isActive = true")
+    List<DocumentType> findRequiredForLoanType(@Param("loanType") String loanType);
 
     /**
-     * Устгах боломжтой баримтын төрлүүд
+     * Харилцагчийн баримтын төрлүүд
+     * Document types for customers
+     * (Simplified version without applicableCustomerTypes field)
      */
-    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) = 0 AND " +
-           "dt.isRequired = false AND dt.isActive = false")
-    List<DocumentType> findDeletableDocumentTypes();
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.isActive = true")
+    List<DocumentType> findApplicableForCustomerType(@Param("customerType") String customerType);
 
-    // Template methods
+    // Additional utility queries
     /**
-     * Стандарт баримтын төрлүүд үүсгэх
+     * Нэрээр дараалалтайгаар авах
+     * Find all ordered by name
      */
-    @Query("SELECT COUNT(dt) FROM DocumentType dt WHERE dt.name IN " +
-           "('NATIONAL_ID', 'INCOME_STATEMENT', 'BANK_STATEMENT', 'LOAN_APPLICATION')")
-    int countStandardDocumentTypes();
-
-    /**
-     * Дутуу стандарт баримтын төрлүүд
-     */
-    @Query("SELECT CASE " +
-           "WHEN NOT EXISTS (SELECT 1 FROM DocumentType dt WHERE dt.name = 'NATIONAL_ID') THEN 'NATIONAL_ID' " +
-           "WHEN NOT EXISTS (SELECT 1 FROM DocumentType dt WHERE dt.name = 'INCOME_STATEMENT') THEN 'INCOME_STATEMENT' " +
-           "WHEN NOT EXISTS (SELECT 1 FROM DocumentType dt WHERE dt.name = 'BANK_STATEMENT') THEN 'BANK_STATEMENT' " +
-           "WHEN NOT EXISTS (SELECT 1 FROM DocumentType dt WHERE dt.name = 'LOAN_APPLICATION') THEN 'LOAN_APPLICATION' " +
-           "ELSE NULL END as missingType " +
-           "FROM DocumentType dt LIMIT 1")
-    List<String> findMissingStandardTypes();
-
-    // Performance monitoring
-    /**
-     * Өнөөдөр үүсгэсэн баримтын төрлүүд
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE DATE(dt.createdAt) = CURRENT_DATE")
-    List<DocumentType> findCreatedToday();
+    @Query("SELECT dt FROM DocumentType dt WHERE dt.isActive = true ORDER BY dt.name ASC")
+    List<DocumentType> findAllActiveOrderByName();
 
     /**
-     * Сүүлийн өөрчлөлт хийсэн баримтын төрлүүд
+     * Баримтын тоогоор дараалалтайгаар авах
+     * Find all ordered by document count
      */
-    @Query("SELECT dt FROM DocumentType dt ORDER BY dt.updatedAt DESC")
-    Page<DocumentType> findRecentlyModified(Pageable pageable);
+    @Query("SELECT dt FROM DocumentType dt ORDER BY SIZE(dt.documents) DESC, dt.name ASC")
+    List<DocumentType> findAllOrderByDocumentCount();
+
+    /**
+     * Тодорхой хэмжээнээс их баримттай төрлүүд
+     * Types with more than specified number of documents
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) >= :minCount")
+    List<DocumentType> findTypesWithMinDocuments(@Param("minCount") int minCount);
+
+    /**
+     * Тодорхой хэмжээнээс бага баримттай төрлүүд
+     * Types with less than specified number of documents
+     */
+    @Query("SELECT dt FROM DocumentType dt WHERE SIZE(dt.documents) < :maxCount")
+    List<DocumentType> findTypesWithMaxDocuments(@Param("maxCount") int maxCount);
 }

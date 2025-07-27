@@ -12,13 +12,14 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Эрхийн Repository
  * Permission Repository Interface for RBAC
  */
 @Repository
-public interface PermissionRepository extends JpaRepository<Permission, String> {
+public interface PermissionRepository extends JpaRepository<Permission, UUID> {
 
     // Суурь хайлтууд
     /**
@@ -96,7 +97,7 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     @Query("SELECT p FROM Permission p WHERE p.isSystemPermission = false")
     Page<Permission> findNonSystemPermissions(Pageable pageable);
 
-    // Тэргүүлэх эрэмбэ
+    // Тэргүүлэх эрэмбэ (priority-ээр хайх)
     /**
      * Тэргүүлэх эрэмбээр хайх
      */
@@ -105,8 +106,8 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     /**
      * Өндөр тэргүүлэх эрэмбэтэй эрхүүд
      */
-    @Query("SELECT p FROM Permission p WHERE p.priority >= :highPriorityThreshold ORDER BY p.priority DESC")
-    List<Permission> findHighPriorityPermissions(@Param("highPriorityThreshold") Integer highPriorityThreshold);
+    @Query("SELECT p FROM Permission p WHERE p.priority >= 8 ORDER BY p.priority DESC")
+    List<Permission> findHighPriorityPermissions();
 
     /**
      * Тэргүүлэх эрэмбэ дээр нь дараалсан эрхүүд
@@ -244,31 +245,31 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     /**
      * Харилцагчийн эрхүүд
      */
-    @Query("SELECT p FROM Permission p WHERE p.resource = 'customer'")
+    @Query("SELECT p FROM Permission p WHERE p.resource = 'CUSTOMER'")
     List<Permission> findCustomerPermissions();
 
     /**
      * Зээлийн эрхүүд
      */
-    @Query("SELECT p FROM Permission p WHERE p.resource = 'loan_application'")
+    @Query("SELECT p FROM Permission p WHERE p.resource = 'LOAN_APPLICATION'")
     List<Permission> findLoanPermissions();
 
     /**
      * Баримт бичгийн эрхүүд
      */
-    @Query("SELECT p FROM Permission p WHERE p.resource = 'document'")
-    List<Permission> findDocumentPermissions();
+    @Query("SELECT p FROM Permission p WHERE p.resource = 'DOCUMENT' OR p.category = 'DOCUMENT_MANAGEMENT'")
+    List<Permission> findDocumentManagementPermissions();
 
     /**
      * Хэрэглэгчийн эрхүүд
      */
-    @Query("SELECT p FROM Permission p WHERE p.resource = 'user'")
+    @Query("SELECT p FROM Permission p WHERE p.resource = 'USER'")
     List<Permission> findUserPermissions();
 
     /**
      * Дүрийн эрхүүд
      */
-    @Query("SELECT p FROM Permission p WHERE p.resource = 'role'")
+    @Query("SELECT p FROM Permission p WHERE p.resource = 'ROLE'")
     List<Permission> findRolePermissions();
 
     // Дэвшилтэт хайлт
@@ -282,7 +283,7 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
            "(:isSystemPermission IS NULL OR p.isSystemPermission = :isSystemPermission) AND " +
            "(:minPriority IS NULL OR p.priority >= :minPriority) AND " +
            "(:maxPriority IS NULL OR p.priority <= :maxPriority) AND " +
-           "(:hasRoles IS NULL OR (SIZE(p.roles) > 0) = :hasRoles) AND " +
+           "(:hasRoles IS NULL OR (:hasRoles = TRUE AND SIZE(p.roles) > 0) OR (:hasRoles = FALSE AND SIZE(p.roles) = 0)) AND " +
            "(:scope IS NULL OR p.scope = :scope)")
     Page<Permission> findByAdvancedFilters(
             @Param("resource") String resource,
@@ -300,24 +301,24 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
      * Эрхийг дүрт нэмэх
      */
     @Modifying
-    @Query("INSERT INTO role_permissions (role_id, permission_id, granted_by, granted_at) VALUES (:roleId, :permissionId, :grantedBy, CURRENT_TIMESTAMP)")
-    void addPermissionToRole(@Param("roleId") String roleId, 
-                           @Param("permissionId") String permissionId,
+    @Query(value = "INSERT INTO role_permissions (role_id, permission_id, granted_by, granted_at) VALUES (:roleId, :permissionId, :grantedBy, CURRENT_TIMESTAMP)", nativeQuery = true)
+    void addPermissionToRole(@Param("roleId") UUID roleId,
+                           @Param("permissionId") UUID permissionId,
                            @Param("grantedBy") String grantedBy);
 
     /**
      * Эрхийг дүрээс хасах
      */
     @Modifying
-    @Query("DELETE FROM role_permissions WHERE role_id = :roleId AND permission_id = :permissionId")
-    void removePermissionFromRole(@Param("roleId") String roleId, @Param("permissionId") String permissionId);
+    @Query(value = "DELETE FROM role_permissions WHERE role_id = :roleId AND permission_id = :permissionId", nativeQuery = true)
+    void removePermissionFromRole(@Param("roleId") UUID roleId, @Param("permissionId") UUID permissionId);
 
     /**
      * Эрхийг бүх дүрээс хасах
      */
     @Modifying
-    @Query("DELETE FROM role_permissions WHERE permission_id = :permissionId")
-    void removePermissionFromAllRoles(@Param("permissionId") String permissionId);
+    @Query(value = "DELETE FROM role_permissions WHERE permission_id = :permissionId", nativeQuery = true)
+    void removePermissionFromAllRoles(@Param("permissionId") UUID permissionId);
 
     // Validation
     /**
@@ -326,7 +327,7 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     @Query("SELECT CASE WHEN COUNT(rp) > 0 THEN true ELSE false END " +
            "FROM User u JOIN u.roles r JOIN r.permissions rp " +
            "WHERE u.id = :userId AND rp.id = :permissionId")
-    Boolean userHasPermission(@Param("userId") String userId, @Param("permissionId") String permissionId);
+    Boolean userHasPermission(@Param("userId") UUID userId, @Param("permissionId") UUID permissionId);
 
     /**
      * Хэрэглэгчийн ресурс дээрх эрх шалгах
@@ -334,7 +335,7 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     @Query("SELECT CASE WHEN COUNT(rp) > 0 THEN true ELSE false END " +
            "FROM User u JOIN u.roles r JOIN r.permissions rp " +
            "WHERE u.id = :userId AND rp.resource = :resource AND rp.action = :action")
-    Boolean userHasResourcePermission(@Param("userId") String userId,
+    Boolean userHasResourcePermission(@Param("userId") UUID userId,
                                     @Param("resource") String resource,
                                     @Param("action") String action);
 
@@ -344,35 +345,35 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     @Query("SELECT CASE WHEN COUNT(rp) > 0 THEN true ELSE false END " +
            "FROM Role r JOIN r.permissions rp " +
            "WHERE r.id = :roleId AND rp.id = :permissionId")
-    Boolean roleHasPermission(@Param("roleId") String roleId, @Param("permissionId") String permissionId);
+    Boolean roleHasPermission(@Param("roleId") UUID roleId, @Param("permissionId") UUID permissionId);
 
     // Хэрэглэгчийн эрхүүд
     /**
      * Хэрэглэгчийн бүх эрх
      */
     @Query("SELECT DISTINCT p FROM Permission p JOIN p.roles r JOIN r.users u WHERE u.id = :userId")
-    List<Permission> findUserPermissions(@Param("userId") String userId);
+    List<Permission> findUserPermissions(@Param("userId") UUID userId);
 
     /**
      * Хэрэглэгчийн ресурсийн эрхүүд
      */
     @Query("SELECT DISTINCT p FROM Permission p JOIN p.roles r JOIN r.users u " +
            "WHERE u.id = :userId AND p.resource = :resource")
-    List<Permission> findUserPermissionsByResource(@Param("userId") String userId, @Param("resource") String resource);
+    List<Permission> findUserPermissionsByResource(@Param("userId") UUID userId, @Param("resource") String resource);
 
     /**
      * Хэрэглэгчийн категорийн эрхүүд
      */
     @Query("SELECT DISTINCT p FROM Permission p JOIN p.roles r JOIN r.users u " +
            "WHERE u.id = :userId AND p.category = :category")
-    List<Permission> findUserPermissionsByCategory(@Param("userId") String userId, @Param("category") String category);
+    List<Permission> findUserPermissionsByCategory(@Param("userId") UUID userId, @Param("category") String category);
 
     /**
      * Хэрэглэгчийн үйлдлийн эрхүүд
      */
     @Query("SELECT DISTINCT p FROM Permission p JOIN p.roles r JOIN r.users u " +
            "WHERE u.id = :userId AND p.action = :action")
-    List<Permission> findUserPermissionsByAction(@Param("userId") String userId, @Param("action") String action);
+    List<Permission> findUserPermissionsByAction(@Param("userId") UUID userId, @Param("action") String action);
 
     // Cleanup
     /**
@@ -392,7 +393,7 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
      * Админ эрхүүд
      */
     @Query("SELECT p FROM Permission p WHERE " +
-           "p.resource = 'system' OR " +
+           "p.resource = 'SYSTEM' OR " +
            "p.category = 'SYSTEM_ADMINISTRATION' OR " +
            "p.priority >= 8")
     List<Permission> findAdminPermissions();
@@ -401,26 +402,18 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
      * Зээлийн эрхүүд
      */
     @Query("SELECT p FROM Permission p WHERE " +
-           "p.resource IN ('loan_application', 'customer') OR " +
-           "p.category IN ('LOAN_PROCESSING', 'CUSTOMER_MANAGEMENT')")
+           "p.resource IN ('LOAN_APPLICATION', 'CUSTOMER') OR " +
+           "p.category IN ('LOAN_MANAGEMENT', 'CUSTOMER_MANAGEMENT')")
     List<Permission> findLoanRelatedPermissions();
 
     /**
      * Тайлангийн эрхүүд
      */
     @Query("SELECT p FROM Permission p WHERE " +
-           "p.resource = 'report' OR " +
-           "p.category = 'REPORTING' OR " +
+           "p.resource = 'REPORT' OR " +
+           "p.category = 'REPORT' OR " +
            "p.action IN ('EXPORT', 'PRINT')")
     List<Permission> findReportPermissions();
-
-    /**
-     * Баримт бичгийн эрхүүд
-     */
-    @Query("SELECT p FROM Permission p WHERE " +
-           "p.resource = 'document' OR " +
-           "p.category = 'DOCUMENT_MANAGEMENT'")
-    List<Permission> findDocumentManagementPermissions();
 
     // Dashboard
     /**
@@ -512,7 +505,7 @@ public interface PermissionRepository extends JpaRepository<Permission, String> 
     @Query("SELECT p FROM Permission p WHERE " +
            "p.action IN ('DELETE', 'APPROVE', 'AUDIT') OR " +
            "p.priority >= 8 OR " +
-           "p.resource = 'system'")
+           "p.resource = 'SYSTEM'")
     List<Permission> findHighRiskPermissions();
 
     /**

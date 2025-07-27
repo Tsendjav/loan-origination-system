@@ -1,5 +1,6 @@
 package com.company.los.service;
 
+import com.company.los.dto.CreateUserRequestDto;
 import com.company.los.dto.UserDto;
 import com.company.los.entity.Role;
 import com.company.los.entity.User;
@@ -11,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Хэрэглэгчийн Service Interface
@@ -22,27 +24,27 @@ public interface UserService extends UserDetailsService {
     /**
      * Шинэ хэрэглэгч үүсгэх
      */
-    UserDto createUser(UserDto userDto);
+    UserDto createUser(CreateUserRequestDto createRequest);
 
     /**
      * Хэрэглэгчийн мэдээлэл авах
      */
-    UserDto getUserById(String id);
+    UserDto getUserById(UUID id);
 
     /**
      * Хэрэглэгч шинэчлэх
      */
-    UserDto updateUser(String id, UserDto userDto);
+    UserDto updateUser(UUID id, UserDto userDto);
 
     /**
      * Хэрэглэгч устгах (soft delete)
      */
-    void deleteUser(String id);
+    void deleteUser(UUID id);
 
     /**
      * Устгасан хэрэглэгч сэргээх
      */
-    UserDto restoreUser(String id);
+    UserDto restoreUser(UUID id);
 
     // Authentication operations
     /**
@@ -67,9 +69,9 @@ public interface UserService extends UserDetailsService {
 
     // Хайлт операциуд
     /**
-     * Бүх хэрэглэгчдийн жагсаалт
+     * Бүх хэрэглэгчдийн жагсаалт (pagination-тай, хайлт, филтертэй)
      */
-    Page<UserDto> getAllUsers(Pageable pageable);
+    Page<UserDto> getAllUsers(Pageable pageable, String search, String department, String status, String role);
 
     /**
      * Статусаар хайх
@@ -116,17 +118,17 @@ public interface UserService extends UserDetailsService {
     /**
      * Хэрэглэгчид дүр олгох
      */
-    UserDto assignRoleToUser(String userId, String roleId);
+    UserDto assignRoleToUser(UUID userId, UUID roleId);
 
     /**
      * Хэрэглэгчээс дүр хасах
      */
-    UserDto removeRoleFromUser(String userId, String roleId);
+    UserDto removeRoleFromUser(UUID userId, UUID roleId);
 
     /**
      * Хэрэглэгчийн дүрүүд
      */
-    List<Role> getUserRoles(String userId);
+    List<String> getUserRoles(UUID userId);
 
     /**
      * Дүртэй хэрэглэгчид
@@ -162,38 +164,43 @@ public interface UserService extends UserDetailsService {
     /**
      * Хэрэглэгч идэвхжүүлэх
      */
-    UserDto enableUser(String id);
+    UserDto enableUser(UUID id);
 
     /**
      * Хэрэглэгч идэвхгүй болгох
      */
-    UserDto disableUser(String id);
+    UserDto disableUser(UUID id);
 
     /**
      * Хэрэглэгч түгжих
      */
-    UserDto lockUser(String id, LocalDateTime until, String reason);
+    UserDto lockUser(UUID id, LocalDateTime until, String reason);
 
     /**
      * Хэрэглэгч түгжээ тайлах
      */
-    UserDto unlockUser(String id);
+    UserDto unlockUser(UUID id);
 
     /**
      * Хэрэглэгч түр зогсоох
      */
-    UserDto suspendUser(String id, String reason);
+    UserDto suspendUser(UUID id, String reason);
+
+    /**
+     * Хэрэглэгчийн статус солих (toggle)
+     */
+    UserDto toggleUserStatus(UUID id);
 
     // Password management
     /**
      * Нууц үг өөрчлөх
      */
-    UserDto changePassword(String id, String currentPassword, String newPassword);
+    UserDto changePassword(UUID id, String currentPassword, String newPassword);
 
     /**
      * Нууц үг сэргээх
      */
-    UserDto resetPassword(String id, String newPassword);
+    Map<String, Object> resetUserPassword(UUID id, String newPassword);
 
     /**
      * Нууц үг хуучирсан хэрэглэгчид
@@ -203,7 +210,7 @@ public interface UserService extends UserDetailsService {
     /**
      * Нууц үг сэргээх шаардлагатай гэж тэмдэглэх
      */
-    UserDto markPasswordExpired(String id);
+    UserDto markPasswordExpired(UUID id);
 
     /**
      * Нууц үгийн үүсгэх
@@ -240,17 +247,17 @@ public interface UserService extends UserDetailsService {
     /**
      * 2FA идэвхжүүлэх
      */
-    UserDto enableTwoFactor(String id);
+    UserDto enableTwoFactor(UUID id);
 
     /**
      * 2FA идэвхгүй болгох
      */
-    UserDto disableTwoFactor(String id);
+    UserDto disableTwoFactor(UUID id);
 
     /**
      * 2FA secret үүсгэх
      */
-    String generateTwoFactorSecret(String id);
+    String generateTwoFactorSecret(UUID id);
 
     /**
      * 2FA идэвхжүүлсэн хэрэглэгчид
@@ -266,17 +273,22 @@ public interface UserService extends UserDetailsService {
     /**
      * Хэрэглэгчийн профайл шинэчлэх
      */
-    UserDto updateUserProfile(String id, UserDto profileDto);
+    UserDto updateUserProfile(UUID id, UserDto profileDto);
 
     /**
      * Хэрэглэгчийн тохиргоо шинэчлэх
      */
-    UserDto updateUserPreferences(String id, String language, String timezone);
+    UserDto updateUserPreferences(UUID id, String language, String timezone);
 
     /**
      * Профайл зураг upload хийх
      */
-    UserDto uploadProfilePicture(String id, byte[] imageData, String contentType);
+    UserDto uploadProfilePicture(UUID id, byte[] imageData, String contentType);
+
+    /**
+     * Профайл зураг шинэчлэх (URL-ээр)
+     */
+    UserDto updateProfilePicture(UUID id, String profilePictureUrl);
 
     // Validation
     /**
@@ -308,17 +320,17 @@ public interface UserService extends UserDetailsService {
     /**
      * Хэрэглэгчийн эрхүүд
      */
-    Set<String> getUserPermissions(String id);
+    Set<String> getUserPermissions(UUID id);
 
     /**
      * Хэрэглэгч эрхтэй эсэхийг шалгах
      */
-    boolean hasPermission(String id, String permissionName);
+    boolean hasPermission(UUID id, String permissionName);
 
     /**
      * Хэрэглэгч ресурс дээр эрхтэй эсэхийг шалгах
      */
-    boolean hasResourcePermission(String id, String resource, String action);
+    boolean hasResourcePermission(UUID id, String resource, String action);
 
     /**
      * Эрхтэй хэрэглэгчид
@@ -377,31 +389,36 @@ public interface UserService extends UserDetailsService {
      */
     Page<UserDto> getLeastActiveUsers(Pageable pageable);
 
+    /**
+     * Онлайн хэрэглэгчдийн жагсаалт
+     */
+    List<UserDto> getOnlineUsers();
+
     // Bulk операциуд
     /**
      * Олон хэрэглэгчийн статус өөрчлөх
      */
-    int updateStatusForUsers(List<String> userIds, User.UserStatus newStatus, Boolean enabled);
+    Map<String, Object> bulkUpdateUserStatus(List<UUID> userIds, Boolean isActive);
 
     /**
      * Амжилтгүй нэвтрэх тоог reset хийх
      */
-    int resetFailedAttemptsForUsers(List<String> userIds);
+    int resetFailedAttemptsForUsers(List<UUID> userIds);
 
     /**
      * Нууц үг сэргээх шаардлагатай гэж тэмдэглэх
      */
-    int markPasswordExpiredForUsers(List<String> userIds);
+    int markPasswordExpiredForUsers(List<UUID> userIds);
 
     /**
-     * Олон хэрэглэгч үүсгэх (import)
+     * Олон хэрэглэгч үүсгэх (import) - CreateUserRequestDto ашиглана
      */
-    List<UserDto> createUsersBulk(List<UserDto> users);
+    List<UserDto> createUsersBulk(List<CreateUserRequestDto> users);
 
     /**
      * Хэрэглэгчийн мэдээлэл export хийх
      */
-    byte[] exportUsersToExcel(List<String> userIds);
+    byte[] exportUsersToExcel(List<UUID> userIds);
 
     // Admin functions
     /**
@@ -434,33 +451,33 @@ public interface UserService extends UserDetailsService {
     /**
      * Хэрэглэгчид мэдэгдэл илгээх
      */
-    boolean sendNotificationToUser(String userId, String subject, String message);
+    boolean sendNotificationToUser(UUID userId, String subject, String message);
 
     /**
      * Нууц үг сэргээх мэдэгдэл
      */
-    boolean sendPasswordResetNotification(String userId);
+    boolean sendPasswordResetNotification(UUID userId);
 
     /**
      * Акаунт түгжигдсэн мэдэгдэл
      */
-    boolean sendAccountLockedNotification(String userId);
+    boolean sendAccountLockedNotification(UUID userId);
 
     // Audit & History
     /**
      * Хэрэглэгчийн өөрчлөлтийн түүх
      */
-    List<Map<String, Object>> getUserAuditHistory(String id);
+    List<Map<String, Object>> getUserAuditHistory(UUID id);
 
     /**
      * Хэрэглэгчийн үйл ажиллагааны лого
      */
-    List<Map<String, Object>> getUserActivityLog(String id, int days);
+    Page<Map<String, Object>> getUserActivity(UUID id, Pageable pageable);
 
     /**
      * Нэвтрэх түүх
      */
-    List<Map<String, Object>> getUserLoginHistory(String id, int days);
+    List<Map<String, Object>> getUserLoginHistory(UUID id, int days);
 
     // Data integrity
     /**

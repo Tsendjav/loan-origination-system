@@ -1,48 +1,53 @@
 package com.company.los.repository;
 
-import com.company.los.entity.Customer;
 import com.company.los.entity.Document;
 import com.company.los.entity.DocumentType;
-import com.company.los.entity.LoanApplication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Баримт бичгийн Repository
  * Document Repository Interface
  */
 @Repository
-public interface DocumentRepository extends JpaRepository<Document, String> {
+public interface DocumentRepository extends JpaRepository<Document, UUID> {
 
     // Суурь хайлтууд
     /**
-     * Харилцагчийн ID-гаар хайх
+     * Харилцагчийн баримтууд
      */
-    Page<Document> findByCustomerId(String customerId, Pageable pageable);
-    List<Document> findByCustomerId(String customerId);
+    Page<Document> findByCustomerId(UUID customerId, Pageable pageable);
 
     /**
-     * Зээлийн хүсэлтийн ID-гаар хайх
+     * Зээлийн хүсэлтийн баримтууд
      */
-    Page<Document> findByLoanApplicationId(String loanApplicationId, Pageable pageable);
-    List<Document> findByLoanApplicationId(String loanApplicationId);
+    Page<Document> findByLoanApplicationId(UUID loanApplicationId, Pageable pageable);
 
     /**
      * Баримтын төрлөөр хайх
      */
     Page<Document> findByDocumentType(DocumentType documentType, Pageable pageable);
-    List<Document> findByDocumentType(DocumentType documentType);
+
+    /**
+     * Харилцагч болон баримтын төрлөөр хайх
+     */
+    Optional<Document> findByCustomerIdAndDocumentType(UUID customerId, DocumentType documentType);
+
+    /**
+     * Баталгаажуулалтын статусаар хайх
+     */
+    Page<Document> findByVerificationStatus(Document.VerificationStatus status, Pageable pageable);
 
     /**
      * Баталгаажуулсан хүнээр хайх
@@ -50,66 +55,26 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     List<Document> findByVerifiedBy(String verifiedBy);
 
     /**
-     * Харилцагчийн тодорхой төрлийн баримт
+     * Орлогын дугаараар хайх
      */
-    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType")
-    Optional<Document> findByCustomerIdAndDocumentType(@Param("customerId") String customerId,
-                                                       @Param("documentType") DocumentType documentType);
+    List<Document> findByOriginalFilename(String originalFilename);
 
     /**
-     * Харилцагчийн тодорхой төрлийн баримтууд
+     * Checksum-аар хайх
      */
-    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType")
-    List<Document> findAllByCustomerIdAndDocumentType(@Param("customerId") String customerId,
-                                                      @Param("documentType") DocumentType documentType);
+    List<Document> findByChecksum(String checksum);
 
     /**
-     * Зээлийн хүсэлтийн тодорхой төрлийн баримт
+     * Файлын хэмжээгээр хайх
      */
-    @Query("SELECT d FROM Document d WHERE d.loanApplication.id = :loanApplicationId AND d.documentType = :documentType")
-    List<Document> findByLoanApplicationAndDocumentType(@Param("loanApplicationId") String loanApplicationId,
-                                                       @Param("documentType") DocumentType documentType);
-
-    // Баталгаажуулалтын статусаар хайх
-    /**
-     * Баталгаажуулалтын статусаар хайх
-     */
-    @Query("SELECT d FROM Document d WHERE d.verificationStatus = :status")
-    Page<Document> findByVerificationStatus(@Param("status") Document.VerificationStatus status, Pageable pageable);
+    List<Document> findByFileSize(Long fileSize);
 
     /**
-     * Хүлээгдэж байгаа баталгаажуулалт
+     * Content type-аар хайх
      */
-    @Query("SELECT d FROM Document d WHERE d.verificationStatus = 'PENDING'")
-    Page<Document> findPendingVerification(Pageable pageable);
+    Page<Document> findByContentType(String contentType, Pageable pageable);
 
-    /**
-     * Хянаж байгаа баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.verifiedBy = :reviewerName AND d.verificationStatus = 'IN_REVIEW'")
-    List<Document> findInReviewByReviewer(@Param("reviewerName") String reviewerName);
-
-    /**
-     * Баталгаажуулсан баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.verificationStatus = 'APPROVED' AND d.verifiedAt BETWEEN :startDate AND :endDate")
-    Page<Document> findApprovedBetween(@Param("startDate") LocalDateTime startDate,
-                                      @Param("endDate") LocalDateTime endDate,
-                                      Pageable pageable);
-
-    /**
-     * Татгалзсан баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.verifiedBy = :reviewerName AND d.verificationStatus = 'REJECTED'")
-    Page<Document> findRejectedByReviewer(@Param("reviewerName") String reviewerName, Pageable pageable);
-
-    /**
-     * Дахин илгээх шаардлагатай баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.verificationStatus = 'RESUBMIT_REQUIRED'")
-    Page<Document> findRequiringResubmission(Pageable pageable);
-
-    // Хугацаатай холбоотой хайлт
+    // Хугацаатай холбоотой
     /**
      * Хугацаа дууссан баримтууд
      */
@@ -119,90 +84,315 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
     /**
      * Удахгүй хугацаа дуусах баримтууд
      */
-    @Query("SELECT d FROM Document d WHERE d.expiryDate <= :futureDate AND d.expiryDate > CURRENT_DATE")
-    List<Document> findExpiringSoonDocuments(@Param("futureDate") LocalDate futureDate);
+    @Query("SELECT d FROM Document d WHERE d.expiryDate BETWEEN CURRENT_DATE AND :futureDate")
+    List<Document> findDocumentsExpiringSoon(@Param("futureDate") LocalDate futureDate);
 
     /**
-     * Сүүлийн баримтууд
+     * Хугацаатай баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.expiryDate IS NOT NULL")
+    List<Document> findDocumentsWithExpiry();
+
+    // Огноогоор хайх
+    /**
+     * Огноогоор илгээсэн баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE FUNCTION('DATE', d.uploadedAt) = :date")
+    List<Document> findByUploadDate(@Param("date") LocalDate date);
+
+    /**
+     * Хугацааны завсраар илгээсэн баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.uploadedAt BETWEEN :startDate AND :endDate")
+    Page<Document> findByUploadDateRange(@Param("startDate") LocalDateTime startDate,
+                                        @Param("endDate") LocalDateTime endDate,
+                                        Pageable pageable);
+
+    /**
+     * Баталгаажуулсан огноогоор хайх
+     */
+    @Query("SELECT d FROM Document d WHERE FUNCTION('DATE', d.verifiedAt) = :date")
+    List<Document> findByVerificationDate(@Param("date") LocalDate date);
+
+    /**
+     * Хугацааны завсраар баталгаажуулсан баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.verifiedAt BETWEEN :startDate AND :endDate")
+    Page<Document> findByVerificationDateRange(@Param("startDate") LocalDateTime startDate,
+                                              @Param("endDate") LocalDateTime endDate,
+                                              Pageable pageable);
+
+    // Сүүлийн үйл ажиллагаа
+    /**
+     * Сүүлийн илгээсэн баримтууд
      */
     @Query("SELECT d FROM Document d ORDER BY d.uploadedAt DESC")
-    List<Document> findRecentDocuments(int limit);
+    Page<Document> findRecentlyUploaded(Pageable pageable);
 
+    /**
+     * Сүүлийн баталгаажуулсан баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.verifiedAt IS NOT NULL ORDER BY d.verifiedAt DESC")
+    Page<Document> findRecentlyVerified(Pageable pageable);
+
+    /**
+     * Сүүлийн өөрчлөлт хийсэн баримтууд
+     */
+    @Query("SELECT d FROM Document d ORDER BY d.updatedAt DESC")
+    Page<Document> findRecentlyModified(Pageable pageable);
+
+    // Хувилбартай холбоотой
+    /**
+     * Баримтын бүх хувилбарууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType " +
+           "ORDER BY d.versionNumber DESC")
+    List<Document> findAllVersions(@Param("customerId") UUID customerId,
+                                  @Param("documentType") DocumentType documentType);
+
+    /**
+     * Сүүлийн хувилбар
+     */
+    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType " +
+           "ORDER BY d.versionNumber DESC")
+    Page<Document> findLatestVersion(@Param("customerId") UUID customerId,
+                                    @Param("documentType") DocumentType documentType,
+                                    Pageable pageable);
+
+    /**
+     * Өмнөх баримттай холбоотой
+     */
+    @Query("SELECT d FROM Document d WHERE d.previousDocumentId = :documentId")
+    List<Document> findByPreviousDocumentId(@Param("documentId") UUID documentId);
+
+    // OCR болон AI
+    /**
+     * OCR текст бүхий баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.ocrText IS NOT NULL AND d.ocrText != ''")
+    List<Document> findDocumentsWithOcrText();
+
+    /**
+     * OCR амжилтгүй болсон баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.processingStatus = 'FAILED' AND d.processingError IS NOT NULL")
+    List<Document> findOcrFailedDocuments();
+
+    /**
+     * AI боловсруулсан баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.extractedData IS NOT NULL AND d.extractedData != ''")
+    List<Document> findDocumentsWithExtractedData();
+
+    /**
+     * Итгэлцлийн оноо бүхий баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.aiConfidenceScore IS NOT NULL AND d.aiConfidenceScore >= :minScore")
+    Page<Document> findDocumentsWithMinConfidence(@Param("minScore") java.math.BigDecimal minScore,
+                                                 Pageable pageable);
+
+    /**
+     * Бага итгэлцлийн баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.aiConfidenceScore IS NOT NULL AND d.aiConfidenceScore < :threshold")
+    List<Document> findLowConfidenceDocuments(@Param("threshold") java.math.BigDecimal threshold);
+
+    // Дэвшилтэт хайлт
+    /**
+     * Тагаар хайх
+     */
+    @Query("SELECT d FROM Document d WHERE d.tags LIKE %:tag%")
+    Page<Document> findByTagsContaining(@Param("tag") String tag, Pageable pageable);
+
+    /**
+     * Тайлбараар хайх
+     */
+    @Query("SELECT d FROM Document d WHERE LOWER(d.description) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
+    Page<Document> findByDescriptionContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
+
+    /**
+     * Файлын нэрээр хайх
+     */
+    @Query("SELECT d FROM Document d WHERE LOWER(d.originalFilename) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
+    Page<Document> findByFilenameContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
+
+    /**
+     * Ерөнхий хайлт
+     */
+    @Query("SELECT d FROM Document d WHERE " +
+           "LOWER(d.originalFilename) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(COALESCE(d.description, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(COALESCE(d.tags, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
+    Page<Document> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
+
+    // Файлын хэмжээгээр хайх
+    /**
+     * Файлын хэмжээний хязгаараар хайх
+     */
+    @Query("SELECT d FROM Document d WHERE d.fileSize >= :minSize AND d.fileSize <= :maxSize")
+    Page<Document> findByFileSizeRange(@Param("minSize") Long minSize,
+                                      @Param("maxSize") Long maxSize,
+                                      Pageable pageable);
+
+    /**
+     * Том файлууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.fileSize > :threshold ORDER BY d.fileSize DESC")
+    List<Document> findLargeFiles(@Param("threshold") Long threshold);
+
+    // Шаардлагатай баримтууд
+    /**
+     * Шаардлагатай баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.isRequired = true")
+    List<Document> findRequiredDocuments();
+
+    /**
+     * Харилцагчийн шаардлагатай баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.isRequired = true")
+    List<Document> findRequiredDocumentsByCustomer(@Param("customerId") UUID customerId);
+
+    /**
+     * Зээлийн хүсэлтийн шаардлагатай баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.loanApplication.id = :loanApplicationId AND d.isRequired = true")
+    List<Document> findRequiredDocumentsByLoanApplication(@Param("loanApplicationId") UUID loanApplicationId);
+
+    // Дуплик шалгах
+    /**
+     * Потенциаль дуплик баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE " +
+           "(d.originalFilename = :filename OR d.checksum = :checksum OR d.fileSize = :fileSize) " +
+           "AND d.customer.id != :excludeCustomerId")
+    List<Document> findPotentialDuplicates(@Param("filename") String filename,
+                                          @Param("checksum") String checksum,
+                                          @Param("fileSize") Long fileSize,
+                                          @Param("excludeCustomerId") UUID excludeCustomerId);
+
+    // Статистик
+    /**
+     * Баримтын тоог тооцох
+     */
+    @Query("SELECT COUNT(d) FROM Document d")
+    long countAllDocuments();
+
+    /**
+     * Статусаар тооцох
+     */
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.verificationStatus = :status")
+    long countByVerificationStatus(@Param("status") Document.VerificationStatus status);
+
+    /**
+     * Харилцагчийн баримтын тоо
+     */
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.customer.id = :customerId")
+    long countByCustomerId(@Param("customerId") UUID customerId);
+
+    /**
+     * Зээлийн хүсэлтийн баримтын тоо
+     */
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.loanApplication.id = :loanApplicationId")
+    long countByLoanApplicationId(@Param("loanApplicationId") UUID loanApplicationId);
+
+    /**
+     * Баримтын төрлөөр тооцох
+     */
+    @Query("SELECT COUNT(d) FROM Document d WHERE d.documentType = :documentType")
+    long countByDocumentType(@Param("documentType") DocumentType documentType);
+
+    /**
+     * Өнөөдрийн статистик
+     */
+    @Query("SELECT new map(" +
+           "COUNT(CASE WHEN FUNCTION('DATE', d.uploadedAt) = CURRENT_DATE THEN 1 END) as uploadedToday, " +
+           "COUNT(CASE WHEN FUNCTION('DATE', d.verifiedAt) = CURRENT_DATE THEN 1 END) as verifiedToday) " +
+           "FROM Document d")
+    Map<String, Long> getTodayStats();
+
+    /**
+     * Баримтын төрлөөр статистик
+     */
+    @Query("SELECT d.documentType.name, COUNT(d) FROM Document d " +
+           "GROUP BY d.documentType.name ORDER BY COUNT(d) DESC")
+    List<Object[]> countByDocumentType();
+
+    /**
+     * Статусаар статистик
+     */
+    @Query("SELECT d.verificationStatus, COUNT(d) FROM Document d " +
+           "GROUP BY d.verificationStatus ORDER BY COUNT(d) DESC")
+    List<Object[]> countByStatus();
+
+    /**
+     * Сарын статистик
+     */
+    @Query("SELECT FUNCTION('DATE_FORMAT', d.uploadedAt, '%Y-%m'), COUNT(d) FROM Document d " +
+           "WHERE d.uploadedAt >= :startDate " +
+           "GROUP BY FUNCTION('DATE_FORMAT', d.uploadedAt, '%Y-%m') " +
+           "ORDER BY FUNCTION('DATE_FORMAT', d.uploadedAt, '%Y-%m')")
+    List<Object[]> getMonthlyUploadStats(@Param("startDate") LocalDateTime startDate);
+
+    // Data quality
+    /**
+     * Дутуу мэдээлэлтэй баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE " +
+           "d.originalFilename IS NULL OR d.originalFilename = '' OR " +
+           "d.contentType IS NULL OR d.contentType = '' OR " +
+           "d.fileSize IS NULL OR d.fileSize <= 0")
+    List<Document> findDocumentsWithIncompleteData();
+
+    /**
+     * Checksum-гүй баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.checksum IS NULL OR d.checksum = ''")
+    List<Document> findDocumentsWithoutChecksum();
+
+    /**
+     * Хугацаагүй шаардлагатай баримтууд
+     */
+    @Query("SELECT d FROM Document d WHERE d.isRequired = true AND d.expiryDate IS NULL")
+    List<Document> findRequiredDocumentsWithoutExpiry();
+
+    // Cleanup
     /**
      * Хуучин баримтууд
      */
     @Query("SELECT d FROM Document d WHERE d.uploadedAt < :cutoffDate")
     List<Document> findOldDocuments(@Param("cutoffDate") LocalDateTime cutoffDate);
 
-    // OCR болон AI холбоотой
     /**
-     * OCR амжилтгүй болсон баримтууд
+     * Устгагдсан баримтууд
      */
-    @Query("SELECT d FROM Document d WHERE d.processingStatus = 'FAILED'")
-    List<Document> findOcrFailed();
+    @Query("SELECT d FROM Document d WHERE d.isDeleted = true")
+    List<Document> findDeletedDocuments();
 
     /**
-     * Өндөр итгэлцлийн оноотой баримтууд
+     * Идэвхгүй харилцагчийн баримтууд
      */
-    @Query("SELECT d FROM Document d WHERE d.aiConfidenceScore >= :minScore")
-    Page<Document> findByHighConfidenceScore(@Param("minScore") BigDecimal minScore, Pageable pageable);
+    @Query("SELECT d FROM Document d WHERE d.customer.isActive = false")
+    List<Document> findDocumentsByInactiveCustomers();
+
+    // Performance monitoring
+    /**
+     * Баталгаажуулалтын дундаж хугацаа
+     */
+    @Query("SELECT AVG(FUNCTION('TIMESTAMPDIFF', HOUR, d.uploadedAt, d.verifiedAt)) FROM Document d " +
+           "WHERE d.verifiedAt IS NOT NULL")
+    Double getAverageVerificationTimeHours();
 
     /**
-     * Бага итгэлцлийн оноотой баримтууд
+     * Хамгийн удаан баталгаажуулсан баримтууд
      */
-    @Query("SELECT d FROM Document d WHERE d.aiConfidenceScore < :threshold")
-    List<Document> findLowConfidenceDocuments(@Param("threshold") BigDecimal threshold);
+    @Query("SELECT d FROM Document d WHERE d.verifiedAt IS NOT NULL " +
+           "ORDER BY FUNCTION('TIMESTAMPDIFF', HOUR, d.uploadedAt, d.verifiedAt) DESC")
+    Page<Document> findSlowestVerifiedDocuments(Pageable pageable);
 
-    // Дупликат хайлт
+    // Advanced filters
     /**
-     * Дупликат баримт хайх (энгийн хувилбар)
-     */
-    @Query("SELECT d FROM Document d WHERE (d.originalFilename = :filename OR d.checksum = :checksum OR d.fileSize = :fileSize) AND d.customer != :excludeCustomer")
-    List<Document> findDuplicates(@Param("filename") String filename,
-                                 @Param("fileSize") Long fileSize,
-                                 @Param("checksum") String checksum,
-                                 @Param("excludeCustomer") Customer excludeCustomer);
-
-    /**
-     * Checksum-аар хайх
-     */
-    @Query("SELECT d FROM Document d WHERE d.checksum = :checksum AND d.customer != :excludeCustomer")
-    List<Document> findByChecksumAndCustomerNot(@Param("checksum") String checksum,
-                                               @Param("excludeCustomer") Customer excludeCustomer);
-
-    // Шаардлагатай баримтууд
-    /**
-     * Дутуу шаардлагатай баримтууд
-     */
-    @Query("SELECT dt FROM DocumentType dt WHERE dt.isRequired = true AND dt NOT IN " +
-           "(SELECT d.documentType FROM Document d WHERE d.loanApplication.id = :loanApplicationId)")
-    List<DocumentType> findMissingRequiredDocuments(@Param("loanApplicationId") String loanApplicationId);
-
-    /**
-     * Харилцагчийн шаардлагатай баримтуудын статус
-     */
-    @Query("SELECT d.documentType, d.verificationStatus FROM Document d WHERE d.customer.id = :customerId AND d.documentType IN :requiredTypes")
-    List<Object[]> getRequiredDocumentStatus(@Param("customerId") String customerId,
-                                           @Param("requiredTypes") List<DocumentType> requiredTypes);
-
-    // Хувилбар удирдлага
-    /**
-     * Сүүлийн хувилбар
-     */
-    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType ORDER BY d.versionNumber DESC")
-    Optional<Document> findLatestVersion(@Param("customerId") String customerId,
-                                        @Param("documentType") DocumentType documentType);
-
-    /**
-     * Бүх хувилбарууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType ORDER BY d.versionNumber ASC")
-    List<Document> findAllVersions(@Param("customerId") String customerId,
-                                  @Param("documentType") DocumentType documentType);
-
-    // Дэвшилтэт хайлт
-    /**
-     * Дэвшилтэт филтертэй хайлт (энгийн хувилбар)
+     * Дэвшилтэт филтертэй хайлт
      */
     @Query("SELECT d FROM Document d WHERE " +
            "(:documentType IS NULL OR d.documentType = :documentType) AND " +
@@ -211,11 +401,11 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
            "(:minSize IS NULL OR d.fileSize >= :minSize) AND " +
            "(:maxSize IS NULL OR d.fileSize <= :maxSize) AND " +
            "(:startDate IS NULL OR d.uploadedAt >= :startDate) AND " +
-           "(:endDate IS NULL OR d.uploadedAt <= :endDate)")
+           "(:endDate IS NULL OR d.uploadedAt <= :endDate) AND " +
+           "(:hasExpiry IS NULL OR (:hasExpiry = TRUE AND d.expiryDate IS NOT NULL) OR (:hasExpiry = FALSE AND d.expiryDate IS NULL))")
     Page<Document> findByAdvancedFilters(
-            @Param("documentType") String documentType,
-            @Param("verificationStatus") String verificationStatus,
-            @Param("customerType") String customerType,
+            @Param("documentType") DocumentType documentType,
+            @Param("verificationStatus") Document.VerificationStatus verificationStatus,
             @Param("verifiedBy") String verifiedBy,
             @Param("minSize") Long minSize,
             @Param("maxSize") Long maxSize,
@@ -224,170 +414,22 @@ public interface DocumentRepository extends JpaRepository<Document, String> {
             @Param("hasExpiry") Boolean hasExpiry,
             Pageable pageable);
 
-    // Bulk операциуд
+    // Business queries
     /**
-     * Олон баримтын баталгаажуулалтын статус өөрчлөх
+     * Хүлээгдэж байгаа баталгаажуулалт
      */
-    @Modifying
-    @Query("UPDATE Document d SET d.verificationStatus = :newStatus, d.verifiedBy = :verifierName, " +
-           "d.verifiedAt = :verifiedAt, d.verificationNotes = :notes WHERE d.id IN :documentIds")
-    int updateVerificationStatus(@Param("documentIds") List<String> documentIds,
-                               @Param("newStatus") Document.VerificationStatus newStatus,
-                               @Param("verifierName") String verifierName,
-                               @Param("verifiedAt") LocalDateTime verifiedAt,
-                               @Param("notes") String notes);
+    @Query("SELECT d FROM Document d WHERE d.verificationStatus = 'PENDING' ORDER BY d.uploadedAt ASC")
+    Page<Document> findPendingVerification(Pageable pageable);
 
     /**
-     * Хугацаа дууссан баримтуудыг тэмдэглэх
+     * Баталгаажуулагчийн ажил
      */
-    @Modifying
-    @Query("UPDATE Document d SET d.verificationStatus = 'EXPIRED' WHERE d.expiryDate < CURRENT_DATE")
-    int markExpiredDocuments();
-
-    // Цэвэрлэлт
-    /**
-     * Ашиглагдаагүй баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.uploadedAt < :cutoffDate AND d.customer IS NULL AND d.loanApplication IS NULL")
-    List<Document> findUnusedDocuments(@Param("cutoffDate") LocalDateTime cutoffDate);
-
-    // Статистик
-    /**
-     * Баталгаажуулалтын статусаар тоолох
-     */
-    @Query("SELECT COUNT(d) FROM Document d WHERE d.verificationStatus = :status")
-    long countByVerificationStatus(@Param("status") Document.VerificationStatus status);
+    @Query("SELECT d FROM Document d WHERE d.verificationStatus = 'IN_REVIEW' AND d.verifiedBy = :verifier")
+    List<Document> findInReviewByVerifier(@Param("verifier") String verifier);
 
     /**
-     * Баримтын төрлөөр тоолох
+     * Дахин илгээх шаардлагатай
      */
-    @Query("SELECT COUNT(d) FROM Document d WHERE d.documentType = :documentType")
-    long countByDocumentType(@Param("documentType") DocumentType documentType);
-
-    /**
-     * Статусаар тоолох (статистикийн хувьд)
-     */
-    @Query("SELECT d.verificationStatus, COUNT(d) FROM Document d GROUP BY d.verificationStatus")
-    List<Object[]> countByVerificationStatus();
-
-    /**
-     * Төрлөөр тоолох (статистикийн хувьд)
-     */
-    @Query("SELECT d.documentType, COUNT(d) FROM Document d GROUP BY d.documentType")
-    List<Object[]> countByDocumentType();
-
-    // Сарын статистик
-    /**
-     * Сарын баримтын статистик
-     */
-    @Query("SELECT YEAR(d.uploadedAt), MONTH(d.uploadedAt), COUNT(d), AVG(d.fileSize) FROM Document d " +
-           "WHERE d.uploadedAt >= :startDate GROUP BY YEAR(d.uploadedAt), MONTH(d.uploadedAt) " +
-           "ORDER BY YEAR(d.uploadedAt), MONTH(d.uploadedAt)")
-    List<Object[]> getMonthlyDocumentStats(@Param("startDate") LocalDateTime startDate);
-
-    // Хянаж байгаа хүмүүсийн статистик
-    /**
-     * Хянагчийн статистик
-     */
-    @Query("SELECT d.verifiedBy, COUNT(d), AVG(TIMESTAMPDIFF(HOUR, d.uploadedAt, d.verifiedAt)) FROM Document d " +
-           "WHERE d.verifiedBy IS NOT NULL AND d.verifiedAt IS NOT NULL " +
-           "GROUP BY d.verifiedBy ORDER BY COUNT(d) DESC")
-    List<Object[]> getVerifierStats();
-
-    // Өнөөдрийн статистик
-    /**
-     * Өнөөдрийн баримтын статистик
-     */
-    @Query("SELECT " +
-           "COUNT(CASE WHEN DATE(d.uploadedAt) = CURRENT_DATE THEN 1 END), " +
-           "COUNT(CASE WHEN d.verificationStatus = 'PENDING' THEN 1 END), " +
-           "COUNT(CASE WHEN DATE(d.verifiedAt) = CURRENT_DATE THEN 1 END), " +
-           "COUNT(CASE WHEN d.verificationStatus = 'REJECTED' THEN 1 END) " +
-           "FROM Document d")
-    Object[] getTodayDocumentStats();
-
-    /**
-     * Популяр content type-ууд
-     */
-    @Query("SELECT d.contentType, COUNT(d) FROM Document d GROUP BY d.contentType ORDER BY COUNT(d) DESC")
-    List<Object[]> getTopContentTypes();
-
-    // Performance хяналт
-    /**
-     * Дундаж баталгаажуулалтын хугацаа
-     */
-    @Query("SELECT AVG(TIMESTAMPDIFF(HOUR, d.uploadedAt, d.verifiedAt)) FROM Document d WHERE d.verifiedAt IS NOT NULL")
-    Double getAverageVerificationTimeHours();
-
-    /**
-     * Хамгийн удаан баталгаажуулсан баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.verifiedAt IS NOT NULL " +
-           "ORDER BY TIMESTAMPDIFF(HOUR, d.uploadedAt, d.verifiedAt) DESC")
-    Page<Document> findSlowestVerified(Pageable pageable);
-
-    // Хайлт
-    /**
-     * Файлын нэрээр хайх
-     */
-    @Query("SELECT d FROM Document d WHERE LOWER(d.originalFilename) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<Document> findByFileNameContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
-
-    /**
-     * Тайлбараар хайх
-     */
-    @Query("SELECT d FROM Document d WHERE LOWER(COALESCE(d.description, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<Document> findByDescriptionContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
-
-    // Существование проверок
-    /**
-     * Хүсэлтийн дугаараар байгаа эсэхийг шалгах
-     */
-    boolean existsByApplicationNumber(String applicationNumber);
-
-    /**
-     * Файлын нэрээр байгаа эсэхийг шалгах
-     */
-    boolean existsByOriginalFilename(String originalFilename);
-
-    // Хэрэглэгчийн хандалт
-    /**
-     * Хэрэглэгчийн хандах эрхтэй баримтууд
-     */
-    @Query("SELECT d FROM Document d WHERE d.customer.id = :customerId OR " +
-           "d.loanApplication.id IN (SELECT la.id FROM LoanApplication la WHERE la.customer.id = :customerId)")
-    List<Document> findAccessibleDocuments(@Param("customerId") String customerId);
-
-    // Валидация
-    /**
-     * Харилцагчийн тодорхой төрлийн баримт байгаа эсэхийг шалгах
-     */
-    @Query("SELECT COUNT(d) > 0 FROM Document d WHERE d.customer.id = :customerId AND d.documentType = :documentType")
-    boolean customerHasDocumentType(@Param("customerId") String customerId, @Param("documentType") DocumentType documentType);
-
-    /**
-     * Зээлийн хүсэлтийн тодорхой төрлийн баримт байгаа эсэхийг шалгах
-     */
-    @Query("SELECT COUNT(d) > 0 FROM Document d WHERE d.loanApplication.id = :loanApplicationId AND d.documentType = :documentType")
-    boolean applicationHasDocumentType(@Param("loanApplicationId") String loanApplicationId, @Param("documentType") DocumentType documentType);
-
-    // Additional helper methods
-    /**
-     * Content type-аар хайх
-     */
-    Page<Document> findByContentType(String contentType, Pageable pageable);
-
-    /**
-     * Файлын хэмжээний хязгаараар хайх
-     */
-    @Query("SELECT d FROM Document d WHERE d.fileSize BETWEEN :minSize AND :maxSize")
-    Page<Document> findByFileSizeRange(@Param("minSize") Long minSize, @Param("maxSize") Long maxSize, Pageable pageable);
-
-    /**
-     * Огноогоор хайх
-     */
-    @Query("SELECT d FROM Document d WHERE d.uploadedAt BETWEEN :startDate AND :endDate")
-    Page<Document> findByUploadedAtBetween(@Param("startDate") LocalDateTime startDate, 
-                                          @Param("endDate") LocalDateTime endDate, 
-                                          Pageable pageable);
+    @Query("SELECT d FROM Document d WHERE d.verificationStatus = 'RESUBMIT_REQUIRED'")
+    List<Document> findRequiringResubmission();
 }

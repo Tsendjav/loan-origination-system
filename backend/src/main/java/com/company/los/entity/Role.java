@@ -8,24 +8,73 @@ import org.hibernate.annotations.Where;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Дүрийн Entity
- * Role Entity
+ * Role Entity for authorization
  */
 @Entity
 @Table(name = "roles", indexes = {
-        @Index(name = "idx_role_name", columnList = "name", unique = true)
+        @Index(name = "idx_role_name", columnList = "name", unique = true),
+        @Index(name = "idx_role_code", columnList = "code"),
+        @Index(name = "idx_role_type", columnList = "type"),
+        @Index(name = "idx_role_status", columnList = "status"),
+        @Index(name = "idx_role_priority", columnList = "priority"),
+        @Index(name = "idx_role_active", columnList = "is_active")
 })
 @SQLDelete(sql = "UPDATE roles SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
 public class Role {
 
-    // Enum definitions
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    @Column(name = "id", columnDefinition = "BINARY(16)")
+    private UUID id;
+
+    @Column(name = "name", unique = true, nullable = false, length = 100)
+    @NotBlank(message = "Дүрийн нэр заавал бөглөх ёстой")
+    @Size(min = 2, max = 100, message = "Дүрийн нэр 2-100 тэмдэгт байх ёстой")
+    private String name;
+
+    @Column(name = "description", length = 500)
+    @Size(max = 500, message = "Дүрийн тайлбар 500 тэмдэгтээс ихгүй байх ёстой")
+    private String description;
+
+    @Column(name = "code", length = 50)
+    @Size(max = 50, message = "Дүрийн код 50 тэмдэгтээс ихгүй байх ёстой")
+    private String code;
+
+    // Role status enum
+    public enum RoleStatus {
+        ACTIVE("ACTIVE", "Идэвхтэй"),
+        INACTIVE("INACTIVE", "Идэвхгүй"),
+        SUSPENDED("SUSPENDED", "Түр хориглосон"),
+        DEPRECATED("DEPRECATED", "Хуучирсан");
+
+        private final String code;
+        private final String mongolianName;
+
+        RoleStatus(String code, String mongolianName) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
+    }
+
+    @Column(name = "status", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @NotNull(message = "Дүрийн статус заавал байх ёстой")
+    private RoleStatus status = RoleStatus.ACTIVE;
+
+    // Role type enum
     public enum RoleType {
-        SYSTEM("SYSTEM", "Системийн дүр"),
-        BUSINESS("BUSINESS", "Бизнесийн дүр"),
-        CUSTOM("CUSTOM", "Тусгай дүр");
+        SYSTEM("SYSTEM", "Системийн"),
+        BUSINESS("BUSINESS", "Бизнесийн"),
+        FUNCTIONAL("FUNCTIONAL", "Үүргийн"),
+        TEMPORARY("TEMPORARY", "Түр зуурын");
 
         private final String code;
         private final String mongolianName;
@@ -39,40 +88,44 @@ public class Role {
         public String getMongolianName() { return mongolianName; }
     }
 
-    @Id
-    @Column(name = "id", length = 36)
-    private String id;
+    @Column(name = "type", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    @NotNull(message = "Дүрийн төрөл заавал байх ёстой")
+    private RoleType type = RoleType.BUSINESS;
 
-    @Column(name = "name", unique = true, nullable = false, length = 100)
-    @NotBlank(message = "Дүрийн нэр заавал байх ёстой")
-    @Size(max = 100, message = "Дүрийн нэр 100 тэмдэгтээс ихгүй байх ёстой")
-    private String name;
+    // Priority for role hierarchy (1-100, higher number = higher priority)
+    @Column(name = "priority")
+    @Min(value = 1, message = "Эрэмбэ 1-ээс бага байж болохгүй")
+    @Max(value = 100, message = "Эрэмбэ 100-аас их байж болохгүй")
+    private Integer priority = 50;
 
-    @Column(name = "display_name", nullable = false, length = 100)
-    @NotBlank(message = "Харуулах нэр заавал байх ёстой")
-    @Size(max = 100, message = "Харуулах нэр 100 тэмдэгтээс ихгүй байх ёстой")
-    private String displayName;
+    // System role flag (derived from type)
+    @Transient
+    public boolean isSystemRole() {
+        return RoleType.SYSTEM.equals(this.type);
+    }
 
-    @Column(name = "display_name_mn", length = 100)
-    @Size(max = 100, message = "Монгол харуулах нэр 100 тэмдэгтээс ихгүй байх ёстой")
-    private String displayNameMn;
-
-    @Column(name = "description", length = 500)
-    @Size(max = 500, message = "Тайлбар 500 тэмдэгтээс ихгүй байх ёстой")
-    private String description;
-
-    // Дүрийн шинж чанарууд
-    @Column(name = "is_system_role", nullable = false)
-    private Boolean isSystemRole = false;
-
-    @Column(name = "is_default", nullable = false)
+    // Default role flag - for commonly assigned roles
+    @Column(name = "is_default")
     private Boolean isDefault = false;
 
-    @Column(name = "level_order")
-    @Min(value = 1, message = "Дүрийн түвшин 1-ээс бага байж болохгүй")
-    private Integer levelOrder = 1;
+    // Display name for UI
+    @Column(name = "display_name", length = 150)
+    private String displayName;
 
-    // Эрхүүд
+    // Role hierarchy
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_role_id", foreignKey = @ForeignKey(name = "fk_role_parent"))
+    private Role parentRole;
+
+    @OneToMany(mappedBy = "parentRole", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<Role> childRoles = new ArrayList<>();
+
+    // Many-to-many relationship with Users
+    @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
+    private List<User> users = new ArrayList<>();
+
+    // Many-to-many relationship with Permissions
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "role_permissions",
@@ -80,10 +133,6 @@ public class Role {
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
     private List<Permission> permissions = new ArrayList<>();
-
-    // Хэрэглэгчид
-    @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
-    private List<User> users = new ArrayList<>();
 
     // Audit fields
     @Column(name = "created_at", nullable = false)
@@ -106,29 +155,39 @@ public class Role {
 
     // Constructors
     public Role() {
-        this.id = java.util.UUID.randomUUID().toString();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Role(String name, String displayName) {
+    public Role(String name, String description) {
         this();
         this.name = name;
-        this.displayName = displayName;
+        this.description = description;
+        this.displayName = name;
     }
 
-    public Role(String name, String displayName, String description) {
-        this(name, displayName);
-        this.description = description;
+    public Role(String name, String description, RoleType type) {
+        this(name, description);
+        this.type = type;
     }
 
     // Business methods
-    public boolean canAssignTo(User user) {
-        // System roles can only be assigned by system administrators
-        if (isSystemRole && !user.hasAnyRole("ROLE_SYSTEM_ADMIN")) {
-            return false;
+    public String getDisplayName() {
+        if (displayName != null && !displayName.trim().isEmpty()) {
+            return displayName;
         }
-        return true;
+        if (description != null && !description.trim().isEmpty()) {
+            return name + " (" + description + ")";
+        }
+        return name;
+    }
+
+    public boolean isActive() {
+        return RoleStatus.ACTIVE.equals(status) && Boolean.TRUE.equals(isActive);
+    }
+
+    public boolean isBusinessRole() {
+        return RoleType.BUSINESS.equals(type);
     }
 
     public boolean hasPermission(String permissionName) {
@@ -136,9 +195,19 @@ public class Role {
                 .anyMatch(permission -> permission.getName().equals(permissionName));
     }
 
+    public boolean hasAnyPermission(String... permissionNames) {
+        for (String permissionName : permissionNames) {
+            if (hasPermission(permissionName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void addPermission(Permission permission) {
         if (permission != null && !permissions.contains(permission)) {
             permissions.add(permission);
+            permission.getRoles().add(this);
             this.updatedAt = LocalDateTime.now();
         }
     }
@@ -146,6 +215,7 @@ public class Role {
     public void removePermission(Permission permission) {
         if (permission != null && permissions.contains(permission)) {
             permissions.remove(permission);
+            permission.getRoles().remove(this);
             this.updatedAt = LocalDateTime.now();
         }
     }
@@ -153,6 +223,7 @@ public class Role {
     public void addUser(User user) {
         if (user != null && !users.contains(user)) {
             users.add(user);
+            user.getRoles().add(this);
             this.updatedAt = LocalDateTime.now();
         }
     }
@@ -160,45 +231,94 @@ public class Role {
     public void removeUser(User user) {
         if (user != null && users.contains(user)) {
             users.remove(user);
+            user.getRoles().remove(this);
             this.updatedAt = LocalDateTime.now();
         }
     }
 
-    public String getDisplayNameOrDefault() {
-        return displayNameMn != null && !displayNameMn.trim().isEmpty() ? displayNameMn : displayName;
-    }
-
-    public String getLocalizedDisplayName() {
-        return getDisplayNameOrDefault();
-    }
-
-    public RoleType getRoleType() {
-        if (isSystemRole) {
-            return RoleType.SYSTEM;
-        } else if (name != null && (name.contains("CUSTOM") || name.contains("SPECIAL"))) {
-            return RoleType.CUSTOM;
+    public void addChildRole(Role childRole) {
+        if (childRole != null && !childRoles.contains(childRole)) {
+            childRoles.add(childRole);
+            childRole.setParentRole(this);
+            this.updatedAt = LocalDateTime.now();
         }
-        return RoleType.BUSINESS;
     }
 
-    public String getRoleTypeDisplay() {
-        return getRoleType().getMongolianName();
+    public void removeChildRole(Role childRole) {
+        if (childRole != null && childRoles.contains(childRole)) {
+            childRoles.remove(childRole);
+            childRole.setParentRole(null);
+            this.updatedAt = LocalDateTime.now();
+        }
     }
 
-    public boolean canBeDeleted() {
-        return !isSystemRole && users.isEmpty();
+    public boolean hasChildRoles() {
+        return childRoles != null && !childRoles.isEmpty();
     }
 
-    public boolean isEditable() {
-        return !isSystemRole;
+    public boolean hasParentRole() {
+        return parentRole != null;
+    }
+
+    public boolean hasUsers() {
+        return users != null && !users.isEmpty();
+    }
+
+    public boolean hasPermissions() {
+        return permissions != null && !permissions.isEmpty();
+    }
+
+    public int getUserCount() {
+        return users != null ? users.size() : 0;
     }
 
     public int getPermissionCount() {
         return permissions != null ? permissions.size() : 0;
     }
 
-    public int getUserCount() {
-        return users != null ? users.size() : 0;
+    public int getChildRoleCount() {
+        return childRoles != null ? childRoles.size() : 0;
+    }
+
+    public String getStatusDisplay() {
+        return status != null ? status.getMongolianName() : "Тодорхойгүй";
+    }
+
+    public String getTypeDisplay() {
+        return type != null ? type.getMongolianName() : "Тодорхойгүй";
+    }
+
+    public String getHierarchyLevel() {
+        if (parentRole == null) {
+            return "Эх дүр";
+        } else if (hasChildRoles()) {
+            return "Завсрын дүр";
+        } else {
+            return "Дэд дүр";
+        }
+    }
+
+    public void enable() {
+        this.isActive = true;
+        this.status = RoleStatus.ACTIVE;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void disable() {
+        this.isActive = false;
+        this.status = RoleStatus.INACTIVE;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void suspend() {
+        this.status = RoleStatus.SUSPENDED;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void deprecate() {
+        this.status = RoleStatus.DEPRECATED;
+        this.isActive = false;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void markAsDeleted() {
@@ -210,38 +330,20 @@ public class Role {
     public void restore() {
         this.isDeleted = false;
         this.isActive = true;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void enable() {
-        this.isActive = true;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void disable() {
-        this.isActive = false;
+        this.status = RoleStatus.ACTIVE;
         this.updatedAt = LocalDateTime.now();
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public String getName() { return name; }
     public void setName(String name) { 
         this.name = name;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public String getDisplayName() { return displayName; }
-    public void setDisplayName(String displayName) { 
-        this.displayName = displayName;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public String getDisplayNameMn() { return displayNameMn; }
-    public void setDisplayNameMn(String displayNameMn) { 
-        this.displayNameMn = displayNameMn;
+        if (this.displayName == null || this.displayName.isEmpty()) {
+            this.displayName = name;
+        }
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -251,9 +353,27 @@ public class Role {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Boolean getIsSystemRole() { return isSystemRole; }
-    public void setIsSystemRole(Boolean isSystemRole) { 
-        this.isSystemRole = isSystemRole;
+    public String getCode() { return code; }
+    public void setCode(String code) { 
+        this.code = code;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public RoleStatus getStatus() { return status; }
+    public void setStatus(RoleStatus status) { 
+        this.status = status;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public RoleType getType() { return type; }
+    public void setType(RoleType type) { 
+        this.type = type;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public Integer getPriority() { return priority; }
+    public void setPriority(Integer priority) { 
+        this.priority = priority;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -263,21 +383,32 @@ public class Role {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Integer getLevelOrder() { return levelOrder; }
-    public void setLevelOrder(Integer levelOrder) { 
-        this.levelOrder = levelOrder;
+    public void setDisplayName(String displayName) { 
+        this.displayName = displayName;
         this.updatedAt = LocalDateTime.now();
     }
 
-    public List<Permission> getPermissions() { return permissions; }
-    public void setPermissions(List<Permission> permissions) { 
-        this.permissions = permissions != null ? permissions : new ArrayList<>();
+    public Role getParentRole() { return parentRole; }
+    public void setParentRole(Role parentRole) { 
+        this.parentRole = parentRole;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public List<Role> getChildRoles() { return childRoles; }
+    public void setChildRoles(List<Role> childRoles) { 
+        this.childRoles = childRoles;
         this.updatedAt = LocalDateTime.now();
     }
 
     public List<User> getUsers() { return users; }
     public void setUsers(List<User> users) { 
-        this.users = users != null ? users : new ArrayList<>();
+        this.users = users;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public List<Permission> getPermissions() { return permissions; }
+    public void setPermissions(List<Permission> permissions) { 
+        this.permissions = permissions;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -309,29 +440,29 @@ public class Role {
 
     @PrePersist
     protected void onCreate() {
-        if (this.id == null) {
-            this.id = java.util.UUID.randomUUID().toString();
-        }
         LocalDateTime now = LocalDateTime.now();
         if (this.createdAt == null) {
             this.createdAt = now;
         }
         this.updatedAt = now;
+        if (this.displayName == null && this.name != null) {
+            this.displayName = this.name;
+        }
     }
 
     // toString
     @Override
     public String toString() {
         return "Role{" +
-                "id='" + id + '\'' +
+                "id=" + id +
                 ", name='" + name + '\'' +
-                ", displayName='" + displayName + '\'' +
                 ", description='" + description + '\'' +
-                ", isSystemRole=" + isSystemRole +
-                ", isDefault=" + isDefault +
-                ", levelOrder=" + levelOrder +
-                ", permissionCount=" + getPermissionCount() +
+                ", code='" + code + '\'' +
+                ", status=" + status +
+                ", type=" + type +
+                ", priority=" + priority +
                 ", userCount=" + getUserCount() +
+                ", permissionCount=" + getPermissionCount() +
                 ", isActive=" + isActive +
                 ", isDeleted=" + isDeleted +
                 '}';

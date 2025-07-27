@@ -1,5 +1,6 @@
 package com.company.los.dto;
 
+import com.company.los.entity.Role; // Added import
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.*;
 
 import java.time.LocalDateTime;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -18,7 +20,7 @@ import java.util.stream.Collectors;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PermissionDto {
 
-    private String id;
+    private UUID id;
 
     @NotBlank(message = "Эрхийн нэр заавал бөглөх ёстой")
     @Size(min = 3, max = 100, message = "Эрхийн нэр 3-100 тэмдэгт байх ёстой")
@@ -120,7 +122,7 @@ public class PermissionDto {
         // Role information
         if (permission.getRoles() != null) {
             dto.setRoleNames(permission.getRoles().stream()
-                    .map(role -> role.getName())
+                    .map(Role::getName)
                     .collect(Collectors.toSet()));
         }
 
@@ -149,10 +151,7 @@ public class PermissionDto {
     public Permission toEntity() {
         Permission permission = new Permission();
         
-        if (this.id != null) {
-            permission.setId(this.id);
-        }
-        
+        permission.setId(this.id != null ? this.id : UUID.randomUUID());
         permission.setName(this.name);
         permission.setDisplayName(this.displayName);
         permission.setDisplayNameMn(this.displayNameMn);
@@ -161,26 +160,16 @@ public class PermissionDto {
         permission.setAction(this.action);
         permission.setCategory(this.category);
         permission.setScope(this.scope);
-        
-        if (this.isSystemPermission != null) {
-            permission.setIsSystemPermission(this.isSystemPermission);
-        }
-        if (this.priority != null) {
-            permission.setPriority(this.priority);
-        }
+        permission.setIsSystemPermission(this.isSystemPermission != null ? this.isSystemPermission : false);
+        permission.setPriority(this.priority != null ? this.priority : 5);
 
         // Audit fields
-        permission.setCreatedAt(this.createdAt);
-        permission.setUpdatedAt(this.updatedAt);
+        permission.setCreatedAt(this.createdAt != null ? this.createdAt : LocalDateTime.now());
+        permission.setUpdatedAt(this.updatedAt != null ? this.updatedAt : LocalDateTime.now());
         permission.setCreatedBy(this.createdBy);
         permission.setUpdatedBy(this.updatedBy);
-        
-        if (this.isDeleted != null) {
-            permission.setIsDeleted(this.isDeleted);
-        }
-        if (this.isActive != null) {
-            permission.setIsActive(this.isActive);
-        }
+        permission.setIsDeleted(this.isDeleted != null ? this.isDeleted : false);
+        permission.setIsActive(this.isActive != null ? this.isActive : true);
 
         return permission;
     }
@@ -227,13 +216,13 @@ public class PermissionDto {
 
     public String getCategoryText() {
         if (category == null) return "";
-        switch (category) {
+        switch (category.toUpperCase()) {
             case "CUSTOMER_MANAGEMENT": return "Харилцагч удирдлага";
-            case "LOAN_PROCESSING": return "Зээлийн боловсруулалт";
+            case "LOAN_MANAGEMENT": return "Зээлийн боловсруулалт";
             case "DOCUMENT_MANAGEMENT": return "Баримт удирдлага";
             case "USER_MANAGEMENT": return "Хэрэглэгч удирдлага";
             case "ROLE_MANAGEMENT": return "Дүр удирдлага";
-            case "REPORTING": return "Тайлан";
+            case "REPORT": return "Тайлан";
             case "SYSTEM_ADMINISTRATION": return "Системийн удирдлага";
             case "FINANCIAL_OPERATIONS": return "Санхүүгийн үйл ажиллагаа";
             case "COMPLIANCE": return "Дүрэм баримтлалт";
@@ -252,8 +241,8 @@ public class PermissionDto {
     }
 
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -306,7 +295,6 @@ public class PermissionDto {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    // Computed fields getters and setters
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
 
@@ -337,7 +325,7 @@ public class PermissionDto {
     @Override
     public String toString() {
         return "PermissionDto{" +
-                "id='" + id + '\'' +
+                "id=" + id +
                 ", name='" + name + '\'' +
                 ", displayName='" + displayName + '\'' +
                 ", resource='" + resource + '\'' +
@@ -363,6 +351,6 @@ public class PermissionDto {
 
     @Override
     public int hashCode() {
-        return getClass().hashCode();
+        return id != null ? id.hashCode() : 0;
     }
 }

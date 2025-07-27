@@ -20,8 +20,7 @@ import java.util.UUID;
 public abstract class BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", updatable = false, nullable = false)
+    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "VARCHAR(36)")
     private UUID id;
 
     @CreatedDate
@@ -46,6 +45,7 @@ public abstract class BaseEntity {
     // Constructors
     public BaseEntity() {
         LocalDateTime now = LocalDateTime.now();
+        this.id = UUID.randomUUID(); // Автомат UUID үүсгэх
         this.createdAt = now;
         this.updatedAt = now;
     }
@@ -54,6 +54,9 @@ public abstract class BaseEntity {
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
+        if (this.id == null) {
+            this.id = UUID.randomUUID();
+        }
         if (this.createdAt == null) {
             this.createdAt = now;
         }

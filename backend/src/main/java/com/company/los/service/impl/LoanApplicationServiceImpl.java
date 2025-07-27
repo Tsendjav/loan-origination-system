@@ -56,14 +56,14 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
             throw new IllegalArgumentException("Зээлийн төрлийн хязгаараас хэтэрсэн байна");
         }
 
-        // Get customer - Convert UUID to String for repository
-        Customer customer = customerRepository.findById(createRequest.getCustomerId().toString())
+        // Get customer
+        Customer customer = customerRepository.findById(createRequest.getCustomerId())
                 .orElseThrow(() -> new IllegalArgumentException("Харилцагч олдсонгүй: " + createRequest.getCustomerId()));
 
         // Get loan product if provided
         LoanProduct loanProduct = null;
         if (createRequest.getLoanProductId() != null) {
-            loanProduct = loanProductRepository.findById(createRequest.getLoanProductId().toString())
+            loanProduct = loanProductRepository.findById(createRequest.getLoanProductId())
                     .orElseThrow(() -> new IllegalArgumentException("Зээлийн бүтээгдэхүүн олдсонгүй: " + createRequest.getLoanProductId()));
         }
 
@@ -106,7 +106,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto getLoanApplicationById(UUID id) {
         logger.debug("Getting loan application by ID: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         return LoanApplicationDto.fromEntity(loanApplication);
@@ -116,7 +116,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto updateLoanApplication(UUID id, LoanApplicationDto loanApplicationDto) {
         logger.info("Updating loan application with ID: {}", id);
 
-        LoanApplication existingApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication existingApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Check if can be edited
@@ -149,7 +149,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public void deleteLoanApplication(UUID id) {
         logger.info("Deleting loan application with ID: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Check if can be deleted
@@ -165,7 +165,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto restoreLoanApplication(UUID id) {
         logger.info("Restoring loan application with ID: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         loanApplication.setIsDeleted(false); // Assuming BaseEntity has isDeleted field
@@ -201,7 +201,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public Page<LoanApplicationDto> getLoanApplicationsByCustomer(UUID customerId, Pageable pageable) {
         logger.debug("Getting loan applications by customer: {}", customerId);
 
-        Page<LoanApplication> applications = loanApplicationRepository.findByCustomerId(customerId.toString(), pageable);
+        Page<LoanApplication> applications = loanApplicationRepository.findByCustomerId(customerId, pageable);
         return applications.map(LoanApplicationDto::fromEntity);
     }
 
@@ -244,7 +244,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto submitLoanApplication(UUID id) {
         logger.info("Submitting loan application: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Check status using ApplicationStatus enum
@@ -270,7 +270,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                                                     String reason) {
         logger.info("Approving loan application: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         if (!canBeApproved(loanApplication)) {
@@ -293,7 +293,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto rejectLoanApplication(UUID id, String reason) {
         logger.info("Rejecting loan application: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         if (!canBeRejected(loanApplication)) {
@@ -313,7 +313,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto disburseLoan(UUID id) {
         logger.info("Disbursing loan: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Check status using ApplicationStatus enum
@@ -334,7 +334,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto cancelLoanApplication(UUID id, String reason) {
         logger.info("Cancelling loan application: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Check if status is final using custom method
@@ -356,7 +356,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto requestAdditionalInfo(UUID id, String requestedInfo) {
         logger.info("Requesting additional info for loan application: {}", id);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Convert to ApplicationStatus
@@ -443,7 +443,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     @Override
     @Transactional(readOnly = true)
     public boolean canEditLoanApplication(UUID id) {
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         return canBeEdited(loanApplication);
@@ -452,7 +452,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     @Override
     @Transactional(readOnly = true)
     public boolean canApproveLoanApplication(UUID id) {
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         return canBeApproved(loanApplication);
@@ -471,7 +471,13 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         // Get statistics using basic repository methods since custom ones don't exist
         stats.put("byStatus", new HashMap<String, Long>());
         stats.put("byType", new HashMap<String, Long>());
-        stats.put("todaySubmissions", 0L);
+        
+        // Call the updated getTodayStats method with LocalDateTime parameters
+        LocalDateTime startOfDay = LocalDateTime.now().toLocalDate().atStartOfDay();
+        LocalDateTime endOfDay = LocalDateTime.now().toLocalDate().plusDays(1).atStartOfDay();
+        Map<String, Long> todayStats = loanProductRepository.getTodayStats(startOfDay, endOfDay);
+        stats.put("todaySubmissions", todayStats.getOrDefault("createdToday", 0L));
+
 
         return stats;
     }
@@ -509,7 +515,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         String loanTypeStr = loanType != null ? loanType.name() : null;
         String customerTypeStr = customerType != null ? customerType.name() : null;
         
-        return loanApplicationRepository.findByAdvancedFilters(statusStr, loanTypeStr, customerTypeStr,
+        return loanApplicationRepository.findByAdvancedFilters(null, null, statusStr,
                 minAmount, maxAmount, null, null, startDate, endDate, 
                 Boolean.valueOf(false), Boolean.valueOf(false), pageable)
                 .map(LoanApplicationDto::fromEntity);
@@ -518,7 +524,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     public LoanApplicationDto assignLoanApplication(UUID id, String assignedTo) {
         logger.info("Assigning loan application {} to {}", id, assignedTo);
 
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         loanApplication.setAssignedTo(assignedTo);
@@ -530,7 +536,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     public int assignLoanApplications(List<UUID> applicationIds, String assignedTo) {
-        // Convert UUID list to String list for compatible repository calls
         int updatedCount = 0;
         for (UUID id : applicationIds) {
             try {
@@ -545,7 +550,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     public LoanApplicationDto updatePriority(UUID id, Integer priority) {
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
         
         loanApplication.setPriority(priority);
@@ -643,7 +648,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
 
     public LoanApplicationDto getLatestLoanApplicationByCustomer(UUID customerId) {
         // Use basic find and filter since custom method doesn't exist
-        List<LoanApplication> applications = loanApplicationRepository.findByCustomerId(customerId.toString(), 
+        List<LoanApplication> applications = loanApplicationRepository.findByCustomerId(customerId, 
                 PageRequest.of(0, 1)).getContent();
         
         if (!applications.isEmpty()) {
@@ -653,13 +658,13 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     public int getActiveLoansCountForCustomer(UUID customerId) {
-        // Use basic count since custom method doesn't exist  
-        return (int) loanApplicationRepository.findByCustomerId(customerId.toString(), Pageable.unpaged())
+        // Use basic count since custom method doesn't exist
+        return (int) loanApplicationRepository.findByCustomerId(customerId, Pageable.unpaged())
                 .getTotalElements();
     }
 
     public List<LoanApplicationDto> getCustomerLoanHistory(UUID customerId) {
-        return loanApplicationRepository.findByCustomerId(customerId.toString(), Pageable.unpaged())
+        return loanApplicationRepository.findByCustomerId(customerId, Pageable.unpaged())
                 .getContent()
                 .stream()
                 .map(LoanApplicationDto::fromEntity)
@@ -667,7 +672,6 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     public int updateStatusForApplications(List<UUID> applicationIds, LoanStatus currentStatus, LoanStatus newStatus) {
-        // Convert UUID list and LoanStatus to compatible format
         int updatedCount = 0;
         for (UUID id : applicationIds) {
             try {
@@ -742,7 +746,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     public LoanApplicationDto updateLoanApplicationStatus(UUID id, LoanStatus newStatus) {
-        LoanApplication loanApplication = loanApplicationRepository.findById(id.toString())
+        LoanApplication loanApplication = loanApplicationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + id));
 
         // Convert LoanStatus to ApplicationStatus

@@ -10,8 +10,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 /**
  * Баримт бичгийн төрөл Entity
@@ -39,7 +39,6 @@ public class DocumentType extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
-    // Documents using this type
     @OneToMany(mappedBy = "documentType", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Document> documents = new ArrayList<>();
 
@@ -63,7 +62,7 @@ public class DocumentType extends BaseEntity {
     public boolean isExtensionAllowed(String extension) {
         if (extension == null) return false;
         String ext = extension.toLowerCase();
-        
+
         switch (name.toUpperCase()) {
             case "IDENTITY_CARD":
             case "PASSPORT":
@@ -74,7 +73,7 @@ public class DocumentType extends BaseEntity {
             case "BANK_STATEMENT":
             case "EMPLOYMENT_CERTIFICATE":
             case "FINANCIAL_STATEMENT":
-                return ext.equals("pdf") || ext.equals("doc") || ext.equals("docx") || 
+                return ext.equals("pdf") || ext.equals("doc") || ext.equals("docx") ||
                        ext.equals("xls") || ext.equals("xlsx");
             case "BUSINESS_LICENSE":
             case "TAX_CERTIFICATE":
@@ -83,7 +82,7 @@ public class DocumentType extends BaseEntity {
             case "VEHICLE_REGISTRATION":
                 return ext.equals("pdf") || ext.equals("jpg") || ext.equals("jpeg") || ext.equals("png");
             default:
-                return ext.equals("pdf") || ext.equals("jpg") || ext.equals("jpeg") || 
+                return ext.equals("pdf") || ext.equals("jpg") || ext.equals("jpeg") ||
                        ext.equals("png") || ext.equals("doc") || ext.equals("docx");
         }
     }
@@ -146,7 +145,7 @@ public class DocumentType extends BaseEntity {
         this.setUpdatedAt(LocalDateTime.now());
     }
 
-    // Static methods for commonly used document types
+    // Static methods
     public static DocumentType createIdentityCard() {
         return new DocumentType("IDENTITY_CARD", "Identity card for personal identification", true);
     }
@@ -175,10 +174,6 @@ public class DocumentType extends BaseEntity {
         return new DocumentType("TAX_CERTIFICATE", "Tax clearance certificate", true);
     }
 
-    /**
-     * Returns a list of all predefined DocumentType instances that are considered 'required'.
-     * @return List of required DocumentType instances.
-     */
     public static List<DocumentType> getRequiredDocuments() {
         return Arrays.asList(
             createIdentityCard(),
@@ -188,11 +183,6 @@ public class DocumentType extends BaseEntity {
         ).stream().filter(DocumentType::getIsRequired).collect(Collectors.toList());
     }
 
-    /**
-     * Returns a list of DocumentType instances relevant to a specific loan type.
-     * @param loanType The type of loan (e.g., "PERSONAL", "BUSINESS").
-     * @return List of DocumentType instances relevant to the given loan type.
-     */
     public static List<DocumentType> getDocumentsByLoanType(String loanType) {
         switch (loanType.toUpperCase()) {
             case "PERSONAL":
@@ -216,36 +206,35 @@ public class DocumentType extends BaseEntity {
 
     // Getters and Setters
     public String getName() { return name; }
-    public void setName(String name) { 
+    public void setName(String name) {
         this.name = name;
         this.setUpdatedAt(LocalDateTime.now());
     }
 
     public String getDescription() { return description; }
-    public void setDescription(String description) { 
+    public void setDescription(String description) {
         this.description = description;
         this.setUpdatedAt(LocalDateTime.now());
     }
 
     public Boolean getIsRequired() { return isRequired; }
-    public void setIsRequired(Boolean isRequired) { 
+    public void setIsRequired(Boolean isRequired) {
         this.isRequired = isRequired;
         this.setUpdatedAt(LocalDateTime.now());
     }
 
     public Boolean getIsActive() { return isActive; }
-    public void setIsActive(Boolean isActive) { 
+    public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
         this.setUpdatedAt(LocalDateTime.now());
     }
 
     public List<Document> getDocuments() { return documents; }
-    public void setDocuments(List<Document> documents) { 
+    public void setDocuments(List<Document> documents) {
         this.documents = documents != null ? documents : new ArrayList<>();
         this.setUpdatedAt(LocalDateTime.now());
     }
 
-    // toString
     @Override
     public String toString() {
         return "DocumentType{" +

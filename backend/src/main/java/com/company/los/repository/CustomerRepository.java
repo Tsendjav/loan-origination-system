@@ -14,19 +14,20 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Харилцагчийн Repository
  * Customer Repository Interface
  */
 @Repository
-public interface CustomerRepository extends JpaRepository<Customer, String> {
+public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
     // Суурь хайлтууд
     /**
      * Регистрийн дугаараар хайх
      */
-    Optional<Customer> findByRegistrationNumber(String registrationNumber);
+    Optional<Customer> findByRegisterNumber(String registerNumber);
 
     /**
      * И-мэйлээр хайх
@@ -41,7 +42,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
     /**
      * Регистрийн дугаар байгаа эсэхийг шалгах
      */
-    boolean existsByRegistrationNumber(String registrationNumber);
+    boolean existsByRegisterNumber(String registerNumber);
 
     /**
      * И-мэйл байгаа эсэхийг шалгах
@@ -253,16 +254,18 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
 
     /**
      * Өнөөдөр бүртгүүлсэн харилцагчид
+     * H2 database-д FORMATDATETIME функц нь TIMESTAMP-ийг DATE болгоход ашиглагддаг.
      */
-    @Query("SELECT c FROM Customer c WHERE DATE(c.createdAt) = CURRENT_DATE")
+    @Query("SELECT c FROM Customer c WHERE FORMATDATETIME(c.createdAt, 'yyyy-MM-dd') = FORMATDATETIME(CURRENT_TIMESTAMP(), 'yyyy-MM-dd')")
     List<Customer> findTodayRegistered();
 
     /**
      * Энэ сард бүртгүүлсэн харилцагчид
+     * H2 database-д YEAR болон MONTH функцуудыг ашиглаж байна.
      */
     @Query("SELECT c FROM Customer c WHERE " +
-           "YEAR(c.createdAt) = YEAR(CURRENT_DATE) AND " +
-           "MONTH(c.createdAt) = MONTH(CURRENT_DATE)")
+           "YEAR(c.createdAt) = YEAR(CURRENT_TIMESTAMP()) AND " +
+           "MONTH(c.createdAt) = MONTH(CURRENT_TIMESTAMP())")
     List<Customer> findThisMonthRegistered();
 
     /**
@@ -280,7 +283,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
            "LOWER(c.lastName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(COALESCE(c.email, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(COALESCE(c.phone, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(c.registrationNumber, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(COALESCE(c.registerNumber, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(COALESCE(c.address, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
     Page<Customer> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
 
@@ -299,8 +302,12 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
            "(:maxAge IS NULL OR YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) <= :maxAge) AND " +
            "(:minIncome IS NULL OR c.monthlyIncome >= :minIncome) AND " +
            "(:maxIncome IS NULL OR c.monthlyIncome <= :maxIncome) AND " +
-           "(:hasLoanApplications IS NULL OR (SIZE(c.loanApplications) > 0) = :hasLoanApplications) AND " +
-           "(:hasDocuments IS NULL OR (SIZE(c.documents) > 0) = :hasDocuments)")
+           "(:hasLoanApplications IS NULL OR " +
+           "(:hasLoanApplications = true AND SIZE(c.loanApplications) > 0 OR " +
+           ":hasLoanApplications = false AND SIZE(c.loanApplications) = 0)) AND " +
+           "(:hasDocuments IS NULL OR " +
+           "(:hasDocuments = true AND SIZE(c.documents) > 0 OR " +
+           ":hasDocuments = false AND SIZE(c.documents) = 0))")
     Page<Customer> findByAdvancedFilters(
             @Param("firstName") String firstName,
             @Param("lastName") String lastName,
@@ -325,7 +332,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
            "COUNT(CASE WHEN SIZE(c.loanApplications) > 0 THEN 1 END) as customersWithLoans, " +
            "COUNT(CASE WHEN SIZE(c.documents) > 0 THEN 1 END) as customersWithDocuments, " +
            "AVG(c.monthlyIncome) as avgIncome, " +
-           "AVG(YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth)) as avgAge " +
+           "AVG(YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth)) as avgAge " +
            "FROM Customer c")
     Object[] getCustomerStats();
 
@@ -348,19 +355,19 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
      */
     @Query("SELECT " +
            "CASE " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) < 25 THEN 'Under 25' " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN 25 AND 35 THEN '25-35' " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN 36 AND 50 THEN '36-50' " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN 51 AND 65 THEN '51-65' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) < 25 THEN 'Under 25' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) BETWEEN 25 AND 35 THEN '25-35' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) BETWEEN 36 AND 50 THEN '36-50' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) BETWEEN 51 AND 65 THEN '51-65' " +
            "ELSE 'Over 65' END as ageGroup, " +
            "COUNT(c) " +
            "FROM Customer c " +
            "GROUP BY " +
            "CASE " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) < 25 THEN 'Under 25' " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN 25 AND 35 THEN '25-35' " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN 36 AND 50 THEN '36-50' " +
-           "WHEN YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN 51 AND 65 THEN '51-65' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) < 25 THEN 'Under 25' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) BETWEEN 25 AND 35 THEN '25-35' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) BETWEEN 36 AND 50 THEN '36-50' " +
+           "WHEN YEAR(CURRENT_DATE()) - YEAR(c.dateOfBirth) BETWEEN 51 AND 65 THEN '51-65' " +
            "ELSE 'Over 65' END")
     List<Object[]> countByAgeGroup();
 
@@ -387,11 +394,12 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
 
     /**
      * Сарын харилцагчийн статистик
+     * H2 database-д TO_CHAR функц нь TIMESTAMP-ийг форматлахад ашиглагддаг.
      */
-    @Query("SELECT DATE_FORMAT(c.createdAt, '%Y-%m'), COUNT(c) FROM Customer c " +
+    @Query("SELECT TO_CHAR(c.createdAt, 'YYYY-MM'), COUNT(c) FROM Customer c " +
            "WHERE c.createdAt >= :startDate " +
-           "GROUP BY DATE_FORMAT(c.createdAt, '%Y-%m') " +
-           "ORDER BY DATE_FORMAT(c.createdAt, '%Y-%m')")
+           "GROUP BY TO_CHAR(c.createdAt, 'YYYY-MM') " +
+           "ORDER BY TO_CHAR(c.createdAt, 'YYYY-MM')")
     List<Object[]> getMonthlyCustomerStats(@Param("startDate") LocalDateTime startDate);
 
     // Bulk операциуд
@@ -400,7 +408,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
      */
     @Modifying
     @Query("UPDATE Customer c SET c.city = :newCity, c.updatedBy = :updatedBy WHERE c.id IN :customerIds")
-    int updateCityForCustomers(@Param("customerIds") List<String> customerIds,
+    int updateCityForCustomers(@Param("customerIds") List<UUID> customerIds,
                              @Param("newCity") String newCity,
                              @Param("updatedBy") String updatedBy);
 
@@ -409,7 +417,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
      */
     @Modifying
     @Query("UPDATE Customer c SET c.province = :newProvince, c.updatedBy = :updatedBy WHERE c.id IN :customerIds")
-    int updateProvinceForCustomers(@Param("customerIds") List<String> customerIds,
+    int updateProvinceForCustomers(@Param("customerIds") List<UUID> customerIds,
                                  @Param("newProvince") String newProvince,
                                  @Param("updatedBy") String updatedBy);
 
@@ -418,16 +426,16 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
      * Регистрийн дугаар давхцаж байгаа эсэхийг шалгах
      */
     @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE " +
-           "c.registrationNumber = :registrationNumber AND c.id != :excludeId")
-    boolean existsByRegistrationNumberAndIdNot(@Param("registrationNumber") String registrationNumber,
-                                             @Param("excludeId") String excludeId);
+           "c.registerNumber = :registerNumber AND c.id != :excludeId")
+    boolean existsByRegisterNumberAndIdNot(@Param("registerNumber") String registerNumber,
+                                             @Param("excludeId") UUID excludeId);
 
     /**
      * И-мэйл давхцаж байгаа эсэхийг шалгах
      */
     @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE " +
            "LOWER(c.email) = LOWER(:email) AND c.id != :excludeId")
-    boolean existsByEmailIgnoreCaseAndIdNot(@Param("email") String email, @Param("excludeId") String excludeId);
+    boolean existsByEmailIgnoreCaseAndIdNot(@Param("email") String email, @Param("excludeId") UUID excludeId);
 
     // Business logic
     /**
@@ -484,7 +492,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
      * Өнөөдрийн харилцагчийн статистик
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN DATE(c.createdAt) = CURRENT_DATE THEN 1 END) as newToday, " +
+           "COUNT(CASE WHEN FORMATDATETIME(c.createdAt, 'yyyy-MM-dd') = FORMATDATETIME(CURRENT_TIMESTAMP(), 'yyyy-MM-dd') THEN 1 END) as newToday, " +
            "COUNT(CASE WHEN c.monthlyIncome >= 1000000 THEN 1 END) as highIncome, " +
            "COUNT(CASE WHEN SIZE(c.loanApplications) > 0 THEN 1 END) as withLoans, " +
            "COUNT(CASE WHEN SIZE(c.documents) = 0 THEN 1 END) as withoutDocuments " +

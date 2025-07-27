@@ -6,9 +6,11 @@ import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Зээлийн хүсэлтийн Entity
@@ -16,10 +18,10 @@ import java.util.List;
  */
 @Entity
 @Table(name = "loan_applications", indexes = {
-        @Index(name = "idx_loan_application_customer", columnList = "customer_id"),
-        @Index(name = "idx_loan_application_number", columnList = "application_number", unique = true),
-        @Index(name = "idx_loan_application_status", columnList = "status"),
-        @Index(name = "idx_loan_application_created", columnList = "created_at")
+        @Index(name = "idx_loan_applications_customer_id", columnList = "customer_id"),
+        @Index(name = "idx_loan_applications_application_number", columnList = "application_number", unique = true),
+        @Index(name = "idx_loan_applications_status", columnList = "status"),
+        @Index(name = "idx_loan_applications_created_at", columnList = "created_at")
 })
 @SQLDelete(sql = "UPDATE loan_applications SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
@@ -51,6 +53,7 @@ public class LoanApplication extends BaseEntity {
         DRAFT("DRAFT", "Ноорог"),
         SUBMITTED("SUBMITTED", "Илгээсэн"),
         PENDING("PENDING", "Хүлээгдэж байгаа"),
+        PENDING_DOCUMENTS("PENDING_DOCUMENTS", "Баримт хүлээж байгаа"),
         UNDER_REVIEW("UNDER_REVIEW", "Хянаж байгаа"),
         APPROVED("APPROVED", "Зөвшөөрсөн"),
         REJECTED("REJECTED", "Татгалзсан"),
@@ -69,17 +72,19 @@ public class LoanApplication extends BaseEntity {
         public String getMongolianName() { return mongolianName; }
 
         public boolean isActiveStatus() {
-            return this == SUBMITTED || this == PENDING || this == UNDER_REVIEW;
+            return this == SUBMITTED || this == PENDING || this == UNDER_REVIEW || this == PENDING_DOCUMENTS;
         }
     }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_loan_application_customer"))
+    @JoinColumn(name = "customer_id", nullable = false, columnDefinition = "VARCHAR(36)", 
+                foreignKey = @ForeignKey(name = "fk_loan_app_customer"))
     @NotNull(message = "Харилцагч заавал байх ёстой")
     private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "loan_product_id", nullable = false, foreignKey = @ForeignKey(name = "fk_loan_application_product"))
+    @JoinColumn(name = "loan_product_id", nullable = false, columnDefinition = "VARCHAR(36)", 
+                foreignKey = @ForeignKey(name = "fk_loan_app_product"))
     @NotNull(message = "Зээлийн бүтээгдэхүүн заавал сонгох ёстой")
     private LoanProduct loanProduct;
 
@@ -125,6 +130,19 @@ public class LoanApplication extends BaseEntity {
     @Column(name = "monthly_payment", precision = 15, scale = 2)
     @DecimalMin(value = "0.0", message = "Сарын төлбөр сөрөг байж болохгүй")
     private BigDecimal monthlyPayment;
+
+    @Column(name = "interest_rate", precision = 5, scale = 4)
+    @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
+    @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
+    private BigDecimal interestRate;
+
+    @Column(name = "total_payment", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Нийт төлбөр сөрөг байж болохгүй")
+    private BigDecimal totalPayment;
+
+    @Column(name = "description", length = 1000)
+    @Size(max = 1000, message = "Тайлбар 1000 тэмдэгтээс ихгүй байх ёстой")
+    private String description;
 
     // Санхүүгийн мэдээлэл
     @Column(name = "declared_income", precision = 15, scale = 2)
@@ -180,6 +198,33 @@ public class LoanApplication extends BaseEntity {
     @Column(name = "rejected_date")
     private LocalDateTime rejectedDate;
 
+    // Огноонууд
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "rejected_at")
+    private LocalDateTime rejectedAt;
+
+    @Column(name = "disbursed_at")
+    private LocalDateTime disbursedAt;
+
+    // Хянагчийн мэдээлэл
+    @Column(name = "reviewed_by", length = 100)
+    @Size(max = 100, message = "Хянагч 100 тэмдэгтээс ихгүй байх ёстой")
+    private String reviewedBy;
+
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
+    @Column(name = "reviewer_notes", columnDefinition = "TEXT")
+    private String reviewerNotes;
+
     // Олголт
     @Column(name = "disbursed_amount", precision = 15, scale = 2)
     @DecimalMin(value = "0.0", message = "Олгосон дүн сөрөг байж болохгүй")
@@ -201,10 +246,36 @@ public class LoanApplication extends BaseEntity {
     @Column(name = "risk_factors", columnDefinition = "TEXT")
     private String riskFactors;
 
-    // Чухал огноонууд
-    @Column(name = "submitted_date")
-    private LocalDateTime submittedDate;
+    // Барьцаа болон батлан даагчийн мэдээлэл
+    @Column(name = "requires_collateral")
+    private Boolean requiresCollateral = false;
 
+    @Column(name = "requires_guarantor")
+    private Boolean requiresGuarantor = false;
+
+    @Column(name = "expected_disbursement_date")
+    private LocalDate expectedDisbursementDate;
+
+    @Column(name = "processing_fee", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Боловсруулалтын шимтгэл сөрөг байж болохгүй")
+    private BigDecimal processingFee;
+
+    @Column(name = "other_charges", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Бусад зардал сөрөг байж болохгүй")
+    private BigDecimal otherCharges;
+
+    @Column(name = "contract_terms", length = 500)
+    @Size(max = 500, message = "Гэрээний нөхцөл 500 тэмдэгтээс ихгүй байх ёстой")
+    private String contractTerms;
+
+    @Column(name = "special_conditions", length = 500)
+    @Size(max = 500, message = "Тусгай нөхцөл 500 тэмдэгтээс ихгүй байх ёстой")
+    private String specialConditions;
+
+    @Column(name = "is_active")
+    private Boolean isActive = true;
+
+    // Чухал огноонууд
     @Column(name = "due_date")
     private LocalDateTime dueDate;
 
@@ -230,7 +301,7 @@ public class LoanApplication extends BaseEntity {
     // Business methods
     public void submit() {
         this.status = ApplicationStatus.SUBMITTED;
-        this.submittedDate = LocalDateTime.now();
+        this.submittedAt = LocalDateTime.now();
     }
 
     public void approve(String approvedBy, BigDecimal approvedAmount, Integer approvedTermMonths, BigDecimal approvedRate) {
@@ -316,6 +387,15 @@ public class LoanApplication extends BaseEntity {
     public BigDecimal getMonthlyPayment() { return monthlyPayment; }
     public void setMonthlyPayment(BigDecimal monthlyPayment) { this.monthlyPayment = monthlyPayment; }
 
+    public BigDecimal getInterestRate() { return interestRate; }
+    public void setInterestRate(BigDecimal interestRate) { this.interestRate = interestRate; }
+
+    public BigDecimal getTotalPayment() { return totalPayment; }
+    public void setTotalPayment(BigDecimal totalPayment) { this.totalPayment = totalPayment; }
+
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+
     public BigDecimal getDeclaredIncome() { return declaredIncome; }
     public void setDeclaredIncome(BigDecimal declaredIncome) { this.declaredIncome = declaredIncome; }
 
@@ -355,6 +435,30 @@ public class LoanApplication extends BaseEntity {
     public LocalDateTime getRejectedDate() { return rejectedDate; }
     public void setRejectedDate(LocalDateTime rejectedDate) { this.rejectedDate = rejectedDate; }
 
+    public LocalDateTime getSubmittedAt() { return submittedAt; }
+    public void setSubmittedAt(LocalDateTime submittedAt) { this.submittedAt = submittedAt; }
+
+    public LocalDateTime getReviewedAt() { return reviewedAt; }
+    public void setReviewedAt(LocalDateTime reviewedAt) { this.reviewedAt = reviewedAt; }
+
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+
+    public LocalDateTime getRejectedAt() { return rejectedAt; }
+    public void setRejectedAt(LocalDateTime rejectedAt) { this.rejectedAt = rejectedAt; }
+
+    public LocalDateTime getDisbursedAt() { return disbursedAt; }
+    public void setDisbursedAt(LocalDateTime disbursedAt) { this.disbursedAt = disbursedAt; }
+
+    public String getReviewedBy() { return reviewedBy; }
+    public void setReviewedBy(String reviewedBy) { this.reviewedBy = reviewedBy; }
+
+    public String getRejectionReason() { return rejectionReason; }
+    public void setRejectionReason(String rejectionReason) { this.rejectionReason = rejectionReason; }
+
+    public String getReviewerNotes() { return reviewerNotes; }
+    public void setReviewerNotes(String reviewerNotes) { this.reviewerNotes = reviewerNotes; }
+
     public BigDecimal getDisbursedAmount() { return disbursedAmount; }
     public void setDisbursedAmount(BigDecimal disbursedAmount) { this.disbursedAmount = disbursedAmount; }
 
@@ -370,8 +474,29 @@ public class LoanApplication extends BaseEntity {
     public String getRiskFactors() { return riskFactors; }
     public void setRiskFactors(String riskFactors) { this.riskFactors = riskFactors; }
 
-    public LocalDateTime getSubmittedDate() { return submittedDate; }
-    public void setSubmittedDate(LocalDateTime submittedDate) { this.submittedDate = submittedDate; }
+    public Boolean getRequiresCollateral() { return requiresCollateral; }
+    public void setRequiresCollateral(Boolean requiresCollateral) { this.requiresCollateral = requiresCollateral; }
+
+    public Boolean getRequiresGuarantor() { return requiresGuarantor; }
+    public void setRequiresGuarantor(Boolean requiresGuarantor) { this.requiresGuarantor = requiresGuarantor; }
+
+    public LocalDate getExpectedDisbursementDate() { return expectedDisbursementDate; }
+    public void setExpectedDisbursementDate(LocalDate expectedDisbursementDate) { this.expectedDisbursementDate = expectedDisbursementDate; }
+
+    public BigDecimal getProcessingFee() { return processingFee; }
+    public void setProcessingFee(BigDecimal processingFee) { this.processingFee = processingFee; }
+
+    public BigDecimal getOtherCharges() { return otherCharges; }
+    public void setOtherCharges(BigDecimal otherCharges) { this.otherCharges = otherCharges; }
+
+    public String getContractTerms() { return contractTerms; }
+    public void setContractTerms(String contractTerms) { this.contractTerms = contractTerms; }
+
+    public String getSpecialConditions() { return specialConditions; }
+    public void setSpecialConditions(String specialConditions) { this.specialConditions = specialConditions; }
+
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
     public LocalDateTime getDueDate() { return dueDate; }
     public void setDueDate(LocalDateTime dueDate) { this.dueDate = dueDate; }

@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -22,7 +23,7 @@ import java.util.stream.Collectors;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDto {
 
-    private String id;
+    private UUID id;
 
     @NotBlank(message = "Хэрэглэгчийн нэр заавал бөглөх ёстой")
     @Size(min = 3, max = 100, message = "Хэрэглэгчийн нэр 3-100 тэмдэгт байх ёстой")
@@ -101,7 +102,7 @@ public class UserDto {
     private String timezone;
 
     // Manager relationship
-    private String managerId;
+    private UUID managerId;
     private String managerName;
 
     // Roles
@@ -241,6 +242,43 @@ public class UserDto {
         return dto;
     }
 
+    // Method to convert from CreateUserRequestDto to UserDto
+    public static UserDto fromCreateRequest(CreateUserRequestDto createRequest) {
+        if (createRequest == null) {
+            return null;
+        }
+        UserDto dto = new UserDto();
+        dto.setUsername(createRequest.getUsername());
+        dto.setEmail(createRequest.getEmail());
+        dto.setFirstName(createRequest.getFirstName());
+        dto.setLastName(createRequest.getLastName());
+        dto.setPhone(createRequest.getPhone());
+        dto.setEmployeeId(createRequest.getEmployeeId());
+        dto.setPosition(createRequest.getPosition());
+        dto.setDepartment(createRequest.getDepartment());
+        dto.setPassword(createRequest.getPassword()); // Include password for validation/processing
+        dto.setStatus(createRequest.getStatus());
+        dto.setEnabled(createRequest.getActivateImmediately()); // Assuming activateImmediately maps to enabled
+        dto.setLanguage(createRequest.getLanguage());
+        dto.setTimezone(createRequest.getTimezone());
+        dto.setProfilePictureUrl(createRequest.getProfilePictureUrl());
+        dto.setManagerId(createRequest.getManagerId()); // Set managerId
+
+        // Default values for new user
+        dto.setAccountNonExpired(true);
+        dto.setAccountNonLocked(true);
+        dto.setCredentialsNonExpired(!Boolean.TRUE.equals(createRequest.getRequirePasswordChange()));
+        dto.setIsEmailVerified(!Boolean.TRUE.equals(createRequest.getRequireEmailVerification()));
+        dto.setIsLocked(false);
+        dto.setFailedLoginAttempts(0);
+        dto.setTwoFactorEnabled(false); // Default to false for new users
+        dto.setIsDeleted(false);
+        dto.setIsActive(Boolean.TRUE.equals(createRequest.getActivateImmediately()));
+
+        return dto;
+    }
+
+
     public User toEntity() {
         User user = new User();
         
@@ -292,6 +330,11 @@ public class UserDto {
         user.setLanguage(this.language != null ? this.language : "mn");
         user.setTimezone(this.timezone != null ? this.timezone : "Asia/Ulaanbaatar");
 
+        // Manager - Handle in service layer instead of here
+        // if (this.managerId != null) {
+        //     user.setManager(new User(this.managerId));
+        // }
+
         // Roles conversion
         if (this.roles != null) {
             user.setRoles(this.roles.stream()
@@ -315,7 +358,7 @@ public class UserDto {
         return user;
     }
 
-    // ========== НЭМЭГДСЭН ДУТУУ МЕТОДУУД ==========
+    // ========== НЭМЭГДСЭН ДУТУ МЕТОДУУД ==========
 
     /**
      * Хэрэглэгчийн мэдээлэл бүрэн эсэхийг шалгах
@@ -466,8 +509,8 @@ public class UserDto {
 
     // ========== GETTERS AND SETTERS ==========
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
@@ -547,8 +590,8 @@ public class UserDto {
     public String getTimezone() { return timezone; }
     public void setTimezone(String timezone) { this.timezone = timezone; }
 
-    public String getManagerId() { return managerId; }
-    public void setManagerId(String managerId) { this.managerId = managerId; }
+    public UUID getManagerId() { return managerId; }
+    public void setManagerId(UUID managerId) { this.managerId = managerId; }
 
     public String getManagerName() { return managerName; }
     public void setManagerName(String managerName) { this.managerName = managerName; }
@@ -596,7 +639,7 @@ public class UserDto {
     @Override
     public String toString() {
         return "UserDto{" +
-                "id='" + id + '\'' +
+                "id=" + id +
                 ", username='" + username + '\'' +
                 ", email='" + email + '\'' +
                 ", firstName='" + firstName + '\'' +

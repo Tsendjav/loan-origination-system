@@ -1,99 +1,412 @@
+# =====================================================================================
+# LOS (Loan Origination System) Main Configuration - ЭЦСИЙН ХУВИЛБАР (ЗАСВАРЛАСАН)
+# =====================================================================================
+# Created: 2025-07-26
+# Updated: БҮРЭН ЗАСВАРЛАСАН - Schema засварласан, Hibernate DDL тохиргоо өөрчлөгдсөн
+# =====================================================================================
+
 server:
   port: 8080
   servlet:
     context-path: /los
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+  tomcat:
+    max-threads: 200
+    min-spare-threads: 10
 
 spring:
   application:
-    name: loan-origination-service
+    name: loan-origination-system
+  
+  # Bean definition overriding prevention
+  main:
+    allow-bean-definition-overriding: false
+    lazy-initialization: false
 
-  # H2 Database (Development)
+  # ⭐ H2 Database Configuration (Development) - ЗАСВАРЛАСАН ⭐
   datasource:
-    url: jdbc:h2:mem:losdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    url: jdbc:h2:mem:losdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=VALUE
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
 
+  # H2 Console Configuration
   h2:
     console:
       enabled: true
       path: /h2-console
       settings:
         web-allow-others: true
+        trace: false
 
+  # ⭐ JPA/Hibernate Configuration - ЗАСВАРЛАСАН ⭐
   jpa:
     hibernate:
-      ddl-auto: none
+      ddl-auto: none  # Schema.sql-г ашигласан, Hibernate create хийхгүй
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
     show-sql: true
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
         format_sql: true
+        use_sql_comments: true
+        jdbc:
+          time_zone: UTC
+          batch_size: 20
+          order_inserts: true
+          order_updates: true
+        connection:
+          provider_disables_autocommit: true
+        query:
+          fail_on_pagination_over_collection_fetch: true
+          in_clause_parameter_padding: true
+    open-in-view: false
+    defer-datasource-initialization: true
 
+  # ⭐ SQL Initialization - ЗАСВАРЛАСАН ⭐
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
       data-locations: classpath:data.sql
       continue-on-error: false
+      encoding: UTF-8
 
-  # File Upload
+  # Disable Flyway for H2 database
+  flyway:
+    enabled: false
+
+  # File Upload Configuration
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+      enabled: true
 
-  # Jackson Configuration
+  # JSON Configuration
   jackson:
     serialization:
       write-dates-as-timestamps: false
+      indent-output: true
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: NON_NULL
+    time-zone: UTC
+    date-format: yyyy-MM-dd HH:mm:ss
+
+  # Cache Configuration
+  cache:
+    type: simple
+    cache-names: 
+      - customers
+      - loan-applications
+      - documents
+
+  # Transaction Configuration
+  transaction:
+    default-timeout: 30
+    rollback-on-commit-failure: true
 
 # JWT Configuration
 jwt:
   secret: ${JWT_SECRET:mySecretKeyForJWTTokenGenerationAndValidation123456}
-  expiration: 7200
+  expiration: 7200000  # 2 hours in milliseconds
+  issuer: loan-origination-system
+  refresh-expiration: 86400000  # 24 hours
 
-# Actuator
+# Management/Actuator Configuration
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,env,beans
+      base-path: /actuator
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    diskspace:
+      enabled: true
+    db:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: false
 
-# Logging
+# Logging Configuration
 logging:
   level:
+    root: INFO
     com.company.los: DEBUG
     org.springframework.web: INFO
+    org.springframework.security: INFO
     org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.transaction: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/los-application.log
+    max-size: 10MB
+    max-history: 30
 
-# Springdoc OpenAPI
+# Springdoc OpenAPI Configuration
 springdoc:
   api-docs:
     path: /api-docs
+    enabled: true
   swagger-ui:
     path: /swagger-ui.html
+    display-request-duration: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+    doc-expansion: none
+  show-actuator: true
+
+# Application Specific Configuration
+app:
+  name: "Loan Origination System"
+  version: "1.0.0"
+  description: "LOS - Зээлийн хүсэлтийн цогц систем"
+  
+  # Security Configuration
+  security:
+    cors:
+      allowed-origins: "http://localhost:3001,http://localhost:3000"
+      allowed-methods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
+      allowed-headers: "*"
+      allow-credentials: true
+      max-age: 3600
+    
+    # Rate limiting
+    rate-limit:
+      enabled: true
+      requests-per-minute: 60
+      
+  # Document Configuration
+  document:
+    storage:
+      path: "./uploads/documents"
+    max-size: 52428800  # 50MB
+    allowed-types:
+      - "application/pdf"
+      - "image/jpeg" 
+      - "image/png"
+      - "application/msword"
+      - "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      - "application/vnd.ms-excel"
+      - "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    
+    # OCR Configuration
+    ocr:
+      enabled: false
+      confidence-threshold: 0.8
+      
+  # Loan Business Rules
+  loan:
+    max-amount: 1000000000  # 1 billion MNT
+    min-amount: 100000      # 100k MNT
+    max-term-months: 360    # 30 years
+    min-term-months: 6      # 6 months
+    
+    # Auto approval rules
+    auto-approval:
+      enabled: true
+      max-amount: 10000000   # 10M MNT
+      max-term-months: 60    # 5 years
+      min-credit-score: 650
+      
+    # Interest rates
+    interest-rates:
+      personal-loan: 18.5
+      mortgage: 12.0
+      business-loan: 15.0
+      car-loan: 14.5
+      
+  # Notification Configuration
+  notification:
+    email:
+      enabled: false
+      smtp:
+        host: localhost
+        port: 1025
+        username: ""
+        password: ""
+        auth: false
+        starttls: false
+    sms:
+      enabled: false
+      provider: "twilio"
+      api-key: ""
+      from-number: ""
 
 ---
-# Production Profile
+# Production Profile Configuration
 spring:
   config:
     activate:
       on-profile: prod
+      
+  # PostgreSQL Database for Production
   datasource:
     url: jdbc:postgresql://localhost:5432/los_db
     username: ${DB_USERNAME:los_user}
     password: ${DB_PASSWORD:los_password}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      max-lifetime: 600000
+      connection-timeout: 30000
+      leak-detection-threshold: 60000
+      
+  # Disable H2 Console in Production
+  h2:
+    console:
+      enabled: false
+      
+  # Production JPA Configuration
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 25
+        connection:
+          provider_disables_autocommit: true
+        
+  # Production SQL Configuration
   sql:
     init:
-      mode: never
+      mode: never  # Don't run schema.sql and data.sql in production
+      
+  # Enable Flyway for Production
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+    locations: classpath:db/migration
+    baseline-version: 0
+    baseline-description: "Initial version"
+
+# Production Logging
+logging:
+  level:
+    root: WARN
+    com.company.los: INFO
+    org.springframework.web: WARN
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  file:
+    name: /var/log/los/loan-origination-system.log
+    max-size: 50MB
+    max-history: 90
+
+# Production Application Configuration
+app:
+  security:
+    cors:
+      allowed-origins: ${ALLOWED_ORIGINS:https://los.company.com}
+  notification:
+    email:
+      enabled: true
+      smtp:
+        host: ${SMTP_HOST:smtp.company.com}
+        port: ${SMTP_PORT:587}
+        username: ${SMTP_USERNAME}
+        password: ${SMTP_PASSWORD}
+        auth: true
+        starttls: true
+
+---
+# Test Profile Configuration
+spring:
+  config:
+    activate:
+      on-profile: test
+      
+  # H2 Database for Testing
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    
+  # Disable H2 Console for Tests
+  h2:
+    console:
+      enabled: false
+      
+  # Test JPA Configuration
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    
+  # Test SQL Configuration
+  sql:
+    init:
+      mode: never  # Let Hibernate create schema for tests
+      
+  # Disable Flyway for Tests
+  flyway:
+    enabled: false
+
+# Test Logging Configuration
+logging:
+  level:
+    root: WARN
+    com.company.los: DEBUG
+    org.springframework.web: WARN
+    org.hibernate.SQL: WARN
+    
+# Test Application Configuration
+app:
+  notification:
+    email:
+      enabled: false
+    sms:
+      enabled: false
+
+# =====================================================================================
+# ЭЦСИЙН ХУВИЛБАР - ACCESS INFORMATION
+# =====================================================================================
+# 🌐 URLs:
+#    Backend:     http://localhost:8080/los
+#    H2 Console:  http://localhost:8080/los/h2-console
+#    API Docs:    http://localhost:8080/los/swagger-ui.html
+#    Frontend:    http://localhost:3001
+#
+# 🔑 LOGIN CREDENTIALS:
+#    admin / admin123 (Super Admin)
+#    loan_officer / loan123 (Зээлийн мэргэжилтэн)
+#    manager / manager123 (Менежер)
+#
+# 🗄️ H2 Database:
+#    JDBC URL: jdbc:h2:mem:losdb
+#    Username: sa
+#    Password: (бусад)
+#
+# ⭐ ЗАСВАРЛАСАН ХУВИЛБАР:
+#    - Hibernate DDL auto: none (schema.sql ашиглана)
+#    - Schema.sql-д activity_logs, audit_logs, system_configs нэмэгдсэн
+#    - Junction tables composite primary key-тэй болгосон
+# =====================================================================================

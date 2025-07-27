@@ -10,15 +10,18 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime; // LocalDateTime-ийг импортлох
 import java.util.List;
+import java.util.Map; // Map-ийг импортлох
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Зээлийн бүтээгдэхүүний Repository
  * Loan Product Repository Interface
  */
 @Repository
-public interface LoanProductRepository extends JpaRepository<LoanProduct, String> {
+public interface LoanProductRepository extends JpaRepository<LoanProduct, UUID> {
 
     // Суурь хайлтууд
     /**
@@ -181,7 +184,7 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
            "(:maxTerm IS NULL OR lp.maxTermMonths <= :maxTerm) AND " +
            "(:minRate IS NULL OR lp.baseRate >= :minRate) AND " +
            "(:maxRate IS NULL OR lp.baseRate <= :maxRate) AND " +
-           "(:hasApplications IS NULL OR (SIZE(lp.loanApplications) > 0) = :hasApplications)")
+           "(:hasApplications IS NULL OR (:hasApplications = TRUE AND SIZE(lp.loanApplications) > 0) OR (:hasApplications = FALSE AND SIZE(lp.loanApplications) = 0))")
     Page<LoanProduct> findByAdvancedFilters(
             @Param("isActive") Boolean isActive,
             @Param("minAmount") BigDecimal minAmount,
@@ -281,7 +284,7 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
     @Modifying
     @Query("UPDATE LoanProduct lp SET lp.isActive = :isActive, lp.updatedBy = :updatedBy " +
            "WHERE lp.id IN :productIds")
-    int updateActiveStatus(@Param("productIds") List<String> productIds,
+    int updateActiveStatus(@Param("productIds") List<UUID> productIds,
                          @Param("isActive") Boolean isActive,
                          @Param("updatedBy") String updatedBy);
 
@@ -291,7 +294,7 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
     @Modifying
     @Query("UPDATE LoanProduct lp SET lp.baseRate = :newRate, lp.updatedBy = :updatedBy " +
            "WHERE lp.id IN :productIds")
-    int updateBaseRate(@Param("productIds") List<String> productIds,
+    int updateBaseRate(@Param("productIds") List<UUID> productIds,
                      @Param("newRate") BigDecimal newRate,
                      @Param("updatedBy") String updatedBy);
 
@@ -301,7 +304,7 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
     @Modifying
     @Query("UPDATE LoanProduct lp SET lp.minAmount = :minAmount, lp.maxAmount = :maxAmount, " +
            "lp.updatedBy = :updatedBy WHERE lp.id = :productId")
-    int updateAmountLimits(@Param("productId") String productId,
+    int updateAmountLimits(@Param("productId") UUID productId,
                          @Param("minAmount") BigDecimal minAmount,
                          @Param("maxAmount") BigDecimal maxAmount,
                          @Param("updatedBy") String updatedBy);
@@ -312,7 +315,7 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
     @Modifying
     @Query("UPDATE LoanProduct lp SET lp.minTermMonths = :minTerm, lp.maxTermMonths = :maxTerm, " +
            "lp.updatedBy = :updatedBy WHERE lp.id = :productId")
-    int updateTermLimits(@Param("productId") String productId,
+    int updateTermLimits(@Param("productId") UUID productId,
                        @Param("minTerm") Integer minTerm,
                        @Param("maxTerm") Integer maxTerm,
                        @Param("updatedBy") String updatedBy);
@@ -323,7 +326,7 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
      */
     @Query("SELECT COUNT(lp) > 0 FROM LoanProduct lp WHERE " +
            "LOWER(lp.name) = LOWER(:name) AND lp.id != :excludeId")
-    boolean existsByNameIgnoreCaseAndIdNot(@Param("name") String name, @Param("excludeId") String excludeId);
+    boolean existsByNameIgnoreCaseAndIdNot(@Param("name") String name, @Param("excludeId") UUID excludeId);
 
     /**
      * Хязгаарын зөв эсэхийг шалгах
@@ -336,23 +339,24 @@ public interface LoanProductRepository extends JpaRepository<LoanProduct, String
     /**
      * Dashboard-ийн статистик
      */
-    @Query("SELECT " +
+    @Query("SELECT new map(" +
            "COUNT(lp) as totalProducts, " +
            "COUNT(CASE WHEN lp.isActive = true THEN 1 END) as activeProducts, " +
            "COUNT(CASE WHEN SIZE(lp.loanApplications) > 0 THEN 1 END) as usedProducts, " +
            "COUNT(CASE WHEN SIZE(lp.loanApplications) = 0 THEN 1 END) as unusedProducts, " +
-           "SUM(SIZE(lp.loanApplications)) as totalApplications " +
+           "SUM(SIZE(lp.loanApplications)) as totalApplications) " + // Added a space before FROM
            "FROM LoanProduct lp")
     Object[] getDashboardStats();
 
     /**
      * Өнөөдрийн статистик
      */
-    @Query("SELECT " +
-           "COUNT(CASE WHEN DATE(lp.createdAt) = CURRENT_DATE THEN 1 END) as createdToday, " +
-           "COUNT(CASE WHEN DATE(lp.updatedAt) = CURRENT_DATE THEN 1 END) as updatedToday " +
+    @Query("SELECT new map(" +
+           "COUNT(CASE WHEN lp.createdAt >= :startOfDay AND lp.createdAt < :endOfDay THEN 1 END) as createdToday, " +
+           "COUNT(CASE WHEN lp.updatedAt >= :startOfDay AND lp.updatedAt < :endOfDay THEN 1 END) as updatedToday) " +
            "FROM LoanProduct lp")
-    Object[] getTodayStats();
+    Map<String, Long> getTodayStats(@Param("startOfDay") LocalDateTime startOfDay, @Param("endOfDay") LocalDateTime endOfDay);
+
 
     // Cleanup
     /**

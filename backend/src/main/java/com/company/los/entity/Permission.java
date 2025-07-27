@@ -8,6 +8,7 @@ import org.hibernate.annotations.Where;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Эрхийн Entity (Permission for RBAC)
@@ -18,13 +19,14 @@ import java.util.List;
         @Index(name = "idx_permission_name", columnList = "name", unique = true),
         @Index(name = "idx_permission_resource", columnList = "resource"),
         @Index(name = "idx_permission_action", columnList = "action"),
-        @Index(name = "idx_permission_category", columnList = "category")
+        @Index(name = "idx_permission_category", columnList = "category"),
+        @Index(name = "idx_permission_resource_action", columnList = "resource,action")
 })
 @SQLDelete(sql = "UPDATE permissions SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
 public class Permission {
 
-    // Action enum as String for H2 compatibility
+    // Action enum
     public enum Action {
         CREATE("CREATE", "Үүсгэх"),
         READ("READ", "Харах"),
@@ -55,9 +57,59 @@ public class Permission {
         public String getMongolianName() { return mongolianName; }
     }
 
+    // Permission category enum
+    public enum PermissionCategory {
+        SYSTEM("SYSTEM", "Системийн"),
+        USER_MANAGEMENT("USER_MANAGEMENT", "Хэрэглэгчийн удирдлага"),
+        ROLE_MANAGEMENT("ROLE_MANAGEMENT", "Дүрийн удирдлага"),
+        LOAN_MANAGEMENT("LOAN_MANAGEMENT", "Зээлийн удирдлага"),
+        CUSTOMER_MANAGEMENT("CUSTOMER_MANAGEMENT", "Харилцагчийн удирдлага"),
+        REPORT("REPORT", "Тайлан"),
+        AUDIT("AUDIT", "Аудит"),
+        CONFIGURATION("CONFIGURATION", "Тохиргоо"),
+        DOCUMENT_MANAGEMENT("DOCUMENT_MANAGEMENT", "Баримтын удирдлага"),
+        SYSTEM_ADMINISTRATION("SYSTEM_ADMINISTRATION", "Системийн удирдлага"),
+        FINANCIAL_OPERATIONS("FINANCIAL_OPERATIONS", "Санхүүгийн үйлдэл"),
+        COMPLIANCE("COMPLIANCE", "Хуулийн нийцэл");
+
+        private final String code;
+        private final String mongolianName;
+
+        PermissionCategory(String code, String mongolianName) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
+    }
+
+    // Permission level enum
+    public enum PermissionLevel {
+        LOW("LOW", "Бага", 1),
+        MEDIUM("MEDIUM", "Дунд", 2),
+        HIGH("HIGH", "Өндөр", 3),
+        CRITICAL("CRITICAL", "Эгзэгтэй", 4);
+
+        private final String code;
+        private final String mongolianName;
+        private final int level;
+
+        PermissionLevel(String code, String mongolianName, int level) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+            this.level = level;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
+        public int getLevel() { return level; }
+    }
+
     @Id
-    @Column(name = "id", length = 36)
-    private String id;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    @Column(name = "id", columnDefinition = "BINARY(16)")
+    private UUID id;
 
     @Column(name = "name", unique = true, nullable = false, length = 100)
     @NotBlank(message = "Эрхийн нэр заавал бөглөх ёстой")
@@ -80,12 +132,12 @@ public class Permission {
     @Column(name = "resource", nullable = false, length = 50)
     @NotBlank(message = "Ресурс заавал тодорхойлох ёстой")
     @Size(max = 50, message = "Ресурс 50 тэмдэгтээс ихгүй байх ёстой")
-    private String resource; // customer, loan_application, document, user, role, report
+    private String resource;
 
     @Column(name = "action", nullable = false, length = 20)
     @NotBlank(message = "Үйлдэл заавал тодорхойлох ёстой")
     @Size(max = 20, message = "Үйлдэл 20 тэмдэгтээс ихгүй байх ёстой")
-    private String action; // CREATE, READ, UPDATE, DELETE, APPROVE, etc.
+    private String action;
 
     @Column(name = "category", nullable = false, length = 50)
     @NotBlank(message = "Категори заавал тодорхойлох ёстой")
@@ -94,21 +146,19 @@ public class Permission {
 
     @Column(name = "scope", length = 20)
     @Size(max = 20, message = "Хамрах хүрээ 20 тэмдэгтээс ихгүй байх ёстой")
-    private String scope; // OWN, BRANCH, ALL - хамрах хүрээ
+    private String scope;
 
     @Column(name = "is_system_permission", nullable = false)
     private Boolean isSystemPermission = false;
 
-    @Column(name = "priority")
+    @Column(name = "priority", nullable = false)
     @Min(value = 1, message = "Тэргүүлэх эрэмбэ 1-ээс бага байж болохгүй")
     @Max(value = 10, message = "Тэргүүлэх эрэмбэ 10-аас их байж болохгүй")
     private Integer priority = 5;
 
-    // Дүрүүд
     @ManyToMany(mappedBy = "permissions", fetch = FetchType.LAZY)
     private List<Role> roles = new ArrayList<>();
 
-    // Audit fields
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -129,7 +179,7 @@ public class Permission {
 
     // Constructors
     public Permission() {
-        this.id = java.util.UUID.randomUUID().toString();
+        this.id = UUID.randomUUID();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -157,9 +207,13 @@ public class Permission {
         return displayNameMn != null && !displayNameMn.trim().isEmpty() ? displayNameMn : displayName;
     }
 
+    public String getActionDisplay() {
+        Action actionEnum = getActionEnum();
+        return actionEnum != null ? actionEnum.getMongolianName() : action;
+    }
+
     public boolean isAssignedToRole(String roleName) {
-        return roles.stream()
-                .anyMatch(role -> role.getName().equals(roleName));
+        return roles.stream().anyMatch(role -> role.getName().equals(roleName));
     }
 
     public int getAssignedRoleCount() {
@@ -167,9 +221,7 @@ public class Permission {
     }
 
     public int getAssignedUserCount() {
-        return roles != null ? roles.stream()
-                .mapToInt(role -> role.getUserCount())
-                .sum() : 0;
+        return roles != null ? roles.stream().mapToInt(role -> role.getUserCount()).sum() : 0;
     }
 
     public boolean isHighPriority() {
@@ -184,30 +236,8 @@ public class Permission {
         return priority != null && priority < 4;
     }
 
-    public void makeSystemPermission() {
-        this.isSystemPermission = true;
-        this.updatedAt = LocalDateTime.now();
-    }
-
     public boolean canBeDeleted() {
         return !isSystemPermission && (roles == null || roles.isEmpty());
-    }
-
-    public void addToRole(Role role) {
-        if (role != null && (this.roles == null || !this.roles.contains(role))) {
-            if (this.roles == null) {
-                this.roles = new ArrayList<>();
-            }
-            this.roles.add(role);
-            this.updatedAt = LocalDateTime.now();
-        }
-    }
-
-    public void removeFromRole(Role role) {
-        if (role != null && this.roles != null && this.roles.contains(role)) {
-            this.roles.remove(role);
-            this.updatedAt = LocalDateTime.now();
-        }
     }
 
     public Action getActionEnum() {
@@ -221,9 +251,22 @@ public class Permission {
         return null;
     }
 
-    public String getActionDisplay() {
-        Action actionEnum = getActionEnum();
-        return actionEnum != null ? actionEnum.getMongolianName() : action;
+    public void addRole(Role role) {
+        if (role != null && !roles.contains(role)) {
+            roles.add(role);
+            if (!role.getPermissions().contains(this)) {
+                role.getPermissions().add(this);
+            }
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
+    public void removeRole(Role role) {
+        if (role != null && roles.contains(role)) {
+            roles.remove(role);
+            role.getPermissions().remove(this);
+            this.updatedAt = LocalDateTime.now();
+        }
     }
 
     public void markAsDeleted() {
@@ -238,96 +281,7 @@ public class Permission {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void enable() {
-        this.isActive = true;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    public void disable() {
-        this.isActive = false;
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    // Action/Category constants as inner classes
-    public static final class Actions {
-        public static final String CREATE = "CREATE";
-        public static final String READ = "READ";
-        public static final String UPDATE = "UPDATE";
-        public static final String DELETE = "DELETE";
-        public static final String APPROVE = "APPROVE";
-        public static final String REJECT = "REJECT";
-        public static final String ASSIGN = "ASSIGN";
-        public static final String EXPORT = "EXPORT";
-        public static final String IMPORT = "IMPORT";
-        public static final String SEARCH = "SEARCH";
-        public static final String PRINT = "PRINT";
-        public static final String DOWNLOAD = "DOWNLOAD";
-        public static final String UPLOAD = "UPLOAD";
-        public static final String PROCESS = "PROCESS";
-        public static final String REVIEW = "REVIEW";
-        public static final String AUDIT = "AUDIT";
-    }
-
-    public static final class Categories {
-        public static final String CUSTOMER_MANAGEMENT = "CUSTOMER_MANAGEMENT";
-        public static final String LOAN_PROCESSING = "LOAN_PROCESSING";
-        public static final String DOCUMENT_MANAGEMENT = "DOCUMENT_MANAGEMENT";
-        public static final String USER_MANAGEMENT = "USER_MANAGEMENT";
-        public static final String ROLE_MANAGEMENT = "ROLE_MANAGEMENT";
-        public static final String REPORTING = "REPORTING";
-        public static final String SYSTEM_ADMINISTRATION = "SYSTEM_ADMINISTRATION";
-        public static final String FINANCIAL_OPERATIONS = "FINANCIAL_OPERATIONS";
-        public static final String COMPLIANCE = "COMPLIANCE";
-        public static final String AUDIT = "AUDIT";
-    }
-
-    public static final class Resources {
-        public static final String CUSTOMER = "CUSTOMER";
-        public static final String LOAN_APPLICATION = "LOAN_APPLICATION";
-        public static final String DOCUMENT = "DOCUMENT";
-        public static final String USER = "USER";
-        public static final String ROLE = "ROLE";
-        public static final String REPORT = "REPORT";
-        public static final String SYSTEM = "SYSTEM";
-        public static final String LOAN_PRODUCT = "LOAN_PRODUCT";
-    }
-
-    public static final class Scopes {
-        public static final String OWN = "OWN";
-        public static final String BRANCH = "BRANCH";
-        public static final String ALL = "ALL";
-    }
-
-    // Static factory methods for common permissions
-    public static Permission createCustomerRead() {
-        return new Permission("CUSTOMER_READ", "View Customers", "Харилцагч харах", 
-                            Resources.CUSTOMER, Actions.READ, Categories.CUSTOMER_MANAGEMENT);
-    }
-
-    public static Permission createCustomerCreate() {
-        return new Permission("CUSTOMER_CREATE", "Create Customer", "Харилцагч үүсгэх", 
-                            Resources.CUSTOMER, Actions.CREATE, Categories.CUSTOMER_MANAGEMENT);
-    }
-
-    public static Permission createLoanApprove() {
-        return new Permission("LOAN_APPROVE", "Approve Loans", "Зээл зөвшөөрөх", 
-                            Resources.LOAN_APPLICATION, Actions.APPROVE, Categories.LOAN_PROCESSING);
-    }
-
-    public static Permission createUserManage() {
-        return new Permission("USER_MANAGE", "Manage Users", "Хэрэглэгч удирдах", 
-                            Resources.USER, Actions.UPDATE, Categories.USER_MANAGEMENT);
-    }
-
-    public static Permission createSystemAdmin() {
-        Permission permission = new Permission("SYSTEM_ADMIN", "System Administration", "Системийн удирдлага", 
-                                             Resources.SYSTEM, Actions.UPDATE, Categories.SYSTEM_ADMINISTRATION);
-        permission.makeSystemPermission();
-        permission.setPriority(10);
-        return permission;
-    }
-
-    // Permission Builder Pattern
+    // Builder Pattern
     public static class Builder {
         private Permission permission = new Permission();
 
@@ -366,99 +320,95 @@ public class Permission {
             return this;
         }
 
-        public Builder priority(Integer priority) {
-            permission.priority = priority;
-            return this;
-        }
-
         public Builder scope(String scope) {
             permission.scope = scope;
             return this;
         }
 
-        public Builder systemPermission() {
-            permission.isSystemPermission = true;
+        public Builder isSystemPermission(boolean isSystemPermission) {
+            permission.isSystemPermission = isSystemPermission;
+            return this;
+        }
+
+        public Builder priority(Integer priority) {
+            permission.priority = priority;
+            return this;
+        }
+
+        public Builder createdBy(String createdBy) {
+            permission.createdBy = createdBy;
+            return this;
+        }
+
+        public Builder updatedBy(String updatedBy) {
+            permission.updatedBy = updatedBy;
+            return this;
+        }
+
+        public Builder isActive(boolean isActive) {
+            permission.isActive = isActive;
             return this;
         }
 
         public Permission build() {
+            if (permission.name == null || permission.name.isEmpty()) {
+                throw new IllegalStateException("Permission name is required");
+            }
+            if (permission.displayName == null || permission.displayName.isEmpty()) {
+                throw new IllegalStateException("Display name is required");
+            }
+            if (permission.resource == null || permission.resource.isEmpty()) {
+                throw new IllegalStateException("Resource is required");
+            }
+            if (permission.action == null || permission.action.isEmpty()) {
+                throw new IllegalStateException("Action is required");
+            }
+            if (permission.category == null || permission.category.isEmpty()) {
+                throw new IllegalStateException("Category is required");
+            }
+            if (permission.priority == null) {
+                permission.priority = 5;
+            }
             return permission;
         }
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     // Getters and Setters
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
     public String getName() { return name; }
-    public void setName(String name) { 
-        this.name = name;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setName(String name) { this.name = name; }
+
     public String getDisplayName() { return displayName; }
-    public void setDisplayName(String displayName) { 
-        this.displayName = displayName;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setDisplayName(String displayName) { this.displayName = displayName; }
+
     public String getDisplayNameMn() { return displayNameMn; }
-    public void setDisplayNameMn(String displayNameMn) { 
-        this.displayNameMn = displayNameMn;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setDisplayNameMn(String displayNameMn) { this.displayNameMn = displayNameMn; }
+
     public String getDescription() { return description; }
-    public void setDescription(String description) { 
-        this.description = description;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setDescription(String description) { this.description = description; }
+
     public String getResource() { return resource; }
-    public void setResource(String resource) { 
-        this.resource = resource;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setResource(String resource) { this.resource = resource; }
+
     public String getAction() { return action; }
-    public void setAction(String action) { 
-        this.action = action;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setAction(String action) { this.action = action; }
+
     public String getCategory() { return category; }
-    public void setCategory(String category) { 
-        this.category = category;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setCategory(String category) { this.category = category; }
+
     public String getScope() { return scope; }
-    public void setScope(String scope) { 
-        this.scope = scope;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setScope(String scope) { this.scope = scope; }
+
     public Boolean getIsSystemPermission() { return isSystemPermission; }
-    public void setIsSystemPermission(Boolean isSystemPermission) { 
-        this.isSystemPermission = isSystemPermission;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setIsSystemPermission(Boolean isSystemPermission) { this.isSystemPermission = isSystemPermission; }
+
     public Integer getPriority() { return priority; }
-    public void setPriority(Integer priority) { 
-        this.priority = priority;
-        this.updatedAt = LocalDateTime.now();
-    }
-    
+    public void setPriority(Integer priority) { this.priority = priority; }
+
     public List<Role> getRoles() { return roles; }
-    public void setRoles(List<Role> roles) { 
-        this.roles = roles != null ? roles : new ArrayList<>();
-        this.updatedAt = LocalDateTime.now();
-    }
+    public void setRoles(List<Role> roles) { this.roles = roles; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
@@ -476,56 +426,21 @@ public class Permission {
     public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
 
     public Boolean getIsActive() { return isActive; }
-    public void setIsActive(Boolean isActive) { 
-        this.isActive = isActive;
-        this.updatedAt = LocalDateTime.now();
-    }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        if (this.id == null) {
-            this.id = java.util.UUID.randomUUID().toString();
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (this.createdAt == null) {
-            this.createdAt = now;
-        }
-        this.updatedAt = now;
-    }
-
-    // toString
     @Override
     public String toString() {
         return "Permission{" +
-                "id='" + id + '\'' +
+                "id=" + id +
                 ", name='" + name + '\'' +
+                ", displayName='" + displayName + '\'' +
                 ", resource='" + resource + '\'' +
                 ", action='" + action + '\'' +
                 ", category='" + category + '\'' +
                 ", priority=" + priority +
-                ", scope='" + scope + '\'' +
                 ", isSystemPermission=" + isSystemPermission +
-                ", roleCount=" + getAssignedRoleCount() +
                 ", isActive=" + isActive +
                 ", isDeleted=" + isDeleted +
                 '}';
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Permission)) return false;
-        Permission permission = (Permission) o;
-        return id != null && id.equals(permission.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return getClass().hashCode();
     }
 }

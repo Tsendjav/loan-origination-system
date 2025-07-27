@@ -36,10 +36,6 @@ import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-/**
- * Баримт бичгийн Service Implementation
- * Document Service Implementation
- */
 @Service
 @Transactional
 public class DocumentServiceImpl implements DocumentService {
@@ -64,51 +60,38 @@ public class DocumentServiceImpl implements DocumentService {
     @Value("${app.document.max-size:52428800}") // 50MB
     private Long maxFileSize;
 
-    // =============================================================================
-    // CRUD ОПЕРАЦИУД / CRUD OPERATIONS
-    // =============================================================================
-
     @Override
     public DocumentDto uploadDocument(UUID customerId, UUID loanApplicationId, DocumentType documentType,
                                      MultipartFile file, String description, String tags) throws IOException {
         logger.info("Uploading document for customer: {}, loanApplication: {}, type: {}",
-           customerId,
-           loanApplicationId != null ? loanApplicationId : "N/A",
-           documentType.getName());
+                customerId, loanApplicationId != null ? loanApplicationId : "N/A", documentType.getName());
 
-        // Validate file
         validateFileUpload(file, documentType);
 
-        // Get customer
-        Customer customer = customerRepository.findById(customerId.toString())
+        Customer customer = customerRepository.findById(customerId)
                 .orElseThrow(() -> new IllegalArgumentException("Харилцагч олдсонгүй: " + customerId));
 
-        // Get loan application if provided
         LoanApplication loanApplication = null;
         if (loanApplicationId != null) {
-            loanApplication = loanApplicationRepository.findById(loanApplicationId.toString())
-                .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + loanApplicationId));
+            loanApplication = loanApplicationRepository.findById(loanApplicationId)
+                    .orElseThrow(() -> new IllegalArgumentException("Зээлийн хүсэлт олдсонгүй: " + loanApplicationId));
         }
 
-        // Check for existing document of same type
-        Optional<Document> existingDocument = findExistingDocument(customerId.toString(), documentType);
+        Optional<Document> existingDocument = findExistingDocument(customerId, documentType);
         if (existingDocument.isPresent() && !existingDocument.get().needsResubmission()) {
             throw new IllegalArgumentException("Энэ төрлийн баримт аль хэдийн байна");
         }
 
         try {
-            // Store file
             String storedFilename = generateStoredFilename(file.getOriginalFilename());
             Path filePath = storeFile(file, storedFilename);
             String checksum = calculateChecksum(file.getBytes());
 
-            // Check for duplicates - simplified version
             List<Document> duplicates = findPotentialDuplicates(file.getOriginalFilename(), file.getSize(), checksum);
             if (!duplicates.isEmpty()) {
                 logger.warn("Potential duplicate document found for customer: {}", customerId);
             }
 
-            // Create document entity
             Document document = new Document();
             document.setCustomer(customer);
             document.setLoanApplication(loanApplication);
@@ -125,7 +108,6 @@ public class DocumentServiceImpl implements DocumentService {
             document.setVerificationStatus(Document.VerificationStatus.PENDING);
             document.setIsRequired(isDocumentTypeRequired(documentType));
 
-            // Handle versioning if replacing existing document
             if (existingDocument.isPresent()) {
                 Document existing = existingDocument.get();
                 document.setVersionNumber(existing.getVersionNumber() + 1);
@@ -134,7 +116,6 @@ public class DocumentServiceImpl implements DocumentService {
                 documentRepository.save(existing);
             }
 
-            // Save document
             Document savedDocument = documentRepository.save(document);
             logger.info("Document uploaded successfully with ID: {}", savedDocument.getId());
             return DocumentDto.fromEntity(savedDocument);
@@ -149,27 +130,36 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public DocumentDto getDocumentById(UUID id) {
         logger.debug("Getting document by ID: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         return DocumentDto.fromEntity(document);
     }
 
     @Override
     public DocumentDto updateDocument(UUID id, DocumentDto documentDto) {
         logger.info("Updating document with ID: {}", id);
-        
-        Document existingDocument = documentRepository.findById(id.toString())
+
+        Document existingDocument = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
 
-        // Check if can be edited
         if (!canEditDocument(id)) {
             throw new IllegalArgumentException("Баримт засах боломжгүй");
         }
 
-        // Update allowed fields
-        existingDocument.setDocumentType(documentDto.getDocumentType());
+        if (!validateLoanApplication(documentDto)) {
+            throw new IllegalArgumentException("Баримтын мэдээлэл хүчингүй");
+        }
+
+        if (documentDto.getDocumentType() != null) {
+            existingDocument.setDocumentType(documentDto.getDocumentType());
+        } else if (documentDto.getDocumentTypeId() != null) {
+            DocumentType documentType = documentTypeRepository.findById(documentDto.getDocumentTypeId())
+                    .orElseThrow(() -> new IllegalArgumentException("Баримтын төрөл олдсонгүй: " + documentDto.getDocumentTypeId()));
+            existingDocument.setDocumentType(documentType);
+        }
+
         existingDocument.setDescription(documentDto.getDescription());
         existingDocument.setTags(documentDto.getTags());
         existingDocument.setExpiryDate(documentDto.getExpiryDate());
@@ -177,18 +167,17 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document savedDocument = documentRepository.save(existingDocument);
         logger.info("Document updated successfully with ID: {}", savedDocument.getId());
-        
+
         return DocumentDto.fromEntity(savedDocument);
     }
 
     @Override
     public void deleteDocument(UUID id) {
         logger.info("Deleting document with ID: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
 
-        // Check if can be deleted
         if (!canDeleteDocument(id)) {
             throw new IllegalArgumentException("Баримт устгах боломжгүй");
         }
@@ -200,13 +189,13 @@ public class DocumentServiceImpl implements DocumentService {
 
     public DocumentDto restoreDocument(UUID id) {
         logger.info("Restoring document with ID: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         document.restore();
         Document savedDocument = documentRepository.save(document);
-        
+
         logger.info("Document restored successfully with ID: {}", id);
         return DocumentDto.fromEntity(savedDocument);
     }
@@ -214,13 +203,13 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public DocumentDto replaceDocument(UUID oldDocumentId, MultipartFile newFile, String reason) throws IOException {
         logger.info("Replacing document with ID: {}", oldDocumentId);
-        
-        Document existingDocument = documentRepository.findById(oldDocumentId.toString())
+
+        Document existingDocument = documentRepository.findById(oldDocumentId)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + oldDocumentId));
-        
+
         return uploadDocument(
-                UUID.fromString(existingDocument.getCustomer().getId()),
-                existingDocument.getLoanApplication() != null ? UUID.fromString(existingDocument.getLoanApplication().getId()) : null,
+                existingDocument.getCustomer().getId(),
+                existingDocument.getLoanApplication() != null ? existingDocument.getLoanApplication().getId() : null,
                 existingDocument.getDocumentType(),
                 newFile,
                 reason,
@@ -228,18 +217,14 @@ public class DocumentServiceImpl implements DocumentService {
         );
     }
 
-    // =============================================================================
-    // ХУВИЛБАР УДИРДЛАГА / VERSION MANAGEMENT
-    // =============================================================================
-
     @Override
     public DocumentDto createNewVersion(UUID originalDocumentId, MultipartFile newFile, String changeReason) throws IOException {
-        Document originalDocument = documentRepository.findById(originalDocumentId.toString())
+        Document originalDocument = documentRepository.findById(originalDocumentId)
                 .orElseThrow(surfaceDocumentNotFound(originalDocumentId));
-        
+
         return uploadDocument(
-                UUID.fromString(originalDocument.getCustomer().getId()),
-                originalDocument.getLoanApplication() != null ? UUID.fromString(originalDocument.getLoanApplication().getId()) : null,
+                originalDocument.getCustomer().getId(),
+                originalDocument.getLoanApplication() != null ? originalDocument.getLoanApplication().getId() : null,
                 originalDocument.getDocumentType(),
                 newFile,
                 changeReason,
@@ -249,28 +234,24 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public DocumentDto getLatestDocumentVersion(UUID customerId, DocumentType documentType) {
-        return getLatestDocumentVersionInternal(customerId.toString(), documentType)
+        return getLatestDocumentVersionInternal(customerId, documentType)
                 .map(DocumentDto::fromEntity)
                 .orElse(null);
     }
 
     @Override
     public List<DocumentDto> getAllDocumentVersions(UUID customerId, DocumentType documentType) {
-        return getAllDocumentVersionsInternal(customerId.toString(), documentType)
+        return getAllDocumentVersionsInternal(customerId, documentType)
                 .stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    // =============================================================================
-    // БАТАЛГААЖУУЛАЛТ / VERIFICATION
-    // =============================================================================
-
     @Override
     public DocumentDto verifyDocument(UUID id, Document.VerificationStatus status, String verifierName, String notes) {
         logger.info("Verifying document {} with status: {} by: {}", id, status, verifierName);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
 
         document.setVerificationStatus(status);
@@ -280,20 +261,20 @@ public class DocumentServiceImpl implements DocumentService {
 
         Document savedDocument = documentRepository.save(document);
         logger.info("Document verification completed for ID: {}", id);
-        
+
         return DocumentDto.fromEntity(savedDocument);
     }
 
     @Override
     public DocumentDto approveDocument(UUID id, String verifierName, String notes) {
         logger.info("Approving document: {} by: {}", id, verifierName);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         document.approve(verifierName, notes);
         Document savedDocument = documentRepository.save(document);
-        
+
         logger.info("Document approved successfully: {}", id);
         return DocumentDto.fromEntity(savedDocument);
     }
@@ -301,13 +282,13 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public DocumentDto rejectDocument(UUID id, String verifierName, String reason) {
         logger.info("Rejecting document: {} by: {}", id, verifierName);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         document.reject(verifierName, reason);
         Document savedDocument = documentRepository.save(document);
-        
+
         logger.info("Document rejected successfully: {}", id);
         return DocumentDto.fromEntity(savedDocument);
     }
@@ -320,13 +301,13 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public DocumentDto startReview(UUID id, String reviewerName) {
         logger.info("Starting review for document: {} by: {}", id, reviewerName);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         document.startReview(reviewerName);
         Document savedDocument = documentRepository.save(document);
-        
+
         logger.info("Document review started: {}", id);
         return DocumentDto.fromEntity(savedDocument);
     }
@@ -334,36 +315,32 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public DocumentDto pauseReview(UUID id, String reason) {
         logger.info("Pausing review for document: {} with reason: {}", id, reason);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         document.setVerificationStatus(Document.VerificationStatus.ON_HOLD);
         document.setVerificationNotes(reason);
         Document savedDocument = documentRepository.save(document);
-        
+
         logger.info("Document review paused: {}", id);
         return DocumentDto.fromEntity(savedDocument);
     }
 
     @Override
     public DocumentDto extendDocumentExpiry(UUID id, LocalDate newExpiryDate) {
-        Document document = documentRepository.findById(id.toString())
+        Document document = documentRepository.findById(id)
                 .orElseThrow(surfaceDocumentNotFound(id));
-        
+
         document.setExpiryDate(newExpiryDate);
         return DocumentDto.fromEntity(documentRepository.save(document));
     }
-
-    // =============================================================================
-    // ХАЙЛТ БОЛОН ЖАГСААЛТ / SEARCH AND LISTING
-    // =============================================================================
 
     @Override
     @Transactional(readOnly = true)
     public Page<DocumentDto> getAllDocuments(Pageable pageable) {
         logger.debug("Getting all documents with pageable: {}", pageable);
-        
+
         Page<Document> documents = documentRepository.findAll(pageable);
         return documents.map(DocumentDto::fromEntity);
     }
@@ -372,8 +349,8 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public Page<DocumentDto> getDocumentsByCustomer(UUID customerId, Pageable pageable) {
         logger.debug("Getting documents by customer: {}", customerId);
-        
-        Page<Document> documents = documentRepository.findByCustomerId(customerId.toString(), pageable);
+
+        Page<Document> documents = documentRepository.findByCustomerId(customerId, pageable);
         return documents.map(DocumentDto::fromEntity);
     }
 
@@ -381,8 +358,8 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public Page<DocumentDto> getDocumentsByLoanApplication(UUID loanApplicationId, Pageable pageable) {
         logger.debug("Getting documents by loan application: {}", loanApplicationId);
-        
-        Page<Document> documents = documentRepository.findByLoanApplicationId(loanApplicationId.toString(), pageable);
+
+        Page<Document> documents = documentRepository.findByLoanApplicationId(loanApplicationId, pageable);
         return documents.map(DocumentDto::fromEntity);
     }
 
@@ -390,7 +367,7 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public Page<DocumentDto> getDocumentsByType(DocumentType documentType, Pageable pageable) {
         logger.debug("Getting documents by type: {}", documentType.getName());
-        
+
         Page<Document> documents = documentRepository.findByDocumentType(documentType, pageable);
         return documents.map(DocumentDto::fromEntity);
     }
@@ -399,8 +376,8 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public Page<DocumentDto> getDocumentsByVerificationStatus(Document.VerificationStatus status, Pageable pageable) {
         logger.debug("Getting documents by verification status: {}", status);
-        
-        Page<Document> documents = findByVerificationStatus(status, pageable);
+
+        Page<Document> documents = documentRepository.findByVerificationStatus(status, pageable);
         return documents.map(DocumentDto::fromEntity);
     }
 
@@ -408,10 +385,10 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public DocumentDto getDocumentByCustomerAndType(UUID customerId, DocumentType documentType) {
         logger.debug("Getting document by customer: {} and type: {}", customerId, documentType.getName());
-        
-        Document document = findExistingDocument(customerId.toString(), documentType)
+
+        Document document = findExistingDocument(customerId, documentType)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй"));
-        
+
         return DocumentDto.fromEntity(document);
     }
 
@@ -422,69 +399,57 @@ public class DocumentServiceImpl implements DocumentService {
                                                        String verifiedBy, Long minSize, Long maxSize,
                                                        LocalDateTime startDate, LocalDateTime endDate,
                                                        Boolean hasExpiry, Pageable pageable) {
-        // Simplified implementation - use standard repository methods
-        Page<Document> documents = documentRepository.findAll(pageable);
+        Page<Document> documents = documentRepository.findByAdvancedFilters(
+                documentType, verificationStatus, verifiedBy, minSize, maxSize, startDate, endDate, hasExpiry, pageable);
         return documents.map(DocumentDto::fromEntity);
     }
 
     @Override
     public Page<DocumentDto> getDocumentsByTags(String tags, Pageable pageable) {
-        // Simplified implementation
-        return Page.empty();
-    }
+        logger.debug("Getting documents by tags: {}", tags);
 
-    // =============================================================================
-    // СТАТУС БОЛОН ХҮЛЭЭЛТИЙН БАРИМТУУД / STATUS AND PENDING DOCUMENTS
-    // =============================================================================
+        Page<Document> documents = documentRepository.findByTagsContaining(tags, pageable);
+        return documents.map(DocumentDto::fromEntity);
+    }
 
     @Override
     public Page<DocumentDto> getPendingVerificationDocuments(Pageable pageable) {
-        return findByVerificationStatus(Document.VerificationStatus.PENDING, pageable)
+        return documentRepository.findPendingVerification(pageable)
                 .map(DocumentDto::fromEntity);
     }
 
     @Override
     public List<DocumentDto> getDocumentsInReviewByReviewer(String reviewerName) {
-        // Simplified implementation using basic queries
-        return documentRepository.findByVerifiedBy(reviewerName)
+        return documentRepository.findInReviewByVerifier(reviewerName)
                 .stream()
-                .filter(doc -> doc.getVerificationStatus() == Document.VerificationStatus.IN_REVIEW)
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Page<DocumentDto> getApprovedDocuments(LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
-        // Simplified implementation
-        return findByVerificationStatus(Document.VerificationStatus.APPROVED, pageable)
+        return documentRepository.findByVerificationDateRange(startDate, endDate, pageable)
                 .map(DocumentDto::fromEntity);
     }
 
     @Override
     public Page<DocumentDto> getRejectedDocuments(String reviewerName, Pageable pageable) {
-        // Simplified implementation
-        return findByVerificationStatus(Document.VerificationStatus.REJECTED, pageable)
+        return documentRepository.findByVerificationStatus(Document.VerificationStatus.REJECTED, pageable)
                 .map(DocumentDto::fromEntity);
     }
 
     @Override
     public Page<DocumentDto> getDocumentsRequiringResubmission(Pageable pageable) {
-        return findByVerificationStatus(Document.VerificationStatus.RESUBMIT_REQUIRED, pageable)
+        return documentRepository.findByVerificationStatus(Document.VerificationStatus.RESUBMIT_REQUIRED, pageable)
                 .map(DocumentDto::fromEntity);
     }
-
-    // =============================================================================
-    // ХУГАЦАА / EXPIRY MANAGEMENT
-    // =============================================================================
 
     @Override
     public List<DocumentDto> getExpiredDocuments() {
         logger.debug("Getting expired documents");
-        
-        // Simplified implementation - get all documents and filter
-        List<Document> allDocuments = documentRepository.findAll();
-        return allDocuments.stream()
-                .filter(doc -> doc.getExpiryDate() != null && doc.getExpiryDate().isBefore(LocalDate.now()))
+
+        return documentRepository.findExpiredDocuments()
+                .stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -492,14 +457,10 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public List<DocumentDto> getExpiringSoonDocuments(int days) {
         logger.debug("Getting documents expiring in {} days", days);
-        
+
         LocalDate futureDate = LocalDate.now().plusDays(days);
-        // Simplified implementation
-        List<Document> allDocuments = documentRepository.findAll();
-        return allDocuments.stream()
-                .filter(doc -> doc.getExpiryDate() != null && 
-                        doc.getExpiryDate().isAfter(LocalDate.now()) && 
-                        doc.getExpiryDate().isBefore(futureDate))
+        return documentRepository.findDocumentsExpiringSoon(futureDate)
+                .stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -508,23 +469,19 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public List<DocumentDto> getRecentDocuments(int limit) {
         logger.debug("Getting {} recent documents", limit);
-        
+
         Pageable pageable = PageRequest.of(0, limit);
-        Page<Document> documents = documentRepository.findAll(pageable);
+        Page<Document> documents = documentRepository.findRecentlyUploaded(pageable);
         return documents.getContent().stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    // =============================================================================
-    // OCR БОЛОН AI БОЛОВСРУУЛАЛТ / OCR AND AI PROCESSING
-    // =============================================================================
-
     @Override
     public DocumentDto processDocumentWithOCR(UUID id) {
         logger.info("Processing document with OCR: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
 
         try {
@@ -545,9 +502,9 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public DocumentDto saveOcrResults(UUID id, String ocrText, String extractedData, BigDecimal confidenceScore) {
-        Document document = documentRepository.findById(id.toString())
+        Document document = documentRepository.findById(id)
                 .orElseThrow(surfaceDocumentNotFound(id));
-        
+
         document.updateOcrResults(ocrText, extractedData, confidenceScore);
         return DocumentDto.fromEntity(documentRepository.save(document));
     }
@@ -555,8 +512,8 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public DocumentDto extractDataWithAI(UUID id) {
         logger.info("Extracting data with AI: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
 
         try {
@@ -577,44 +534,34 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public List<DocumentDto> getOcrFailedDocuments() {
-        // Simplified implementation
-        List<Document> allDocuments = documentRepository.findAll();
-        return allDocuments.stream()
-                .filter(doc -> "FAILED".equals(doc.getProcessingStatus()))
+        return documentRepository.findOcrFailedDocuments()
+                .stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
     @Override
     public Page<DocumentDto> getHighConfidenceDocuments(BigDecimal minScore, Pageable pageable) {
-        // Simplified implementation
-        Page<Document> documents = documentRepository.findAll(pageable);
-        return documents.map(DocumentDto::fromEntity);
+        return documentRepository.findDocumentsWithMinConfidence(minScore, pageable)
+                .map(DocumentDto::fromEntity);
     }
 
     @Override
     public List<DocumentDto> getLowConfidenceDocuments(BigDecimal threshold) {
-        // Simplified implementation
-        List<Document> allDocuments = documentRepository.findAll();
-        return allDocuments.stream()
-                .filter(doc -> doc.getAiConfidenceScore() != null && 
-                        doc.getAiConfidenceScore().compareTo(threshold) < 0)
+        return documentRepository.findLowConfidenceDocuments(threshold)
+                .stream()
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
-
-    // =============================================================================
-    // ФАЙЛ ОПЕРАЦИУД / FILE OPERATIONS
-    // =============================================================================
 
     @Override
     @Transactional(readOnly = true)
     public byte[] downloadDocument(UUID id) {
         logger.debug("Downloading document: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
-        
+
         try {
             Path filePath = Paths.get(document.getFilePath());
             return Files.readAllBytes(filePath);
@@ -628,14 +575,14 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public byte[] generateDocumentPreview(UUID id) {
         logger.debug("Generating preview for document: {}", id);
-        
-        Document document = documentRepository.findById(id.toString())
+
+        Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Баримт олдсонгүй: " + id));
 
         if (!document.isImage() && !document.isPdf()) {
             throw new IllegalArgumentException("Энэ төрлийн файлын урьдчилан харах боломжгүй");
         }
-        
+
         return downloadDocument(id);
     }
 
@@ -643,9 +590,9 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     public Map<String, Object> getFileInfo(UUID id) {
         logger.debug("Getting file info for document: {}", id);
-        
+
         DocumentDto document = getDocumentById(id);
-        
+
         Map<String, Object> fileInfo = new HashMap<>();
         fileInfo.put("id", document.getId());
         fileInfo.put("originalFilename", document.getOriginalFilename());
@@ -654,85 +601,75 @@ public class DocumentServiceImpl implements DocumentService {
         fileInfo.put("fileSizeFormatted", document.getFileSizeFormatted());
         fileInfo.put("uploadedAt", document.getUploadedAt());
         fileInfo.put("checksum", document.getChecksum());
-        
+
         return fileInfo;
     }
 
-    // =============================================================================
-    // ДУПЛИКАТ ШАЛГАЛТ / DUPLICATE DETECTION
-    // =============================================================================
-
     @Override
     public List<DocumentDto> findDuplicateDocuments(String filename, Long fileSize, String checksum, UUID excludeCustomerId) {
-        return findPotentialDuplicates(filename, fileSize, checksum)
+        return documentRepository.findPotentialDuplicates(filename, checksum, fileSize, excludeCustomerId)
                 .stream()
-                .filter(doc -> !doc.getCustomer().getId().equals(excludeCustomerId.toString()))
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<DocumentDto> findDocumentsByChecksum(String checksum, UUID excludeCustomerId) {
-        List<Document> allDocuments = documentRepository.findAll();
-        return allDocuments.stream()
-                .filter(doc -> checksum.equals(doc.getChecksum()) && 
-                        !doc.getCustomer().getId().equals(excludeCustomerId.toString()))
+        return documentRepository.findByChecksum(checksum)
+                .stream()
+                .filter(doc -> doc.getCustomer() != null && doc.getCustomer().getId() != null &&
+                        !doc.getCustomer().getId().equals(excludeCustomerId))
                 .map(DocumentDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    // =============================================================================
-    // ШААРДЛАГАТАЙ БАРИМТУУД / REQUIRED DOCUMENTS
-    // =============================================================================
-
     @Override
     public List<DocumentType> getMissingRequiredDocuments(UUID loanApplicationId) {
-        List<DocumentType> allDocumentTypes = documentTypeRepository.findByIsActive(true);
-        return allDocumentTypes; 
+        List<DocumentType> requiredTypes = documentTypeRepository.findByIsRequiredTrue();
+        List<Document> existingDocs = documentRepository.findByLoanApplicationId(loanApplicationId, Pageable.unpaged()).getContent();
+        Set<DocumentType> existingTypes = existingDocs.stream()
+                .map(Document::getDocumentType)
+                .collect(Collectors.toSet());
+        return requiredTypes.stream()
+                .filter(type -> !existingTypes.contains(type))
+                .collect(Collectors.toList());
     }
 
     @Override
     public Map<DocumentType, Document.VerificationStatus> getRequiredDocumentStatus(UUID customerId) {
         Map<DocumentType, Document.VerificationStatus> statusMap = new HashMap<>();
-        
-        List<DocumentType> allDocumentTypes = documentTypeRepository.findByIsActive(true);
-        for (DocumentType type : allDocumentTypes) {
-            Optional<Document> doc = findExistingDocument(customerId.toString(), type);
-            if (doc.isPresent()) {
-                statusMap.put(type, doc.get().getVerificationStatus());
-            } else {
-                statusMap.put(type, Document.VerificationStatus.PENDING);
-            }
+
+        List<DocumentType> requiredTypes = documentTypeRepository.findByIsRequiredTrue();
+        for (DocumentType type : requiredTypes) {
+            Optional<Document> doc = documentRepository.findByCustomerIdAndDocumentType(customerId, type);
+            statusMap.put(type, doc.map(Document::getVerificationStatus).orElse(Document.VerificationStatus.PENDING));
         }
-        
+
         return statusMap;
     }
 
     @Override
     public List<DocumentType> getRequiredDocumentsForLoanType(String loanType) {
-        List<DocumentType> allDocumentTypes = documentTypeRepository.findByIsActive(true);
-        return allDocumentTypes;
+        // Simplified implementation - return all required document types
+        // Instead of using the old findRequiredForLoanType method that used non-existent fields
+        return documentTypeRepository.findRequiredDocumentTypes();
     }
-
-    // =============================================================================
-    // BULK ОПЕРАЦИУД / BATCH OPERATIONS
-    // =============================================================================
 
     @Override
     public List<DocumentDto> uploadMultipleDocuments(UUID customerId, UUID loanApplicationId,
                                                    Map<DocumentType, MultipartFile> files) throws IOException {
         List<DocumentDto> uploadedDocuments = new ArrayList<>();
-        
+
         for (Map.Entry<DocumentType, MultipartFile> entry : files.entrySet()) {
             DocumentDto document = uploadDocument(customerId, loanApplicationId, entry.getKey(), entry.getValue(), null, null);
             uploadedDocuments.add(document);
         }
-        
+
         return uploadedDocuments;
     }
 
     @Override
-    public int updateVerificationStatusForDocuments(List<UUID> documentIds, 
+    public int updateVerificationStatusForDocuments(List<UUID> documentIds,
                                                    Document.VerificationStatus newStatus,
                                                    String verifierName, String notes) {
         int updatedCount = 0;
@@ -749,67 +686,53 @@ public class DocumentServiceImpl implements DocumentService {
 
     @Override
     public int markExpiredDocuments() {
-        List<Document> expiredDocuments = getExpiredDocuments().stream()
-                .map(dto -> documentRepository.findById(dto.getId()).orElse(null))
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-                
+        List<Document> expiredDocuments = documentRepository.findExpiredDocuments();
+
         for (Document doc : expiredDocuments) {
             doc.setVerificationStatus(Document.VerificationStatus.EXPIRED);
             documentRepository.save(doc);
         }
-        
+
         return expiredDocuments.size();
     }
 
     @Override
     public byte[] exportDocumentsToZip(List<UUID> documentIds) {
+        // Implementation for zipping documents
         return new byte[0];
     }
-
-    // =============================================================================
-    // ЦЭВЭРЛЭЛТ / CLEANUP OPERATIONS
-    // =============================================================================
 
     @Override
     public void archiveOldDocuments(int daysOld) {
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(daysOld);
-        List<Document> allDocuments = documentRepository.findAll();
-        
-        List<Document> oldDocuments = allDocuments.stream()
-                .filter(doc -> doc.getUploadedAt().isBefore(cutoffDate))
-                .collect(Collectors.toList());
-        
+        List<Document> oldDocuments = documentRepository.findOldDocuments(cutoffDate);
+
         for (Document document : oldDocuments) {
             logger.info("Archiving document: {}", document.getId());
+            // Add actual archiving logic here
         }
     }
 
     @Override
     public void cleanupTempFiles() {
         logger.info("Cleaning up temporary files");
+        // Add actual temp file cleanup logic here
     }
 
     @Override
     public int cleanupDeletedDocuments() {
-        return 0;
+        List<Document> deletedDocuments = documentRepository.findDeletedDocuments();
+        // Add actual cleanup logic here
+        return deletedDocuments.size();
     }
 
     @Override
     public int cleanupUnusedDocuments(int unusedDays) {
         LocalDateTime cutoffDate = LocalDateTime.now().minusDays(unusedDays);
-        List<Document> allDocuments = documentRepository.findAll();
-        
-        List<Document> unusedDocuments = allDocuments.stream()
-                .filter(doc -> doc.getUploadedAt().isBefore(cutoffDate))
-                .collect(Collectors.toList());
-        
+        List<Document> unusedDocuments = documentRepository.findOldDocuments(cutoffDate);
+        // Add actual cleanup logic here
         return unusedDocuments.size();
     }
-
-    // =============================================================================
-    // ВАЛИДАЦИ / VALIDATION
-    // =============================================================================
 
     @Override
     public boolean isFileTypeAllowed(DocumentType documentType, String contentType, String filename) {
@@ -828,268 +751,227 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public boolean canEditDocument(UUID id) {
-        Document document = documentRepository.findById(id.toString())
+        Document document = documentRepository.findById(id)
                 .orElseThrow(surfaceDocumentNotFound(id));
-        
+
         return document.getVerificationStatus() == Document.VerificationStatus.PENDING ||
-               document.getVerificationStatus() == Document.VerificationStatus.RESUBMIT_REQUIRED;
+                document.getVerificationStatus() == Document.VerificationStatus.RESUBMIT_REQUIRED;
     }
 
     @Override
     @Transactional(readOnly = true)
     public boolean canDeleteDocument(UUID id) {
-        Document document = documentRepository.findById(id.toString())
+        Document document = documentRepository.findById(id)
                 .orElseThrow(surfaceDocumentNotFound(id));
-        
-        return document.getVerificationStatus() != Document.VerificationStatus.APPROVED ||
-               document.getVersionNumber() > 1;
-    }
 
-    // =============================================================================
-    // СТАТИСТИК БОЛОН ТАЙЛАН / STATISTICS AND REPORTING
-    // =============================================================================
+        return document.getVerificationStatus() != Document.VerificationStatus.APPROVED ||
+                document.getVersionNumber() > 1;
+    }
 
     @Override
     public Map<String, Object> getDocumentStatistics() {
         Map<String, Object> stats = new HashMap<>();
-        
-        long totalDocuments = documentRepository.count();
+
+        long totalDocuments = documentRepository.countAllDocuments();
         stats.put("totalDocuments", totalDocuments);
-        
+
         for (Document.VerificationStatus status : Document.VerificationStatus.values()) {
-            long count = documentRepository.findAll().stream()
-                    .mapToLong(doc -> doc.getVerificationStatus() == status ? 1 : 0)
-                    .sum();
+            long count = documentRepository.countByVerificationStatus(status);
             stats.put(status.name().toLowerCase() + "Count", count);
         }
-        
+
         Map<String, Long> typeStats = new HashMap<>();
-        List<DocumentType> allDocumentTypes = documentTypeRepository.findAll(); 
+        List<DocumentType> allDocumentTypes = documentTypeRepository.findAll();
         for (DocumentType type : allDocumentTypes) {
-            long count = documentRepository.findAll().stream()
-                    .mapToLong(doc -> doc.getDocumentType().equals(type) ? 1 : 0)
-                    .sum();
+            long count = documentRepository.countByDocumentType(type);
             typeStats.put(type.getName(), count);
         }
         stats.put("byType", typeStats);
-        
+
         return stats;
     }
 
     @Override
     public Map<String, Object> getDocumentMetrics(LocalDateTime startDate, LocalDateTime endDate) {
         Map<String, Object> metrics = new HashMap<>();
-        
-        List<Document> documents = documentRepository.findAll();
-        long uploadCount = documents.stream()
-                .mapToLong(doc -> doc.getUploadedAt().isAfter(startDate) && doc.getUploadedAt().isBefore(endDate) ? 1 : 0)
-                .sum();
-                
-        long verificationCount = documents.stream()
-                .mapToLong(doc -> doc.getVerifiedAt() != null && 
-                        doc.getVerifiedAt().isAfter(startDate) && doc.getVerifiedAt().isBefore(endDate) ? 1 : 0)
-                .sum();
-        
+
+        long uploadCount = documentRepository.findByUploadDateRange(startDate, endDate, Pageable.unpaged())
+                .stream().count();
+
+        long verificationCount = documentRepository.findByVerificationDateRange(startDate, endDate, Pageable.unpaged())
+                .stream().count();
+
         metrics.put("uploads", uploadCount);
         metrics.put("verifications", verificationCount);
-        
+
         return metrics;
     }
 
     @Override
     public Map<DocumentType, Long> getDocumentCountByType() {
         Map<DocumentType, Long> countMap = new HashMap<>();
-        List<Document> documents = documentRepository.findAll();
-        
         List<DocumentType> allDocumentTypes = documentTypeRepository.findAll();
         for (DocumentType type : allDocumentTypes) {
-            long count = documents.stream()
-                    .mapToLong(doc -> doc.getDocumentType().equals(type) ? 1 : 0)
-                    .sum();
+            long count = documentRepository.countByDocumentType(type);
             countMap.put(type, count);
         }
-        
         return countMap;
     }
 
     @Override
     public Map<Document.VerificationStatus, Long> getDocumentCountByVerificationStatus() {
         Map<Document.VerificationStatus, Long> countMap = new HashMap<>();
-        List<Document> documents = documentRepository.findAll();
-        
         for (Document.VerificationStatus status : Document.VerificationStatus.values()) {
-            long count = documents.stream()
-                    .mapToLong(doc -> doc.getVerificationStatus() == status ? 1 : 0)
-                    .sum();
+            long count = documentRepository.countByVerificationStatus(status);
             countMap.put(status, count);
         }
-        
         return countMap;
     }
 
     @Override
     public List<Map<String, Object>> getMonthlyDocumentStats(int months) {
-        return new ArrayList<>();
+        LocalDateTime startDate = LocalDateTime.now().minusMonths(months);
+        return documentRepository.getMonthlyUploadStats(startDate)
+                .stream()
+                .map(arr -> Map.of("month", arr[0], "count", arr[1]))
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<Map<String, Object>> getVerifierStats() {
+        // Implementation for verifier stats
         return new ArrayList<>();
     }
 
     @Override
     public Map<String, Object> getTodayDocumentStats() {
+        logger.info("Getting today's document statistics");
+
+        Map<String, Long> repoStats = documentRepository.getTodayStats();
         Map<String, Object> stats = new HashMap<>();
-        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
-        LocalDateTime todayEnd = todayStart.plusDays(1);
-        
-        List<Document> allDocuments = documentRepository.findAll();
-        
-        long todayUploaded = allDocuments.stream()
-                .mapToLong(doc -> doc.getUploadedAt().isAfter(todayStart) && doc.getUploadedAt().isBefore(todayEnd) ? 1 : 0)
-                .sum();
-                
-        long pendingVerification = allDocuments.stream()
-                .mapToLong(doc -> doc.getVerificationStatus() == Document.VerificationStatus.PENDING ? 1 : 0)
-                .sum();
-                
-        long todayVerified = allDocuments.stream()
-                .mapToLong(doc -> doc.getVerifiedAt() != null &&
-                        doc.getVerifiedAt().isAfter(todayStart) && doc.getVerifiedAt().isBefore(todayEnd) ? 1 : 0)
-                .sum();
-                
-        long rejected = allDocuments.stream()
-                .mapToLong(doc -> doc.getVerificationStatus() == Document.VerificationStatus.REJECTED ? 1 : 0)
-                .sum();
-        
-        stats.put("todayUploaded", todayUploaded);
-        stats.put("pendingVerification", pendingVerification);
-        stats.put("todayVerified", todayVerified);
-        stats.put("rejected", rejected);
-        
+
+        stats.put("todayUploaded", repoStats.getOrDefault("uploadedToday", 0L));
+        stats.put("pendingVerification", documentRepository.countByVerificationStatus(Document.VerificationStatus.PENDING));
+        stats.put("todayVerified", repoStats.getOrDefault("verifiedToday", 0L));
+        stats.put("rejected", documentRepository.countByVerificationStatus(Document.VerificationStatus.REJECTED));
+
         return stats;
     }
 
     @Override
     public Map<String, Long> getTopContentTypes() {
-        return new HashMap<>();
+        Map<String, Long> contentTypeCounts = new HashMap<>();
+        Page<Document> documents = documentRepository.findAll(Pageable.unpaged());
+        documents.forEach(doc -> contentTypeCounts.merge(doc.getContentType(), 1L, Long::sum));
+        return contentTypeCounts;
     }
-
-    // =============================================================================
-    // PERFORMANCE ХЯНАЛТ / PERFORMANCE MONITORING
-    // =============================================================================
 
     @Override
     public Double getAverageVerificationTimeHours() {
-        return 24.0;
+        return documentRepository.getAverageVerificationTimeHours();
     }
 
     @Override
     public Page<DocumentDto> getSlowestVerifiedDocuments(Pageable pageable) {
-        Page<Document> documents = documentRepository.findAll(pageable);
-        return documents.map(DocumentDto::fromEntity);
-    }
-
-    // =============================================================================
-    // МЭДЭГДЭЛ / NOTIFICATIONS
-    // =============================================================================
-
-    @Override
-    public boolean sendExpiryNotification(UUID documentId) { 
-        return true; 
+        return documentRepository.findSlowestVerifiedDocuments(pageable)
+                .map(DocumentDto::fromEntity);
     }
 
     @Override
-    public boolean sendResubmissionNotification(UUID documentId) { 
-        return true; 
+    public boolean sendExpiryNotification(UUID documentId) {
+        // Implementation for sending expiry notification
+        return true;
     }
 
     @Override
-    public boolean sendVerificationResultNotification(UUID documentId) { 
-        return true; 
+    public boolean sendResubmissionNotification(UUID documentId) {
+        // Implementation for sending resubmission notification
+        return true;
     }
 
-    // =============================================================================
-    // TAGS УДИРДЛАГА / TAGS MANAGEMENT
-    // =============================================================================
+    @Override
+    public boolean sendVerificationResultNotification(UUID documentId) {
+        // Implementation for sending verification result notification
+        return true;
+    }
 
     @Override
     public DocumentDto addTagsToDocument(UUID id, String tags) {
-        Document document = documentRepository.findById(id.toString())
+        Document document = documentRepository.findById(id)
                 .orElseThrow(surfaceDocumentNotFound(id));
-        
+
         String existingTags = document.getTags();
-        String newTags = existingTags != null ? existingTags + "," + tags : tags;
+        String newTags = existingTags != null && !existingTags.isEmpty() ? existingTags + "," + tags : tags;
         document.setTags(newTags);
-        
+
         return DocumentDto.fromEntity(documentRepository.save(document));
     }
 
     @Override
     public DocumentDto removeTagsFromDocument(UUID id, String tags) {
-        Document document = documentRepository.findById(id.toString())
+        Document document = documentRepository.findById(id)
                 .orElseThrow(surfaceDocumentNotFound(id));
-        
+
         String existingTags = document.getTags();
         if (existingTags != null) {
             String newTags = existingTags.replace(tags, "").replace(",,", ",");
+            newTags = newTags.replaceAll("^,+|,+$", "");
             document.setTags(newTags);
         }
-        
+
         return DocumentDto.fromEntity(documentRepository.save(document));
     }
 
-    // =============================================================================
-    // АУДИТ БОЛОН ТҮҮХ / AUDIT AND HISTORY
-    // =============================================================================
-
     @Override
-    public List<Map<String, Object>> getDocumentAuditHistory(UUID id) { 
-        return new ArrayList<>(); 
+    public List<Map<String, Object>> getDocumentAuditHistory(UUID id) {
+        // Implementation for audit history
+        return new ArrayList<>();
     }
 
     @Override
-    public List<Map<String, Object>> getDocumentActivityLog(UUID id) { 
-        return new ArrayList<>(); 
-    }
-
-    // =============================================================================
-    // ЧАНАРЫН БАТАЛГАА / QUALITY ASSURANCE
-    // =============================================================================
-
-    @Override
-    public Map<String, Object> reviewDocumentQuality(UUID id) { 
-        return new HashMap<>(); 
+    public List<Map<String, Object>> getDocumentActivityLog(UUID id) {
+        // Implementation for activity log
+        return new ArrayList<>();
     }
 
     @Override
-    public Map<String, Object> validateDataIntegrity() { 
-        return new HashMap<>(); 
+    public Map<String, Object> reviewDocumentQuality(UUID id) {
+        // Implementation for document quality review
+        return new HashMap<>();
     }
 
-    // =============================================================================
-    // HELPER METHODS
-    // =============================================================================
+    @Override
+    public Map<String, Object> validateDataIntegrity() {
+        // Implementation for data integrity validation
+        return new HashMap<>();
+    }
 
+    // Helper methods
     private void validateFileUpload(MultipartFile file, DocumentType documentType) {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Файл хоосон байна");
         }
-        
+
         if (!isFileSizeValid(file.getSize())) {
             throw new IllegalArgumentException("Файлын хэмжээ хэтэрсэн байна");
         }
-        
+
         if (!isFileTypeAllowed(documentType, file.getContentType(), file.getOriginalFilename())) {
             throw new IllegalArgumentException("Файлын төрөл зөвшөөрөгдөөгүй байна");
         }
+    }
+
+    private boolean validateLoanApplication(DocumentDto documentDto) {
+        return documentDto != null && 
+               documentDto.getOriginalFilename() != null && 
+               !documentDto.getOriginalFilename().trim().isEmpty();
     }
 
     private String generateStoredFilename(String originalFilename) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         String extension = getFileExtension(originalFilename);
         String uuid = UUID.randomUUID().toString().substring(0, 8);
-        
+
         return timestamp + "_" + uuid + "." + extension;
     }
 
@@ -1098,16 +980,16 @@ public class DocumentServiceImpl implements DocumentService {
         if (!Files.exists(uploadPath)) {
             Files.createDirectories(uploadPath);
         }
-        
+
         String dateFolder = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy/MM/dd"));
         Path dateUploadPath = uploadPath.resolve(dateFolder);
         if (!Files.exists(dateUploadPath)) {
             Files.createDirectories(dateUploadPath);
         }
-        
+
         Path targetLocation = dateUploadPath.resolve(storedFilename);
         Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
-        
+
         return targetLocation;
     }
 
@@ -1116,7 +998,7 @@ public class DocumentServiceImpl implements DocumentService {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(data);
             StringBuilder hexString = new StringBuilder();
-            
+
             for (byte b : hash) {
                 String hex = Integer.toHexString(0xff & b);
                 if (hex.length() == 1) {
@@ -1124,7 +1006,7 @@ public class DocumentServiceImpl implements DocumentService {
                 }
                 hexString.append(hex);
             }
-            
+
             return hexString.toString();
         } catch (NoSuchAlgorithmException e) {
             logger.error("Error calculating checksum", e);
@@ -1139,10 +1021,12 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     private String performOCR(Document document) {
+        // Placeholder for actual OCR logic
         return "OCR text would be extracted here";
     }
 
     private String performAIExtraction(Document document) {
+        // Placeholder for actual AI extraction logic
         return "{}";
     }
 
@@ -1150,51 +1034,30 @@ public class DocumentServiceImpl implements DocumentService {
         return () -> new IllegalArgumentException("Баримт олдсонгүй: " + id);
     }
 
-    // Helper methods to replace missing repository methods
-    private Optional<Document> findExistingDocument(String customerId, DocumentType documentType) {
-        return documentRepository.findAll().stream()
-                .filter(doc -> doc.getCustomer().getId().equals(customerId) && 
-                        doc.getDocumentType().equals(documentType))
-                .findFirst();
+    private Optional<Document> findExistingDocument(UUID customerId, DocumentType documentType) {
+        return documentRepository.findByCustomerIdAndDocumentType(customerId, documentType);
     }
 
     private List<Document> findPotentialDuplicates(String filename, Long fileSize, String checksum) {
-        return documentRepository.findAll().stream()
-                .filter(doc -> filename.equals(doc.getOriginalFilename()) || 
-                        checksum.equals(doc.getChecksum()) ||
-                        (fileSize != null && fileSize.equals(doc.getFileSize())))
-                .collect(Collectors.toList());
+        return documentRepository.findPotentialDuplicates(filename, checksum, fileSize, null);
     }
 
     private Page<Document> findByVerificationStatus(Document.VerificationStatus status, Pageable pageable) {
-        List<Document> filtered = documentRepository.findAll().stream()
-                .filter(doc -> doc.getVerificationStatus() == status)
-                .collect(Collectors.toList());
-        
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), filtered.size());
-        List<Document> pageContent = filtered.subList(start, end);
-        
-        return new org.springframework.data.domain.PageImpl<>(pageContent, pageable, filtered.size());
+        return documentRepository.findByVerificationStatus(status, pageable);
     }
 
-    private Optional<Document> getLatestDocumentVersionInternal(String customerId, DocumentType documentType) {
-        return documentRepository.findAll().stream()
-                .filter(doc -> doc.getCustomer().getId().equals(customerId) && 
-                        doc.getDocumentType().equals(documentType))
-                .max(Comparator.comparing(Document::getVersionNumber));
+    private Optional<Document> getLatestDocumentVersionInternal(UUID customerId, DocumentType documentType) {
+        Pageable pageable = PageRequest.of(0, 1);
+        Page<Document> page = documentRepository.findLatestVersion(customerId, documentType, pageable);
+        return page.getContent().stream().findFirst();
     }
 
-    private List<Document> getAllDocumentVersionsInternal(String customerId, DocumentType documentType) {
-        return documentRepository.findAll().stream()
-                .filter(doc -> doc.getCustomer().getId().equals(customerId) && 
-                        doc.getDocumentType().equals(documentType))
-                .sorted(Comparator.comparing(Document::getVersionNumber))
-                .collect(Collectors.toList());
+    private List<Document> getAllDocumentVersionsInternal(UUID customerId, DocumentType documentType) {
+        return documentRepository.findAllVersions(customerId, documentType);
     }
 
     private boolean isDocumentTypeRequired(DocumentType documentType) {
-        return true;
+        return documentType.getIsRequired() != null ? documentType.getIsRequired() : false;
     }
 
     private boolean isDocumentTypeAllowedExtension(DocumentType documentType, String extension) {
@@ -1202,27 +1065,22 @@ public class DocumentServiceImpl implements DocumentService {
         return allowedExtensions.contains(extension.toLowerCase());
     }
 
-    // Additional validation helper methods
     public boolean isValidFileType(String filename, String contentType) {
         if (filename == null || contentType == null) {
             return false;
         }
-        
+
         String extension = getFileExtension(filename);
-        
+
         Set<String> allowedExtensions = Set.of("pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx");
         Set<String> allowedContentTypes = Set.of(
-            "application/pdf",
-            "image/jpeg", "image/jpg", "image/png",
-            "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                "application/pdf",
+                "image/jpeg", "image/jpg", "image/png",
+                "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
-        
-        return allowedExtensions.contains(extension.toLowerCase()) && 
-               allowedContentTypes.contains(contentType);
-    }
 
-    public boolean isFileSizeValid(long fileSize) {
-        return fileSize > 0 && fileSize <= maxFileSize;
+        return allowedExtensions.contains(extension.toLowerCase()) &&
+                allowedContentTypes.contains(contentType);
     }
 }

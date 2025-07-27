@@ -1,6 +1,5 @@
 package com.company.los.repository;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,7 +13,7 @@ import java.util.List;
  * Dashboard statistics and real-time metrics
  */
 @Repository
-public interface DashboardRepository extends JpaRepository<Object, String> {
+public interface DashboardRepository { // Removed JpaRepository<Object, String>
 
     // Main Dashboard Overview
     /**
@@ -157,7 +156,7 @@ public interface DashboardRepository extends JpaRepository<Object, String> {
            "COALESCE(stats.approvedCount, 0) as approvedCount, " +
            "COALESCE(stats.customerCount, 0) as customerCount " +
            "FROM (" +
-           "  SELECT DATE(CURRENT_DATE - INTERVAL (a.a + (10 * b.a)) DAY) as day " +
+           "  SELECT CAST(CURRENT_DATE - INTERVAL (a.a + (10 * b.a)) DAY AS DATE) as day " + // Changed DATE to CAST(... AS DATE)
            "  FROM (SELECT 0 as a UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5 UNION ALL SELECT 6) as a " +
            "  CROSS JOIN (SELECT 0 as a) as b " +
            "  ORDER BY day DESC " +
@@ -165,23 +164,23 @@ public interface DashboardRepository extends JpaRepository<Object, String> {
            ") dt " +
            "LEFT JOIN (" +
            "  SELECT " +
-           "    DATE(la.appliedAt) as date, " +
+           "    CAST(la.appliedAt AS DATE) as date, " + // Changed DATE to CAST(... AS DATE)
            "    COUNT(la.id) as applicationCount, " +
            "    COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) as approvedCount, " +
            "    0 as customerCount " +
            "  FROM LoanApplication la " +
            "  WHERE la.appliedAt >= CURRENT_DATE - INTERVAL 7 DAY " +
-           "  GROUP BY DATE(la.appliedAt) " +
+           "  GROUP BY CAST(la.appliedAt AS DATE) " + // Changed DATE to CAST(... AS DATE)
            "  UNION ALL " +
            "  SELECT " +
-           "    DATE(c.createdAt) as date, " +
+           "    CAST(c.createdAt AS DATE) as date, " + // Changed DATE to CAST(... AS DATE)
            "    0 as applicationCount, " +
            "    0 as approvedCount, " +
            "    COUNT(c.id) as customerCount " +
            "  FROM Customer c " +
            "  WHERE c.createdAt >= CURRENT_DATE - INTERVAL 7 DAY " +
-           "  GROUP BY DATE(c.createdAt) " +
-           ") stats ON DATE(dt.day) = stats.date " +
+           "  GROUP BY CAST(c.createdAt AS DATE) " + // Changed DATE to CAST(... AS DATE)
+           ") stats ON CAST(dt.day AS DATE) = stats.date " + // Changed DATE to CAST(... AS DATE)
            "ORDER BY dt.day DESC")
     List<Object[]> getWeeklyTrends();
 
@@ -189,13 +188,13 @@ public interface DashboardRepository extends JpaRepository<Object, String> {
      * 12 сарын чиг хандлага
      */
     @Query("SELECT " +
-           "DATE_FORMAT(la.appliedAt, '%Y-%m') as month, " +
+           "FUNCTION('DATE_FORMAT', la.appliedAt, '%Y-%m') as month, " + // Changed DATE_FORMAT to FUNCTION('DATE_FORMAT', ...)
            "COUNT(la.id) as applicationCount, " +
            "COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) as approvedCount, " +
            "COALESCE(SUM(CASE WHEN la.status = 'APPROVED' THEN la.requestedAmount ELSE 0 END), 0) as approvedAmount " +
            "FROM LoanApplication la " +
-           "WHERE la.appliedAt >= DATE_SUB(CURRENT_DATE, INTERVAL 12 MONTH) " +
-           "GROUP BY DATE_FORMAT(la.appliedAt, '%Y-%m') " +
+           "WHERE la.appliedAt >= FUNCTION('DATE_SUB', CURRENT_DATE, 12, 'MONTH') " + // Changed DATE_SUB to FUNCTION('DATE_SUB', ...)
+           "GROUP BY FUNCTION('DATE_FORMAT', la.appliedAt, '%Y-%m') " + // Changed DATE_FORMAT to FUNCTION('DATE_FORMAT', ...)
            "ORDER BY month DESC " +
            "LIMIT 12")
     List<Object[]> getMonthlyTrends();
@@ -274,7 +273,7 @@ public interface DashboardRepository extends JpaRepository<Object, String> {
            "(SELECT COUNT(DISTINCT al.changedBy) FROM AuditLog al WHERE al.changedAt >= :recentTime) as activeUsers, " +
            "(SELECT COUNT(la) FROM LoanApplication la WHERE la.updatedAt >= :recentTime) as recentUpdates, " +
            "(SELECT COUNT(DISTINCT al.ipAddress) FROM AuditLog al WHERE al.changedAt >= :recentTime) as uniqueIPs, " +
-           "(SELECT AVG(DATEDIFF(CURRENT_DATE, la.appliedAt)) FROM LoanApplication la WHERE la.status = 'PENDING') as avgPendingDays")
+           "(SELECT AVG(FUNCTION('DATEDIFF', CURRENT_DATE, la.appliedAt)) FROM LoanApplication la WHERE la.status = 'PENDING') as avgPendingDays") // Changed DATEDIFF to FUNCTION('DATEDIFF', ...)
     Object[] getSystemPerformanceStats(@Param("recentTime") LocalDateTime recentTime);
 
     // Risk Dashboard
@@ -296,25 +295,25 @@ public interface DashboardRepository extends JpaRepository<Object, String> {
     @Query("SELECT " +
            "'CUSTOMERS' as metric, " +
            "(SELECT COUNT(c) FROM Customer c) as value, " +
-           "(SELECT COUNT(c) FROM Customer c WHERE DATE(c.createdAt) = CURRENT_DATE) as todayChange, " +
+           "(SELECT COUNT(c) FROM Customer c WHERE FUNCTION('DATE', c.createdAt) = CURRENT_DATE) as todayChange, " + // Changed DATE to FUNCTION('DATE', ...)
            "'+' as changeDirection " +
            "UNION ALL " +
            "SELECT " +
            "'APPLICATIONS' as metric, " +
            "(SELECT COUNT(la) FROM LoanApplication la) as value, " +
-           "(SELECT COUNT(la) FROM LoanApplication la WHERE DATE(la.appliedAt) = CURRENT_DATE) as todayChange, " +
+           "(SELECT COUNT(la) FROM LoanApplication la WHERE FUNCTION('DATE', la.appliedAt) = CURRENT_DATE) as todayChange, " + // Changed DATE to FUNCTION('DATE', ...)
            "'+' as changeDirection " +
            "UNION ALL " +
            "SELECT " +
            "'PENDING' as metric, " +
            "(SELECT COUNT(la) FROM LoanApplication la WHERE la.status = 'PENDING') as value, " +
-           "(SELECT COUNT(la) FROM LoanApplication la WHERE la.status = 'PENDING' AND DATE(la.appliedAt) = CURRENT_DATE) as todayChange, " +
+           "(SELECT COUNT(la) FROM LoanApplication la WHERE la.status = 'PENDING' AND FUNCTION('DATE', la.appliedAt) = CURRENT_DATE) as todayChange, " + // Changed DATE to FUNCTION('DATE', ...)
            "'+' as changeDirection " +
            "UNION ALL " +
            "SELECT " +
            "'APPROVED_AMOUNT' as metric, " +
            "(SELECT COALESCE(SUM(la.requestedAmount), 0) FROM LoanApplication la WHERE la.status = 'APPROVED') as value, " +
-           "(SELECT COALESCE(SUM(la.requestedAmount), 0) FROM LoanApplication la WHERE la.status = 'APPROVED' AND DATE(la.approvedAt) = CURRENT_DATE) as todayChange, " +
+           "(SELECT COALESCE(SUM(la.requestedAmount), 0) FROM LoanApplication la WHERE la.status = 'APPROVED' AND FUNCTION('DATE', la.approvedAt) = CURRENT_DATE) as todayChange, " + // Changed DATE to FUNCTION('DATE', ...)
            "'+' as changeDirection")
     List<Object[]> getQuickStatsCards();
 
@@ -323,10 +322,10 @@ public interface DashboardRepository extends JpaRepository<Object, String> {
      * Тусгайлсан dashboard query
      */
     @Query("SELECT " +
-           "DATE_FORMAT(:date, '%Y-%m-%d') as queryDate, " +
-           "(SELECT COUNT(la) FROM LoanApplication la WHERE DATE(la.appliedAt) = :date) as applicationsOnDate, " +
-           "(SELECT COUNT(c) FROM Customer c WHERE DATE(c.createdAt) = :date) as customersOnDate, " +
-           "(SELECT COUNT(d) FROM Document d WHERE DATE(d.uploadedAt) = :date) as documentsOnDate, " +
-           "(SELECT COUNT(al) FROM AuditLog al WHERE DATE(al.changedAt) = :date) as actionsOnDate")
+           "FUNCTION('DATE_FORMAT', :date, '%Y-%m-%d') as queryDate, " + // Changed DATE_FORMAT to FUNCTION('DATE_FORMAT', ...)
+           "(SELECT COUNT(la) FROM LoanApplication la WHERE FUNCTION('DATE', la.appliedAt) = :date) as applicationsOnDate, " + // Changed DATE to FUNCTION('DATE', ...)
+           "(SELECT COUNT(c) FROM Customer c WHERE FUNCTION('DATE', c.createdAt) = :date) as customersOnDate, " + // Changed DATE to FUNCTION('DATE', ...)
+           "(SELECT COUNT(d) FROM Document d WHERE FUNCTION('DATE', d.uploadedAt) = :date) as documentsOnDate, " + // Changed DATE to FUNCTION('DATE', ...)
+           "(SELECT COUNT(al) FROM AuditLog al WHERE FUNCTION('DATE', al.changedAt) = :date) as actionsOnDate") // Changed DATE to FUNCTION('DATE', ...)
     Object[] getDashboardStatsForDate(@Param("date") LocalDateTime date);
 }

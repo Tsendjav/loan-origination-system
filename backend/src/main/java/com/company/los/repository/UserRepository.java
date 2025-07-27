@@ -13,14 +13,16 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Хэрэглэгчийн Repository
  * User Repository Interface for Spring Security
  */
 @Repository
-public interface UserRepository extends JpaRepository<User, String> {
+public interface UserRepository extends JpaRepository<User, UUID> {
 
     // Spring Security үүрэг
     /**
@@ -67,12 +69,13 @@ public interface UserRepository extends JpaRepository<User, String> {
     /**
      * Менежерээр хайх
      */
-    Page<User> findByManager(User manager, Pageable pageable);
+    List<User> findByManager(User manager);
 
     /**
-     * Менежерийн ID-гаар хайх
+     * Менежерийн ID-гаар хайх (UUID төрөл ашиглана)
      */
-    Page<User> findByManagerId(String managerId, Pageable pageable);
+    @Query("SELECT u FROM User u WHERE u.manager.id = :managerId")
+    List<User> findByManagerId(@Param("managerId") UUID managerId);
 
     /**
      * Статусаар хайх
@@ -143,10 +146,10 @@ public interface UserRepository extends JpaRepository<User, String> {
     Page<User> findManagers(Pageable pageable);
 
     /**
-     * Менежерийн доор нь ажилладаг хүмүүс
+     * Менежерийн доор нь ажилладаг хүмүүс (UUID төрөл ашиглана)
      */
     @Query("SELECT u FROM User u WHERE u.manager.id = :managerId")
-    List<User> findSubordinates(@Param("managerId") String managerId);
+    List<User> findSubordinates(@Param("managerId") UUID managerId);
 
     /**
      * Менежергүй хэрэглэгчид
@@ -254,15 +257,15 @@ public interface UserRepository extends JpaRepository<User, String> {
     /**
      * Өнөөдөр бүртгүүлсэн хэрэглэгчид
      */
-    @Query("SELECT u FROM User u WHERE DATE(u.createdAt) = CURRENT_DATE")
+    @Query("SELECT u FROM User u WHERE FUNCTION('DATE', u.createdAt) = CURRENT_DATE")
     List<User> findTodayRegistered();
 
     /**
      * Энэ сард бүртгүүлсэн хэрэглэгчид
      */
     @Query("SELECT u FROM User u WHERE " +
-           "YEAR(u.createdAt) = YEAR(CURRENT_DATE) AND " +
-           "MONTH(u.createdAt) = MONTH(CURRENT_DATE)")
+           "FUNCTION('YEAR', u.createdAt) = FUNCTION('YEAR', CURRENT_DATE) AND " +
+           "FUNCTION('MONTH', u.createdAt) = FUNCTION('MONTH', CURRENT_DATE)")
     List<User> findThisMonthRegistered();
 
     /**
@@ -303,19 +306,19 @@ public interface UserRepository extends JpaRepository<User, String> {
     /**
      * Сарын хэрэглэгчийн статистик
      */
-    @Query("SELECT FORMATDATETIME(u.createdAt, 'yyyy-MM'), COUNT(u) FROM User u " +
+    @Query("SELECT FUNCTION('FORMATDATETIME', u.createdAt, 'yyyy-MM'), COUNT(u) FROM User u " +
            "WHERE u.createdAt >= :startDate " +
-           "GROUP BY FORMATDATETIME(u.createdAt, 'yyyy-MM') " +
-           "ORDER BY FORMATDATETIME(u.createdAt, 'yyyy-MM')")
+           "GROUP BY FUNCTION('FORMATDATETIME', u.createdAt, 'yyyy-MM') " +
+           "ORDER BY FUNCTION('FORMATDATETIME', u.createdAt, 'yyyy-MM')")
     List<Object[]> getMonthlyUserStats(@Param("startDate") LocalDateTime startDate);
 
     /**
      * Нэвтрэх үйл ажиллагааны статистик
      */
-    @Query("SELECT FORMATDATETIME(u.lastLoginAt, 'yyyy-MM-dd'), COUNT(u) FROM User u " +
+    @Query("SELECT FUNCTION('FORMATDATETIME', u.lastLoginAt, 'yyyy-MM-dd'), COUNT(u) FROM User u " +
            "WHERE u.lastLoginAt BETWEEN :startDate AND :endDate " +
-           "GROUP BY FORMATDATETIME(u.lastLoginAt, 'yyyy-MM-dd') " +
-           "ORDER BY FORMATDATETIME(u.lastLoginAt, 'yyyy-MM-dd')")
+           "GROUP BY FUNCTION('FORMATDATETIME', u.lastLoginAt, 'yyyy-MM-dd') " +
+           "ORDER BY FUNCTION('FORMATDATETIME', u.lastLoginAt, 'yyyy-MM-dd')")
     List<Object[]> getLoginStats(@Param("startDate") LocalDateTime startDate,
                                @Param("endDate") LocalDateTime endDate);
 
@@ -342,15 +345,15 @@ public interface UserRepository extends JpaRepository<User, String> {
            "(:managerId IS NULL OR u.manager.id = :managerId) AND " +
            "(:enabled IS NULL OR u.isActive = :enabled) AND " +
            "(:twoFactorEnabled IS NULL OR u.twoFactorEnabled = :twoFactorEnabled) AND " +
-           "(:hasRoles IS NULL OR (SIZE(u.roles) > 0) = :hasRoles) AND " +
-           "(:hasSubordinates IS NULL OR (SIZE(u.subordinates) > 0) = :hasSubordinates) AND " +
+           "(:hasRoles IS NULL OR (:hasRoles = TRUE AND SIZE(u.roles) > 0) OR (:hasRoles = FALSE AND SIZE(u.roles) = 0)) AND " +
+           "(:hasSubordinates IS NULL OR (:hasSubordinates = TRUE AND SIZE(u.subordinates) > 0) OR (:hasSubordinates = FALSE AND SIZE(u.subordinates) = 0)) AND " +
            "(:startDate IS NULL OR u.createdAt >= :startDate) AND " +
            "(:endDate IS NULL OR u.createdAt <= :endDate)")
     Page<User> findByAdvancedFilters(
             @Param("status") User.UserStatus status,
             @Param("department") String department,
             @Param("position") String position,
-            @Param("managerId") String managerId,
+            @Param("managerId") UUID managerId,
             @Param("enabled") Boolean enabled,
             @Param("twoFactorEnabled") Boolean twoFactorEnabled,
             @Param("hasRoles") Boolean hasRoles,
@@ -365,7 +368,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Modifying
     @Query("UPDATE User u SET u.status = :newStatus, u.isActive = :enabled, u.updatedBy = :updatedBy, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id IN :userIds")
-    int updateStatusForUsers(@Param("userIds") List<String> userIds,
+    int updateStatusForUsers(@Param("userIds") List<UUID> userIds,
                            @Param("newStatus") User.UserStatus newStatus,
                            @Param("enabled") Boolean enabled,
                            @Param("updatedBy") String updatedBy);
@@ -375,80 +378,101 @@ public interface UserRepository extends JpaRepository<User, String> {
      */
     @Modifying
     @Query("UPDATE User u SET u.failedLoginAttempts = 0, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id IN :userIds")
-    int resetFailedAttempts(@Param("userIds") List<String> userIds);
+    int resetFailedAttempts(@Param("userIds") List<UUID> userIds);
 
     /**
      * Хэрэглэгчдийн нууц үг сэргээх шаардлагатай гэж тэмдэглэх
      */
     @Modifying
     @Query("UPDATE User u SET u.passwordExpiresAt = CURRENT_TIMESTAMP, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id IN :userIds")
-    int markPasswordExpired(@Param("userIds") List<String> userIds);
+    int markPasswordExpired(@Param("userIds") List<UUID> userIds);
 
     /**
      * Олон хэрэглэгчийг түгжих
      */
     @Modifying
     @Query("UPDATE User u SET u.isLocked = true, u.status = 'LOCKED', u.updatedBy = :updatedBy, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id IN :userIds")
-    int lockUsers(@Param("userIds") List<String> userIds, @Param("updatedBy") String updatedBy);
+    int lockUsers(@Param("userIds") List<UUID> userIds, @Param("updatedBy") String updatedBy);
 
     /**
      * Олон хэрэглэгчийг түгжээг тайлах
      */
     @Modifying
     @Query("UPDATE User u SET u.isLocked = false, u.status = 'ACTIVE', u.failedLoginAttempts = 0, u.updatedBy = :updatedBy, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id IN :userIds")
-    int unlockUsers(@Param("userIds") List<String> userIds, @Param("updatedBy") String updatedBy);
+    int unlockUsers(@Param("userIds") List<UUID> userIds, @Param("updatedBy") String updatedBy);
 
     /**
      * Хэлтэс өөрчлөх
      */
     @Modifying
     @Query("UPDATE User u SET u.department = :newDepartment, u.updatedBy = :updatedBy, u.updatedAt = CURRENT_TIMESTAMP WHERE u.id IN :userIds")
-    int updateDepartmentForUsers(@Param("userIds") List<String> userIds,
+    int updateDepartmentForUsers(@Param("userIds") List<UUID> userIds,
                                @Param("newDepartment") String newDepartment,
                                @Param("updatedBy") String updatedBy);
 
     // Performance хяналт
     /**
-     * Хамгийн идэвхтэй хэрэглэгчид (сүүлийн нэвтрэхээр)
+     * Менежерийн шулуун доор нь ажилладаг хүмүүс
      */
-    @Query("SELECT u FROM User u WHERE u.lastLoginAt IS NOT NULL " +
-           "ORDER BY u.lastLoginAt DESC")
-    Page<User> findMostActiveUsers(Pageable pageable);
+    @Query("SELECT u FROM User u WHERE u.manager.id = :managerId " +
+           "ORDER BY u.position, u.lastName, u.firstName")
+    List<User> findDirectReports(@Param("managerId") UUID managerId);
+
+    // Security audit
+    /**
+     * Эрсдэлтэй хэрэглэгчид
+     */
+    @Query("SELECT DISTINCT u FROM User u " +
+           "JOIN u.roles r " +
+           "JOIN r.permissions p " +
+           "WHERE p.action IN ('DELETE', 'APPROVE', 'AUDIT') AND " +
+           "p.resource IN ('SYSTEM', 'USER', 'ROLE')")
+    List<User> findHighRiskUsers();
 
     /**
-     * Хамгийн идэвхгүй хэрэглэгчид
+     * Олон эрхтэй хэрэглэгчид
      */
-    @Query("SELECT u FROM User u ORDER BY COALESCE(u.lastLoginAt, u.createdAt) ASC")
-    Page<User> findLeastActiveUsers(Pageable pageable);
+    @Query("SELECT u, COUNT(DISTINCT p) as permissionCount FROM User u " +
+           "JOIN u.roles r " +
+           "JOIN r.permissions p " +
+           "GROUP BY u " +
+           "HAVING COUNT(DISTINCT p) > :permissionThreshold " +
+           "ORDER BY permissionCount DESC")
+    List<Object[]> findUsersWithTooManyPermissions(@Param("permissionThreshold") int permissionThreshold);
 
-    // Админ функц
+    // Data quality
     /**
-     * Админ эрхтэй хэрэглэгчид
+     * Дутуу мэдээлэлтэй хэрэглэгчид
      */
-    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE " +
-           "r.name LIKE '%ADMIN%'")
-    List<User> findAdminUsers();
-
-    /**
-     * Системийн хэрэглэгчид (дүр бүхий)
-     */
-    @Query("SELECT u FROM User u WHERE SIZE(u.roles) > 0")
-    Page<User> findSystemUsers(Pageable pageable);
-
-    /**
-     * Энгийн хэрэглэгчид (дүргүй)
-     */
-    @Query("SELECT u FROM User u WHERE SIZE(u.roles) = 0")
-    Page<User> findRegularUsers(Pageable pageable);
+    @Query("SELECT u FROM User u WHERE " +
+           "u.firstName IS NULL OR u.firstName = '' OR " +
+           "u.lastName IS NULL OR u.lastName = '' OR " +
+           "u.email IS NULL OR u.email = '' OR " +
+           "u.department IS NULL OR u.department = ''")
+    List<User> findUsersWithIncompleteProfiles();
 
     /**
-     * Менежер эрхтэй хэрэглэгчид
+     * Ажлын мэдээлэл дутуу хэрэглэгчид
      */
-    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE " +
-           "r.name LIKE '%MANAGER%' OR SIZE(u.subordinates) > 0")
-    List<User> findManagerUsers();
+    @Query("SELECT u FROM User u WHERE " +
+           "u.employeeId IS NULL OR u.position IS NULL OR u.department IS NULL")
+    List<User> findUsersWithIncompleteWorkInfo();
 
-    // Эрхийн шалгалт
+    /**
+     * Хэрэглэгчийн нэр давхцаж байгаа эсэхийг шалгах (ID-гаар хасах)
+     */
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE " +
+            "LOWER(u.username) = LOWER(:username) AND u.id != :excludeId")
+    boolean existsByUsernameIgnoreCaseAndIdNot(@Param("username") String username, @Param("excludeId") UUID excludeId);
+
+    /**
+     * И-мэйл давхцаж байгаа эсэхийг шалгах (ID-гаар хасах)
+     */
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE " +
+            "LOWER(u.email) = LOWER(:email) AND u.id != :excludeId")
+    boolean existsByEmailIgnoreCaseAndIdNot(@Param("email") String email, @Param("excludeId") UUID excludeId);
+
+    // Permission and authorization methods
     /**
      * Resource дээр эрхтэй хэрэглэгчид
      */
@@ -468,8 +492,8 @@ public interface UserRepository extends JpaRepository<User, String> {
            "AND p.action = :action " +
            "AND u.isActive = true " +
            "AND u.isLocked = false")
-    boolean userHasResourcePermission(@Param("userId") String userId, 
-                                     @Param("resource") String resource, 
+    boolean userHasResourcePermission(@Param("userId") UUID userId,
+                                     @Param("resource") String resource,
                                      @Param("action") String action);
 
     /**
@@ -479,21 +503,21 @@ public interface UserRepository extends JpaRepository<User, String> {
            "JOIN p.roles r " +
            "JOIN r.users u " +
            "WHERE u.id = :userId")
-    List<Permission> findUserPermissions(@Param("userId") String userId);
+    List<Permission> findUserPermissions(@Param("userId") UUID userId);
 
     // Dashboard статистик
     /**
      * Өнөөдрийн хэрэглэгчийн статистик
      */
-    @Query("SELECT " +
-           "COUNT(CASE WHEN DATE(u.createdAt) = CURRENT_DATE THEN 1 END) as todayRegistered, " +
+    @Query("SELECT new map(" +
+           "COUNT(CASE WHEN FUNCTION('DATE', u.createdAt) = CURRENT_DATE THEN 1 END) as todayRegistered, " +
            "COUNT(CASE WHEN u.isActive = true AND u.isLocked = false THEN 1 END) as activeUsers, " +
            "COUNT(CASE WHEN u.isLocked = true THEN 1 END) as lockedUsers, " +
-           "COUNT(CASE WHEN DATE(u.lastLoginAt) = CURRENT_DATE THEN 1 END) as todayLoggedIn, " +
+           "COUNT(CASE WHEN FUNCTION('DATE', u.lastLoginAt) = CURRENT_DATE THEN 1 END) as todayLoggedIn, " +
            "COUNT(CASE WHEN u.isEmailVerified = false THEN 1 END) as unverifiedEmails, " +
-           "COUNT(CASE WHEN u.failedLoginAttempts >= 3 THEN 1 END) as withFailedAttempts " +
+           "COUNT(CASE WHEN u.failedLoginAttempts >= 3 THEN 1 END) as withFailedAttempts) " +
            "FROM User u")
-    Object[] getTodayUserStats();
+    Map<String, Object> getTodayUserStats();
 
     /**
      * Хэрэглэгчийн үндсэн статистик
@@ -541,50 +565,44 @@ public interface UserRepository extends JpaRepository<User, String> {
     @Query("SELECT u FROM User u WHERE u.manager IS NULL ORDER BY u.department, u.position")
     List<User> findTopLevelManagers();
 
+    // Performance хяналт
     /**
-     * Менежерийн шулуун доор нь ажилладаг хүмүүс
+     * Хамгийн идэвхтэй хэрэглэгчид (сүүлийн нэвтрэхээр)
      */
-    @Query("SELECT u FROM User u WHERE u.manager.id = :managerId " +
-           "ORDER BY u.position, u.lastName, u.firstName")
-    List<User> findDirectReports(@Param("managerId") String managerId);
-
-    // Security audit
-    /**
-     * Эрсдэлтэй хэрэглэгчид
-     */
-    @Query("SELECT DISTINCT u FROM User u " +
-           "JOIN u.roles r " +
-           "JOIN r.permissions p " +
-           "WHERE p.action IN ('DELETE', 'APPROVE', 'AUDIT') AND " +
-           "p.resource IN ('SYSTEM', 'USER', 'ROLE')")
-    List<User> findHighRiskUsers();
+    @Query("SELECT u FROM User u WHERE u.lastLoginAt IS NOT NULL " +
+           "ORDER BY u.lastLoginAt DESC")
+    Page<User> findMostActiveUsers(Pageable pageable);
 
     /**
-     * Олон эрхтэй хэрэглэгчид
+     * Хамгийн идэвхгүй хэрэглэгчид
      */
-    @Query("SELECT u, COUNT(DISTINCT p) as permissionCount FROM User u " +
-           "JOIN u.roles r " +
-           "JOIN r.permissions p " +
-           "GROUP BY u " +
-           "HAVING COUNT(DISTINCT p) > :permissionThreshold " +
-           "ORDER BY permissionCount DESC")
-    List<Object[]> findUsersWithTooManyPermissions(@Param("permissionThreshold") int permissionThreshold);
+    @Query("SELECT u FROM User u ORDER BY COALESCE(u.lastLoginAt, u.createdAt) ASC")
+    Page<User> findLeastActiveUsers(Pageable pageable);
 
-    // Data quality
+    // Админ функц
     /**
-     * Дутуу мэдээлэлтэй хэрэглэгчид
+     * Админ эрхтэй хэрэглэгчид
      */
-    @Query("SELECT u FROM User u WHERE " +
-           "u.firstName IS NULL OR u.firstName = '' OR " +
-           "u.lastName IS NULL OR u.lastName = '' OR " +
-           "u.email IS NULL OR u.email = '' OR " +
-           "u.department IS NULL OR u.department = ''")
-    List<User> findUsersWithIncompleteProfiles();
+    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE " +
+           "r.name LIKE '%ADMIN%'")
+    List<User> findAdminUsers();
 
     /**
-     * Ажлын мэдээлэл дутуу хэрэглэгчид
+     * Системийн хэрэглэгчид (дүр бүхий)
      */
-    @Query("SELECT u FROM User u WHERE " +
-           "u.employeeId IS NULL OR u.position IS NULL OR u.department IS NULL")
-    List<User> findUsersWithIncompleteWorkInfo();
+    @Query("SELECT u FROM User u WHERE SIZE(u.roles) > 0")
+    Page<User> findSystemUsers(Pageable pageable);
+
+    /**
+     * Энгийн хэрэглэгчид (дүргүй)
+     */
+    @Query("SELECT u FROM User u WHERE SIZE(u.roles) = 0")
+    Page<User> findRegularUsers(Pageable pageable);
+
+    /**
+     * Менежер эрхтэй хэрэглэгчид
+     */
+    @Query("SELECT DISTINCT u FROM User u JOIN u.roles r WHERE " +
+           "r.name LIKE '%MANAGER%' OR SIZE(u.subordinates) > 0")
+    List<User> findManagerUsers();
 }

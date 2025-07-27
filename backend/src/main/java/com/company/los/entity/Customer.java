@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Харилцагчийн Entity
@@ -21,7 +22,8 @@ import java.util.List;
         @Index(name = "idx_customer_register_number", columnList = "register_number", unique = true),
         @Index(name = "idx_customer_phone", columnList = "phone"),
         @Index(name = "idx_customer_email", columnList = "email"),
-        @Index(name = "idx_customer_type", columnList = "customer_type")
+        @Index(name = "idx_customer_type", columnList = "customer_type"),
+        @Index(name = "idx_customer_province", columnList = "province")
 })
 @SQLDelete(sql = "UPDATE customers SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
@@ -65,6 +67,7 @@ public class Customer extends BaseEntity {
         PENDING("PENDING", "Хүлээгдэж байгаа"),
         IN_PROGRESS("IN_PROGRESS", "Боловсруулж байгаа"),
         COMPLETED("COMPLETED", "Дууссан"),
+        REJECTED("REJECTED", "Татгалзсан"),
         FAILED("FAILED", "Амжилтгүй");
 
         private final String code;
@@ -152,9 +155,17 @@ public class Customer extends BaseEntity {
     @Size(max = 100, message = "Муж/Аймаг 100 тэмдэгтээс ихгүй байх ёстой")
     private String state;
 
+    @Column(name = "province", length = 100)
+    @Size(max = 100, message = "Аймаг 100 тэмдэгтээс ихгүй байх ёстой")
+    private String province;
+
     @Column(name = "zip_code", length = 20)
     @Size(max = 20, message = "Шуудангийн код 20 тэмдэгтээс ихгүй байх ёстой")
     private String zipCode;
+
+    @Column(name = "postal_code", length = 20)
+    @Size(max = 20, message = "Шуудангийн код 20 тэмдэгтээс ихгүй байх ёстой")
+    private String postalCode;
 
     @Column(name = "country", length = 100)
     @Size(max = 100, message = "Улс 100 тэмдэгтээс ихгүй байх ёстой")
@@ -183,6 +194,9 @@ public class Customer extends BaseEntity {
     @Column(name = "employment_start_date")
     private LocalDate employmentStartDate;
 
+    @Column(name = "work_experience_years")
+    private Integer workExperienceYears;
+
     // Банкны мэдээлэл
     @Column(name = "bank_name", length = 100)
     @Size(max = 100, message = "Банкны нэр 100 тэмдэгтээс ихгүй байх ёстой")
@@ -192,6 +206,15 @@ public class Customer extends BaseEntity {
     @Size(max = 50, message = "Дансны дугаар 50 тэмдэгтээс ихгүй байх ёстой")
     private String accountNumber;
 
+    // Business related fields
+    @Column(name = "business_registration_number", length = 50)
+    @Size(max = 50, message = "Бизнес регистрийн дугаар 50 тэмдэгтээс ихгүй байх ёстой")
+    private String businessRegistrationNumber;
+
+    @Column(name = "annual_revenue", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Жилийн орлого сөрөг байж болохгүй")
+    private BigDecimal annualRevenue;
+
     // KYC статус
     @Column(name = "kyc_status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
@@ -200,6 +223,10 @@ public class Customer extends BaseEntity {
 
     @Column(name = "kyc_completed_at")
     private LocalDateTime kycCompletedAt;
+
+    @Column(name = "kyc_verified_by", length = 100)
+    @Size(max = 100, message = "KYC хянасан хүн 100 тэмдэгтээс ихгүй байх ёстой")
+    private String kycVerifiedBy;
 
     @Column(name = "risk_rating", length = 20)
     private String riskRating = "LOW"; // 'LOW', 'MEDIUM', 'HIGH'
@@ -215,22 +242,6 @@ public class Customer extends BaseEntity {
     // Active status for compatibility
     @Column(name = "is_active")
     private Boolean isActive = true;
-
-    // Additional fields for DTO compatibility
-    @Transient
-    private String province;
-
-    @Transient
-    private String postalCode;
-
-    @Transient
-    private Integer workExperienceYears;
-
-    @Transient
-    private String businessRegistrationNumber;
-
-    @Transient
-    private BigDecimal annualRevenue;
 
     // Зээлийн хүсэлтүүд
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -318,6 +329,10 @@ public class Customer extends BaseEntity {
             if (addressBuilder.length() > 0) addressBuilder.append(", ");
             addressBuilder.append(state.trim());
         }
+        if (province != null && !province.trim().isEmpty()) {
+            if (addressBuilder.length() > 0) addressBuilder.append(", ");
+            addressBuilder.append(province.trim());
+        }
         if (zipCode != null && !zipCode.trim().isEmpty()) {
             if (addressBuilder.length() > 0) addressBuilder.append(" ");
             addressBuilder.append(zipCode.trim());
@@ -381,8 +396,14 @@ public class Customer extends BaseEntity {
     public String getState() { return state; }
     public void setState(String state) { this.state = state; }
 
+    public String getProvince() { return province; }
+    public void setProvince(String province) { this.province = province; }
+
     public String getZipCode() { return zipCode; }
     public void setZipCode(String zipCode) { this.zipCode = zipCode; }
+
+    public String getPostalCode() { return postalCode; }
+    public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
 
     public String getCountry() { return country; }
     public void setCountry(String country) { this.country = country; }
@@ -405,17 +426,29 @@ public class Customer extends BaseEntity {
     public LocalDate getEmploymentStartDate() { return employmentStartDate; }
     public void setEmploymentStartDate(LocalDate employmentStartDate) { this.employmentStartDate = employmentStartDate; }
 
+    public Integer getWorkExperienceYears() { return workExperienceYears; }
+    public void setWorkExperienceYears(Integer workExperienceYears) { this.workExperienceYears = workExperienceYears; }
+
     public String getBankName() { return bankName; }
     public void setBankName(String bankName) { this.bankName = bankName; }
 
     public String getAccountNumber() { return accountNumber; }
     public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
 
+    public String getBusinessRegistrationNumber() { return businessRegistrationNumber; }
+    public void setBusinessRegistrationNumber(String businessRegistrationNumber) { this.businessRegistrationNumber = businessRegistrationNumber; }
+
+    public BigDecimal getAnnualRevenue() { return annualRevenue; }
+    public void setAnnualRevenue(BigDecimal annualRevenue) { this.annualRevenue = annualRevenue; }
+
     public KycStatus getKycStatus() { return kycStatus; }
     public void setKycStatus(KycStatus kycStatus) { this.kycStatus = kycStatus; }
 
     public LocalDateTime getKycCompletedAt() { return kycCompletedAt; }
     public void setKycCompletedAt(LocalDateTime kycCompletedAt) { this.kycCompletedAt = kycCompletedAt; }
+
+    public String getKycVerifiedBy() { return kycVerifiedBy; }
+    public void setKycVerifiedBy(String kycVerifiedBy) { this.kycVerifiedBy = kycVerifiedBy; }
 
     public String getRiskRating() { return riskRating; }
     public void setRiskRating(String riskRating) { this.riskRating = riskRating; }
@@ -428,22 +461,6 @@ public class Customer extends BaseEntity {
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
-
-    // DTO compatibility getters/setters
-    public String getProvince() { return province; }
-    public void setProvince(String province) { this.province = province; }
-
-    public String getPostalCode() { return postalCode; }
-    public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
-
-    public Integer getWorkExperienceYears() { return workExperienceYears; }
-    public void setWorkExperienceYears(Integer workExperienceYears) { this.workExperienceYears = workExperienceYears; }
-
-    public String getBusinessRegistrationNumber() { return businessRegistrationNumber; }
-    public void setBusinessRegistrationNumber(String businessRegistrationNumber) { this.businessRegistrationNumber = businessRegistrationNumber; }
-
-    public BigDecimal getAnnualRevenue() { return annualRevenue; }
-    public void setAnnualRevenue(BigDecimal annualRevenue) { this.annualRevenue = annualRevenue; }
 
     public List<LoanApplication> getLoanApplications() { return loanApplications; }
     public void setLoanApplications(List<LoanApplication> loanApplications) { this.loanApplications = loanApplications; }

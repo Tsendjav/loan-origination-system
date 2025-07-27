@@ -173,6 +173,7 @@ public class CreateLoanRequestDto {
     public LoanApplicationDto toLoanApplicationDto() {
         LoanApplicationDto dto = new LoanApplicationDto();
         dto.setCustomerId(this.customerId);
+        dto.setLoanProductId(this.loanProductId);
         dto.setLoanType(this.loanType);
         dto.setRequestedAmount(this.requestedAmount);
         dto.setRequestedTermMonths(this.requestedTermMonths);

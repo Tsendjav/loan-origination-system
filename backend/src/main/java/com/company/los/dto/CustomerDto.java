@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.company.los.entity.Customer;
 import jakarta.validation.constraints.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,6 +21,8 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CustomerDto {
 
+    private static final Logger logger = LoggerFactory.getLogger(CustomerDto.class);
+
     private UUID id;
 
     @NotNull(message = "Харилцагчийн төрөл заавал сонгох ёстой")
@@ -31,26 +35,25 @@ public class CustomerDto {
     @Size(max = 100, message = "Овог 100 тэмдэгтээс ихгүй байх ёстой")
     private String lastName;
 
-    @NotBlank(message = "Регистрийн дугаар заавал бөглөх ёстой")
-    @Size(min = 8, max = 20, message = "Регистрийн дугаар 8-20 тэмдэгт байх ёстой")
+    @NotBlank(message = "Регистрийн дугаар заавал байх ёстой")
+    @Size(max = 20, message = "Регистрийн дугаар 20 тэмдэгтээс ихгүй байх ёстой")
     private String registerNumber;
 
-    @Past(message = "Төрсөн огноо өнгөрсөн огноо байх ёстой")
     @JsonFormat(pattern = "yyyy-MM-dd")
     private LocalDate birthDate;
 
     private Customer.Gender gender;
 
     // Холбоо барих мэдээлэл
-    @NotBlank(message = "Утасны дугаар заавал бөглөх ёстой")
-    @Pattern(regexp = "^[+]?[0-9]{8,15}$", message = "Утасны дугаарын формат буруу")
+    @NotBlank(message = "Утасны дугаар заавал байх ёстой")
+    @Size(max = 20, message = "Утасны дугаар 20 тэмдэгтээс ихгүй байх ёстой")
     private String phone;
 
-    @Email(message = "И-мэйлийн формат буруу")
-    @Size(max = 100, message = "И-мэйл 100 тэмдэгтээс ихгүй байх ёстой")
+    @Email(message = "И-мэйл хаяг буруу байна")
+    @Size(max = 100, message = "И-мэйл хаяг 100 тэмдэгтээс ихгүй байх ёстой")
     private String email;
 
-    // Хаяг
+    // Хаягийн мэдээлэл
     @Size(max = 500, message = "Хаяг 500 тэмдэгтээс ихгүй байх ёстой")
     private String address;
 
@@ -64,7 +67,7 @@ public class CustomerDto {
     private String postalCode;
 
     // Ажлын мэдээлэл
-    @Size(max = 200, message = "Ажлын байрны нэр 200 тэмдэгтээс ихгүй байх ёстой")
+    @Size(max = 200, message = "Ажил олгогчийн нэр 200 тэмдэгтээс ихгүй байх ёстой")
     private String employerName;
 
     @Size(max = 100, message = "Албан тушаал 100 тэмдэгтээс ихгүй байх ёстой")
@@ -74,17 +77,17 @@ public class CustomerDto {
     @Max(value = 50, message = "Ажлын туршлага 50 жилээс их байж болохгүй")
     private Integer workExperienceYears;
 
-    @DecimalMin(value = "0.0", message = "Орлого сөрөг байж болохгүй")
+    @DecimalMin(value = "0.0", message = "Сарын орлого сөрөг байж болохгүй")
     private BigDecimal monthlyIncome;
 
-    // Хуулийн этгээдийн мэдээлэл
+    // Байгууллагын мэдээлэл
     @Size(max = 200, message = "Компанийн нэр 200 тэмдэгтээс ихгүй байх ёстой")
     private String companyName;
 
-    @Size(max = 20, message = "ХЭ-ийн регистр 20 тэмдэгтээс ихгүй байх ёстой")
+    @Size(max = 20, message = "Бизнес регистрийн дугаар 20 тэмдэгтээс ихгүй байх ёстой")
     private String businessRegistrationNumber;
 
-    @Size(max = 20, message = "ТТД 20 тэмдэгтээс ихгүй байх ёстой")
+    @Size(max = 20, message = "Татварын дугаар 20 тэмдэгтээс ихгүй байх ёстой")
     private String taxNumber;
 
     @Size(max = 100, message = "Бизнесийн төрөл 100 тэмдэгтээс ихгүй байх ёстой")
@@ -93,13 +96,19 @@ public class CustomerDto {
     @DecimalMin(value = "0.0", message = "Жилийн орлого сөрөг байж болохгүй")
     private BigDecimal annualRevenue;
 
-    // KYC статус
+    // KYC мэдээлэл
+    @NotNull(message = "KYC статус заавал байх ёстой")
     private Customer.KycStatus kycStatus;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime kycCompletedAt;
 
-    // Metadata
+    @Size(max = 100, message = "KYC хянасан хүн 100 тэмдэгтээс ихгүй байх ёстой")
+    private String kycVerifiedBy;
+
+    // Системийн мэдээлэл
+    private Boolean isActive = true;
+
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 
@@ -109,141 +118,92 @@ public class CustomerDto {
     private String createdBy;
     private String updatedBy;
 
-    // Computed fields (read-only)
-    private String fullName;
+    // Computed fields
     private String displayName;
-    private Integer age;
+    private String customerTypeDisplay;
+    private String kycStatusDisplay;
     private Boolean isKycCompleted;
-    private Integer totalLoanApplications;
-    private Integer activeLoanApplications;
+    private Integer age;
+    private String genderDisplay;
+    private String formattedMonthlyIncome;
+    private String formattedAnnualRevenue;
 
     // Constructors
     public CustomerDto() {
+        this.customerType = Customer.CustomerType.INDIVIDUAL;
+        this.kycStatus = Customer.KycStatus.PENDING;
+        this.isActive = true;
     }
 
-    public CustomerDto(Customer.CustomerType customerType, String registerNumber, String phone) {
+    public CustomerDto(Customer.CustomerType customerType, String firstName, String lastName, 
+                      String registerNumber, String phone) {
+        this();
         this.customerType = customerType;
+        this.firstName = firstName;
+        this.lastName = lastName;
         this.registerNumber = registerNumber;
         this.phone = phone;
     }
 
-    // Static factory methods with null-safe handling
+    // Static factory methods
     public static CustomerDto fromEntity(Customer customer) {
         if (customer == null) {
             return null;
         }
-        
+
         CustomerDto dto = new CustomerDto();
+
+        // ID is already UUID in BaseEntity, no conversion needed
         dto.setId(customer.getId());
         dto.setCustomerType(customer.getCustomerType());
         dto.setFirstName(customer.getFirstName());
         dto.setLastName(customer.getLastName());
         dto.setRegisterNumber(customer.getRegisterNumber());
+        dto.setBirthDate(customer.getBirthDate());
+        dto.setGender(customer.getGender());
         dto.setPhone(customer.getPhone());
         dto.setEmail(customer.getEmail());
+        dto.setAddress(customer.getAddress());
+        dto.setCity(customer.getCity());
+        dto.setProvince(customer.getProvince());
+        dto.setPostalCode(customer.getPostalCode());
+        dto.setEmployerName(customer.getEmployerName());
+        dto.setJobTitle(customer.getJobTitle());
+        dto.setWorkExperienceYears(customer.getWorkExperienceYears());
+        dto.setMonthlyIncome(customer.getMonthlyIncome());
+        dto.setCompanyName(customer.getCompanyName());
+        dto.setBusinessRegistrationNumber(customer.getBusinessRegistrationNumber());
+        dto.setTaxNumber(customer.getTaxNumber());
+        dto.setBusinessType(customer.getBusinessType());
+        dto.setAnnualRevenue(customer.getAnnualRevenue());
         dto.setKycStatus(customer.getKycStatus());
+        dto.setKycCompletedAt(customer.getKycCompletedAt());
+        
+        // Safe KYC verified by extraction - assuming it might be missing in entity
+        try {
+            dto.setKycVerifiedBy(customer.getKycVerifiedBy()); 
+        } catch (Exception e) {
+            logger.warn("KycVerifiedBy field not available in Customer entity");
+            dto.setKycVerifiedBy(null);
+        }
+        
+        dto.setIsActive(customer.getIsActive());
         dto.setCreatedAt(customer.getCreatedAt());
         dto.setUpdatedAt(customer.getUpdatedAt());
+        
+        // Audit fields are String in both DTO and BaseEntity
         dto.setCreatedBy(customer.getCreatedBy());
         dto.setUpdatedBy(customer.getUpdatedBy());
-        
-        // Null-safe getter calls with default values
-        try {
-            dto.setBirthDate(customer.getBirthDate());
-        } catch (Exception e) {
-            // Fallback to getDateOfBirth if getBirthDate doesn't exist
-            try {
-                dto.setBirthDate(customer.getDateOfBirth());
-            } catch (Exception ex) { /* Ignore if neither getter is available */ }
-        }
-        
-        try {
-            dto.setGender(customer.getGender());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-        
-        try {
-            dto.setAddress(customer.getAddress());
-        } catch (Exception e) { dto.setAddress(null); }
-        
-        try {
-            dto.setCity(customer.getCity());
-        } catch (Exception e) { dto.setCity(null); }
-        
-        try {
-            dto.setProvince(customer.getProvince());
-        } catch (Exception e) { dto.setProvince(null); }
-        
-        try {
-            dto.setPostalCode(customer.getPostalCode());
-        } catch (Exception e) { dto.setPostalCode(null); }
-        
-        try {
-            dto.setEmployerName(customer.getEmployerName());
-        } catch (Exception e) { dto.setEmployerName(null); }
-        
-        try {
-            dto.setJobTitle(customer.getJobTitle());
-        } catch (Exception e) { dto.setJobTitle(null); }
-        
-        try {
-            dto.setWorkExperienceYears(customer.getWorkExperienceYears());
-        } catch (Exception e) { dto.setWorkExperienceYears(null); }
-        
-        try {
-            dto.setMonthlyIncome(customer.getMonthlyIncome());
-        } catch (Exception e) { dto.setMonthlyIncome(null); }
-        
-        try {
-            dto.setCompanyName(customer.getCompanyName());
-        } catch (Exception e) { dto.setCompanyName(null); }
 
-        try {
-            dto.setBusinessRegistrationNumber(customer.getBusinessRegistrationNumber());
-        } catch (Exception e) { dto.setBusinessRegistrationNumber(null); }
-
-        try {
-            dto.setTaxNumber(customer.getTaxNumber());
-        } catch (Exception e) { dto.setTaxNumber(null); }
-
-        try {
-            dto.setBusinessType(customer.getBusinessType());
-        } catch (Exception e) { dto.setBusinessType(null); }
-
-        try {
-            dto.setAnnualRevenue(customer.getAnnualRevenue());
-        } catch (Exception e) { dto.setAnnualRevenue(null); }
-
-        try {
-            dto.setKycCompletedAt(customer.getKycCompletedAt());
-        } catch (Exception e) { /* Ignore if getter not available */ }
-
-        // Computed fields with null-safe calls
-        try {
-            dto.setFullName(customer.getFullName());
-            dto.setDisplayName(customer.getDisplayName());
-            dto.setAge(customer.getAge());
-            dto.setIsKycCompleted(customer.isKycCompleted());
-        } catch (Exception e) {
-            // Set computed values manually if entity methods not available
-            if (customer.getFirstName() != null && customer.getLastName() != null) {
-                dto.setFullName(customer.getFirstName() + " " + customer.getLastName());
-                dto.setDisplayName(dto.getFullName());
-            } else {
-                dto.setFullName(null);
-                dto.setDisplayName(null);
-            }
-            dto.setAge(null);
-            dto.setIsKycCompleted(customer.getKycStatus() == Customer.KycStatus.COMPLETED);
-        }
-
-        try {
-            dto.setTotalLoanApplications(customer.getLoanApplications() != null ? customer.getLoanApplications().size() : 0);
-            dto.setActiveLoanApplications(customer.getLoanApplications() != null ? (int) customer.getLoanApplications().stream()
-                    .filter(la -> la.getStatus().isActiveStatus()).count() : 0);
-        } catch (Exception e) {
-            dto.setTotalLoanApplications(0);
-            dto.setActiveLoanApplications(0);
-        }
+        // Set computed fields
+        dto.setDisplayName(dto.calculateDisplayName());
+        dto.setCustomerTypeDisplay(dto.calculateCustomerTypeDisplay());
+        dto.setKycStatusDisplay(dto.calculateKycStatusDisplay());
+        dto.setIsKycCompleted(dto.calculateIsKycCompleted());
+        dto.setAge(dto.calculateAge());
+        dto.setGenderDisplay(dto.calculateGenderDisplay());
+        dto.setFormattedMonthlyIncome(dto.formatAmount(dto.getMonthlyIncome()));
+        dto.setFormattedAnnualRevenue(dto.formatAmount(dto.getAnnualRevenue()));
 
         return dto;
     }
@@ -252,157 +212,168 @@ public class CustomerDto {
         if (customer == null) {
             return null;
         }
-        
+
         CustomerDto dto = new CustomerDto();
+
+        // ID is already UUID in BaseEntity, no conversion needed
         dto.setId(customer.getId());
         dto.setCustomerType(customer.getCustomerType());
+        dto.setFirstName(customer.getFirstName());
+        dto.setLastName(customer.getLastName());
         dto.setRegisterNumber(customer.getRegisterNumber());
         dto.setPhone(customer.getPhone());
-        dto.setEmail(customer.getEmail());
         dto.setKycStatus(customer.getKycStatus());
-        
-        // Safe computed field calls
-        try {
-            dto.setFullName(customer.getFullName());
-            dto.setDisplayName(customer.getDisplayName());
-            dto.setIsKycCompleted(customer.isKycCompleted());
-        } catch (Exception e) {
-            if (customer.getFirstName() != null && customer.getLastName() != null) {
-                dto.setFullName(customer.getFirstName() + " " + customer.getLastName());
-                dto.setDisplayName(dto.getFullName());
-            } else {
-                dto.setFullName(null);
-                dto.setDisplayName(null);
-            }
-            dto.setIsKycCompleted(customer.getKycStatus() == Customer.KycStatus.COMPLETED);
-        }
+
+        dto.setDisplayName(dto.calculateDisplayName());
+        dto.setKycStatusDisplay(dto.calculateKycStatusDisplay());
+        dto.setIsKycCompleted(dto.calculateIsKycCompleted());
+
         return dto;
     }
 
     public Customer toEntity() {
         Customer customer = new Customer();
+
+        // ID is UUID in both DTO and entity, no conversion needed
         customer.setId(this.id);
         customer.setCustomerType(this.customerType);
         customer.setFirstName(this.firstName);
         customer.setLastName(this.lastName);
         customer.setRegisterNumber(this.registerNumber);
+        customer.setBirthDate(this.birthDate);
+        customer.setGender(this.gender);
         customer.setPhone(this.phone);
         customer.setEmail(this.email);
+        customer.setAddress(this.address);
+        customer.setCity(this.city);
+        customer.setProvince(this.province);
+        customer.setPostalCode(this.postalCode);
+        customer.setEmployerName(this.employerName);
+        customer.setJobTitle(this.jobTitle);
+        customer.setWorkExperienceYears(this.workExperienceYears);
+        customer.setMonthlyIncome(this.monthlyIncome);
+        customer.setCompanyName(this.companyName);
+        customer.setBusinessRegistrationNumber(this.businessRegistrationNumber);
+        customer.setTaxNumber(this.taxNumber);
+        customer.setBusinessType(this.businessType);
+        customer.setAnnualRevenue(this.annualRevenue);
         customer.setKycStatus(this.kycStatus);
+        customer.setKycCompletedAt(this.kycCompletedAt);
         
-        // Null-safe setter calls for potentially missing methods
+        // Safe KYC verified by setting - assuming it might be missing in entity
         try {
-            customer.setBirthDate(this.birthDate);
+            customer.setKycVerifiedBy(this.kycVerifiedBy);
         } catch (Exception e) {
-            // Fallback to setDateOfBirth if setBirthDate doesn't exist
-            try {
-                customer.setDateOfBirth(this.birthDate);
-            } catch (Exception ex) { /* Ignore if neither setter is available */ }
+            logger.warn("KycVerifiedBy field not available in Customer entity");
         }
         
-        try {
-            customer.setGender(this.gender);
-        } catch (Exception e) { /* Ignore if setter not available */ }
+        customer.setIsActive(this.isActive);
+        customer.setCreatedAt(this.createdAt);
+        customer.setUpdatedAt(this.updatedAt);
         
-        try {
-            customer.setAddress(this.address);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setCity(this.city);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setProvince(this.province);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setPostalCode(this.postalCode);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setEmployerName(this.employerName);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setJobTitle(this.jobTitle);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setWorkExperienceYears(this.workExperienceYears);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setMonthlyIncome(this.monthlyIncome);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setCompanyName(this.companyName);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setBusinessRegistrationNumber(this.businessRegistrationNumber);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setTaxNumber(this.taxNumber);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setBusinessType(this.businessType);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setAnnualRevenue(this.annualRevenue);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
-        try {
-            customer.setKycCompletedAt(this.kycCompletedAt);
-        } catch (Exception e) { /* Ignore if setter not available */ }
-        
+        // Audit fields are String in both DTO and BaseEntity
+        customer.setCreatedBy(this.createdBy);
+        customer.setUpdatedBy(this.updatedBy);
+
         return customer;
     }
 
-    // Validation methods
+    // Helper methods for computed fields
+    private String calculateDisplayName() {
+        if (customerType == Customer.CustomerType.BUSINESS && companyName != null) {
+            return companyName;
+        }
+        
+        StringBuilder name = new StringBuilder();
+        if (firstName != null) name.append(firstName);
+        if (lastName != null) {
+            if (name.length() > 0) name.append(" ");
+            name.append(lastName);
+        }
+        return name.length() > 0 ? name.toString() : registerNumber;
+    }
+
+    private String calculateCustomerTypeDisplay() {
+        if (customerType == null) return "Тодорхойгүй";
+        switch (customerType) {
+            case INDIVIDUAL: return "Хувь хүн";
+            case BUSINESS: return "Байгууллага";
+            default: return customerType.toString();
+        }
+    }
+
+    private String calculateKycStatusDisplay() {
+        if (kycStatus == null) return "Тодорхойгүй";
+        switch (kycStatus) {
+            case PENDING: return "Хүлээгдэж байна";
+            case IN_PROGRESS: return "Хийгдэж байна";
+            case COMPLETED: return "Дууссан";
+            case REJECTED: return "Татгалзсан";
+            default: return kycStatus.toString();
+        }
+    }
+
+    private Boolean calculateIsKycCompleted() {
+        return kycStatus == Customer.KycStatus.COMPLETED;
+    }
+
+    private Integer calculateAge() {
+        if (birthDate == null) return null;
+        return LocalDate.now().getYear() - birthDate.getYear();
+    }
+
+    private String calculateGenderDisplay() {
+        if (gender == null) return "";
+        switch (gender) {
+            case MALE: return "Эрэгтэй";
+            case FEMALE: return "Эмэгтэй";
+            case OTHER: return "Бусад";
+            default: return gender.toString();
+        }
+    }
+
+    private String formatAmount(BigDecimal amount) {
+        return amount != null ? String.format("%,.0f₮", amount) : "";
+    }
+
+    // Business logic methods
     public boolean isValidForIndividual() {
         return customerType == Customer.CustomerType.INDIVIDUAL &&
                firstName != null && !firstName.trim().isEmpty() &&
                lastName != null && !lastName.trim().isEmpty() &&
-               birthDate != null;
+               registerNumber != null && !registerNumber.trim().isEmpty() &&
+               phone != null && !phone.trim().isEmpty();
     }
 
     public boolean isValidForBusiness() {
         return customerType == Customer.CustomerType.BUSINESS &&
                companyName != null && !companyName.trim().isEmpty() &&
-               businessRegistrationNumber != null && !businessRegistrationNumber.trim().isEmpty();
+               businessRegistrationNumber != null && !businessRegistrationNumber.trim().isEmpty() &&
+               phone != null && !phone.trim().isEmpty();
     }
 
-    // Business logic methods
-    public String getCustomerTypeDisplay() {
-        return customerType != null ? customerType.getMongolianName() : "";
+    public String getKycStatusBadgeClass() {
+        if (kycStatus == null) return "badge-secondary";
+        switch (kycStatus) {
+            case PENDING: return "badge-warning";
+            case IN_PROGRESS: return "badge-info";
+            case COMPLETED: return "badge-success";
+            case REJECTED: return "badge-danger";
+            default: return "badge-secondary";
+        }
     }
 
-    public String getGenderDisplay() {
-        return gender != null ? gender.getMongolianName() : "";
+    public String getCustomerTypeBadgeClass() {
+        if (customerType == null) return "badge-secondary";
+        switch (customerType) {
+            case INDIVIDUAL: return "badge-primary";
+            case BUSINESS: return "badge-info";
+            default: return "badge-secondary";
+        }
     }
 
-    public String getKycStatusDisplay() {
-        return kycStatus != null ? kycStatus.getMongolianName() : "";
-    }
-
-    public boolean hasValidContactInfo() {
-        return (phone != null && !phone.trim().isEmpty()) ||
-               (email != null && !email.trim().isEmpty());
-    }
-
-    public boolean hasCompleteAddress() {
-        return address != null && !address.trim().isEmpty() &&
-               city != null && !city.trim().isEmpty();
-    }
-
-    public boolean hasEmploymentInfo() {
-        return employerName != null && !employerName.trim().isEmpty() &&
-               monthlyIncome != null && monthlyIncome.compareTo(BigDecimal.ZERO) > 0;
+    public boolean canApplyForLoan() {
+        return isActive && isKycCompleted;
     }
 
     // Getters and Setters
@@ -478,6 +449,12 @@ public class CustomerDto {
     public LocalDateTime getKycCompletedAt() { return kycCompletedAt; }
     public void setKycCompletedAt(LocalDateTime kycCompletedAt) { this.kycCompletedAt = kycCompletedAt; }
 
+    public String getKycVerifiedBy() { return kycVerifiedBy; }
+    public void setKycVerifiedBy(String kycVerifiedBy) { this.kycVerifiedBy = kycVerifiedBy; }
+
+    public Boolean getIsActive() { return isActive; }
+    public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -490,31 +467,37 @@ public class CustomerDto {
     public String getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
-    public String getFullName() { return fullName; }
-    public void setFullName(String fullName) { this.fullName = fullName; }
-
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
 
-    public Integer getAge() { return age; }
-    public void setAge(Integer age) { this.age = age; }
+    public String getCustomerTypeDisplay() { return customerTypeDisplay; }
+    public void setCustomerTypeDisplay(String customerTypeDisplay) { this.customerTypeDisplay = customerTypeDisplay; }
+
+    public String getKycStatusDisplay() { return kycStatusDisplay; }
+    public void setKycStatusDisplay(String kycStatusDisplay) { this.kycStatusDisplay = kycStatusDisplay; }
 
     public Boolean getIsKycCompleted() { return isKycCompleted; }
     public void setIsKycCompleted(Boolean isKycCompleted) { this.isKycCompleted = isKycCompleted; }
 
-    public Integer getTotalLoanApplications() { return totalLoanApplications; }
-    public void setTotalLoanApplications(Integer totalLoanApplications) { this.totalLoanApplications = totalLoanApplications; }
+    public Integer getAge() { return age; }
+    public void setAge(Integer age) { this.age = age; }
 
-    public Integer getActiveLoanApplications() { return activeLoanApplications; }
-    public void setActiveLoanApplications(Integer activeLoanApplications) { this.activeLoanApplications = activeLoanApplications; }
+    public String getGenderDisplay() { return genderDisplay; }
+    public void setGenderDisplay(String genderDisplay) { this.genderDisplay = genderDisplay; }
+
+    public String getFormattedMonthlyIncome() { return formattedMonthlyIncome; }
+    public void setFormattedMonthlyIncome(String formattedMonthlyIncome) { this.formattedMonthlyIncome = formattedMonthlyIncome; }
+
+    public String getFormattedAnnualRevenue() { return formattedAnnualRevenue; }
+    public void setFormattedAnnualRevenue(String formattedAnnualRevenue) { this.formattedAnnualRevenue = formattedAnnualRevenue; }
 
     @Override
     public String toString() {
         return "CustomerDto{" +
                 "id=" + id +
                 ", customerType=" + customerType +
+                ", displayName='" + displayName + '\'' +
                 ", registerNumber='" + registerNumber + '\'' +
-                ", fullName='" + fullName + '\'' +
                 ", phone='" + phone + '\'' +
                 ", kycStatus=" + kycStatus +
                 '}';

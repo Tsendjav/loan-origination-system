@@ -8,28 +8,23 @@ import org.hibernate.annotations.Where;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
-/**
- * Зээлийн бүтээгдэхүүний Entity
- * Loan Product Entity
- */
 @Entity
 @Table(name = "loan_products", indexes = {
-        @Index(name = "idx_loan_product_code", columnList = "product_code", unique = true),
-        @Index(name = "idx_loan_product_name", columnList = "product_name"),
+        @Index(name = "idx_loan_product_name", columnList = "name"),
         @Index(name = "idx_loan_product_type", columnList = "loan_type")
 })
 @SQLDelete(sql = "UPDATE loan_products SET is_deleted = true WHERE id = ?")
 @Where(clause = "is_deleted = false")
 public class LoanProduct extends BaseEntity {
 
-    @Column(name = "product_code", unique = true, nullable = false, length = 20)
-    @NotBlank(message = "Бүтээгдэхүүний код заавал байх ёстой")
-    @Size(max = 20, message = "Бүтээгдэхүүний код 20 тэмдэгтээс ихгүй байх ёстой")
-    private String productCode;
-
-    @Column(name = "product_name", nullable = false, length = 200)
+    @Column(name = "name", nullable = false, length = 200)
     @NotBlank(message = "Бүтээгдэхүүний нэр заавал байх ёстой")
+    @Size(max = 200, message = "Бүтээгдэхүүний нэр 200 тэмдэгтээс ихгүй байх ёстой")
+    private String name;
+
+    @Column(name = "product_name", length = 200)
     @Size(max = 200, message = "Бүтээгдэхүүний нэр 200 тэмдэгтээс ихгүй байх ёстой")
     private String productName;
 
@@ -41,7 +36,6 @@ public class LoanProduct extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    // Дүнгийн хязгаар
     @Column(name = "min_amount", nullable = false, precision = 15, scale = 2)
     @NotNull(message = "Хамгийн бага дүн заавал байх ёстой")
     @DecimalMin(value = "1000.0", message = "Хамгийн бага дүн 1,000-аас их байх ёстой")
@@ -52,7 +46,6 @@ public class LoanProduct extends BaseEntity {
     @DecimalMin(value = "1000.0", message = "Хамгийн их дүн 1,000-аас их байх ёстой")
     private BigDecimal maxAmount;
 
-    // Хугацааны хязгаар
     @Column(name = "min_term_months", nullable = false)
     @NotNull(message = "Хамгийн бага хугацаа заавал байх ёстой")
     @Min(value = 1, message = "Хамгийн бага хугацаа 1 сараас их байх ёстой")
@@ -63,7 +56,11 @@ public class LoanProduct extends BaseEntity {
     @Min(value = 1, message = "Хамгийн их хугацаа 1 сараас их байх ёстой")
     private Integer maxTermMonths;
 
-    // Хүүгийн мэдээлэл
+    @Column(name = "base_rate", precision = 7, scale = 4)
+    @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
+    @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
+    private BigDecimal baseRate;
+
     @Column(name = "min_interest_rate", precision = 5, scale = 4)
     @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
@@ -79,7 +76,17 @@ public class LoanProduct extends BaseEntity {
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal defaultInterestRate;
 
-    // Шаардлагууд
+    @Column(name = "loan_types", length = 500)
+    @Size(max = 500, message = "Зээлийн төрлүүд 500 тэмдэгтээс ихгүй байх ёстой")
+    private String loanTypes;
+
+    @Column(name = "auto_approval_limit", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Автомат зөвшөөрөлийн хязгаар сөрөг байж болохгүй")
+    private BigDecimal autoApprovalLimit;
+
+    @Column(name = "approval_required")
+    private Boolean approvalRequired = true;
+
     @Column(name = "requires_collateral")
     private Boolean requiresCollateral = false;
 
@@ -91,39 +98,65 @@ public class LoanProduct extends BaseEntity {
     @Max(value = 850, message = "Хамгийн бага кредит скор 850-аас их байж болохгүй")
     private Integer minCreditScore;
 
+    @Column(name = "max_debt_ratio", precision = 5, scale = 4)
+    @DecimalMin(value = "0.0", message = "Хамгийн их өрийн харьцаа сөрөг байж болохгүй")
+    @DecimalMax(value = "1.0", message = "Хамгийн их өрийн харьцаа 100%-аас их байж болохгүй")
+    private BigDecimal maxDebtRatio;
+
     @Column(name = "min_income", precision = 15, scale = 2)
     @DecimalMin(value = "0.0", message = "Хамгийн бага орлого сөрөг байж болохгүй")
     private BigDecimal minIncome;
 
-    // Төлбөрийн мэдээлэл
+    @Column(name = "processing_fee", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Боловсруулалтын шимтгэл сөрөг байж болохгүй")
+    private BigDecimal processingFee;
+
     @Column(name = "processing_fee_rate", precision = 5, scale = 4)
-    @DecimalMin(value = "0.0", message = "Шимтгэл сөрөг байж болохгүй")
+    @DecimalMin(value = "0.0", message = "Боловсруулалтын шимтгэлийн хувь сөрөг байж болохгүй")
     private BigDecimal processingFeeRate;
+
+    @Column(name = "early_payment_penalty", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Урьдчилан төлөлтийн торгууль сөрөг байж болохгүй")
+    private BigDecimal earlyPaymentPenalty;
 
     @Column(name = "early_payment_penalty_rate", precision = 5, scale = 4)
     @DecimalMin(value = "0.0", message = "Торгууль сөрөг байж болохгүй")
     private BigDecimal earlyPaymentPenaltyRate;
 
+    @Column(name = "late_payment_penalty", precision = 15, scale = 2)
+    @DecimalMin(value = "0.0", message = "Хожуу төлөлтийн торгууль сөрөг байж болохгүй")
+    private BigDecimal latePaymentPenalty;
+
     @Column(name = "late_payment_penalty_rate", precision = 5, scale = 4)
     @DecimalMin(value = "0.0", message = "Хоцрогдлын торгууль сөрөг байж болохгүй")
     private BigDecimal latePaymentPenaltyRate;
 
-    // Менежментийн мэдээлэл
-    @Column(name = "is_active", nullable = false)
+    @Column(name = "required_documents", columnDefinition = "TEXT")
+    private String requiredDocuments;
+
+    @Column(name = "terms_and_conditions", columnDefinition = "TEXT")
+    private String termsAndConditions;
+
+    @Column(name = "special_conditions", columnDefinition = "TEXT")
+    private String specialConditions;
+
+    @Column(name = "marketing_message", length = 1000)
+    @Size(max = 1000, message = "Маркетингийн мессеж 1000 тэмдэгтээс ихгүй байх ёстой")
+    private String marketingMessage;
+
+    @Column(name = "is_featured")
+    private Boolean isFeatured = false;
+
+    @Column(name = "display_order")
+    @Min(value = 0, message = "Харуулах дараалал сөрөг байж болохгүй")
+    private Integer displayOrder = 0;
+
+    @Column(name = "is_active")
     private Boolean isActive = true;
 
-    @Column(name = "approval_required")
-    private Boolean approvalRequired = true;
-
-    @Column(name = "auto_approval_limit", precision = 15, scale = 2)
-    @DecimalMin(value = "0.0", message = "Автомат зөвшөөрлийн хязгаар сөрөг байж болохгүй")
-    private BigDecimal autoApprovalLimit;
-
-    // Зээлийн хүсэлтүүд
     @OneToMany(mappedBy = "loanProduct", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<LoanApplication> loanApplications = new ArrayList<>();
 
-    // Зээлийн төрөл enum (inner enum)
     public enum LoanType {
         PERSONAL("PERSONAL", "Хувийн зээл"),
         BUSINESS("BUSINESS", "Бизнесийн зээл"),
@@ -144,15 +177,14 @@ public class LoanProduct extends BaseEntity {
         public String getMongolianName() { return mongolianName; }
     }
 
-    // Constructors
     public LoanProduct() {
         super();
     }
 
-    public LoanProduct(String productCode, String productName, LoanType loanType,
+    public LoanProduct(String name, String productName, LoanType loanType,
                       BigDecimal minAmount, BigDecimal maxAmount, Integer minTermMonths, Integer maxTermMonths) {
         this();
-        this.productCode = productCode;
+        this.name = name;
         this.productName = productName;
         this.loanType = loanType;
         this.minAmount = minAmount;
@@ -161,7 +193,6 @@ public class LoanProduct extends BaseEntity {
         this.maxTermMonths = maxTermMonths;
     }
 
-    // Business methods
     public boolean isAmountWithinLimits(BigDecimal amount) {
         return amount != null && 
                amount.compareTo(minAmount) >= 0 && 
@@ -182,7 +213,7 @@ public class LoanProduct extends BaseEntity {
 
     public BigDecimal calculateProcessingFee(BigDecimal loanAmount) {
         if (processingFeeRate == null || loanAmount == null) {
-            return BigDecimal.ZERO;
+            return processingFee != null ? processingFee : BigDecimal.ZERO;
         }
         return loanAmount.multiply(processingFeeRate);
     }
@@ -192,13 +223,11 @@ public class LoanProduct extends BaseEntity {
             throw new IllegalArgumentException("Зээлийн дүн эсвэл хугацаа буруу байна");
         }
 
-        BigDecimal rate = interestRate != null ? interestRate : defaultInterestRate;
+        BigDecimal rate = interestRate != null ? interestRate : defaultInterestRate != null ? defaultInterestRate : baseRate;
         if (rate == null || rate.compareTo(BigDecimal.ZERO) == 0) {
-            // Хүүгүй зээл
             return loanAmount.divide(BigDecimal.valueOf(termMonths), 2, BigDecimal.ROUND_HALF_UP);
         }
 
-        // Compound interest calculation
         BigDecimal monthlyRate = rate.divide(BigDecimal.valueOf(12), 6, BigDecimal.ROUND_HALF_UP);
         BigDecimal onePlusRate = BigDecimal.ONE.add(monthlyRate);
         BigDecimal numerator = loanAmount.multiply(monthlyRate);
@@ -210,17 +239,17 @@ public class LoanProduct extends BaseEntity {
     }
 
     public void enable() {
-        this.isActive = true;
+        this.setIsActive(true);
         this.setUpdatedAt(java.time.LocalDateTime.now());
     }
 
     public void disable() {
-        this.isActive = false;
+        this.setIsActive(false);
         this.setUpdatedAt(java.time.LocalDateTime.now());
     }
 
     public String getDisplayName() {
-        return productName + " (" + productCode + ")";
+        return name + (productName != null && !productName.equals(name) ? " (" + productName + ")" : "");
     }
 
     public String getLoanTypeDisplay() {
@@ -242,13 +271,68 @@ public class LoanProduct extends BaseEntity {
                 maxInterestRate.multiply(BigDecimal.valueOf(100)));
         } else if (defaultInterestRate != null) {
             return String.format("%.2f%%", defaultInterestRate.multiply(BigDecimal.valueOf(100)));
+        } else if (baseRate != null) {
+            return String.format("%.2f%%", baseRate.multiply(BigDecimal.valueOf(100)));
         }
         return "Тодорхойгүй";
     }
 
-    // Getters and Setters
-    public String getProductCode() { return productCode; }
-    public void setProductCode(String productCode) { this.productCode = productCode; }
+    public String getFormattedMinAmount() {
+        return minAmount != null ? String.format("%,.0f₮", minAmount) : "";
+    }
+
+    public String getFormattedMaxAmount() {
+        return maxAmount != null ? String.format("%,.0f₮", maxAmount) : "";
+    }
+
+    public String getFormattedBaseRate() {
+        return baseRate != null ? String.format("%.2f%%", baseRate.multiply(BigDecimal.valueOf(100))) : "";
+    }
+
+    public String getTermText() {
+        return String.format("%d - %d сар", minTermMonths != null ? minTermMonths : 0, 
+                           maxTermMonths != null ? maxTermMonths : 0);
+    }
+
+    public Integer getApplicationCount() {
+        return loanApplications != null ? loanApplications.size() : 0;
+    }
+
+    public BigDecimal getTotalApplicationAmount() {
+        if (loanApplications == null || loanApplications.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+        return loanApplications.stream()
+                .filter(app -> app.getRequestedAmount() != null)
+                .map(LoanApplication::getRequestedAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public Boolean hasValidLimits() {
+        return minAmount != null && maxAmount != null && minAmount.compareTo(maxAmount) <= 0 &&
+               minTermMonths != null && maxTermMonths != null && minTermMonths <= maxTermMonths;
+    }
+
+    public String getValidationErrors() {
+        List<String> errors = new ArrayList<>();
+        
+        if (minAmount != null && maxAmount != null && minAmount.compareTo(maxAmount) > 0) {
+            errors.add("Хамгийн бага дүн их дүнээс их байна");
+        }
+        
+        if (minTermMonths != null && maxTermMonths != null && minTermMonths > maxTermMonths) {
+            errors.add("Хамгийн бага хугацаа их хугацаанаас их байна");
+        }
+        
+        if (minInterestRate != null && maxInterestRate != null && minInterestRate.compareTo(maxInterestRate) > 0) {
+            errors.add("Хамгийн бага хүү их хүүнээс их байна");
+        }
+        
+        return errors.isEmpty() ? null : String.join(", ", errors);
+    }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
 
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
@@ -271,6 +355,9 @@ public class LoanProduct extends BaseEntity {
     public Integer getMaxTermMonths() { return maxTermMonths; }
     public void setMaxTermMonths(Integer maxTermMonths) { this.maxTermMonths = maxTermMonths; }
 
+    public BigDecimal getBaseRate() { return baseRate; }
+    public void setBaseRate(BigDecimal baseRate) { this.baseRate = baseRate; }
+
     public BigDecimal getMinInterestRate() { return minInterestRate; }
     public void setMinInterestRate(BigDecimal minInterestRate) { this.minInterestRate = minInterestRate; }
 
@@ -279,6 +366,15 @@ public class LoanProduct extends BaseEntity {
 
     public BigDecimal getDefaultInterestRate() { return defaultInterestRate; }
     public void setDefaultInterestRate(BigDecimal defaultInterestRate) { this.defaultInterestRate = defaultInterestRate; }
+
+    public String getLoanTypes() { return loanTypes; }
+    public void setLoanTypes(String loanTypes) { this.loanTypes = loanTypes; }
+
+    public BigDecimal getAutoApprovalLimit() { return autoApprovalLimit; }
+    public void setAutoApprovalLimit(BigDecimal autoApprovalLimit) { this.autoApprovalLimit = autoApprovalLimit; }
+
+    public Boolean getApprovalRequired() { return approvalRequired; }
+    public void setApprovalRequired(Boolean approvalRequired) { this.approvalRequired = approvalRequired; }
 
     public Boolean getRequiresCollateral() { return requiresCollateral; }
     public void setRequiresCollateral(Boolean requiresCollateral) { this.requiresCollateral = requiresCollateral; }
@@ -289,36 +385,59 @@ public class LoanProduct extends BaseEntity {
     public Integer getMinCreditScore() { return minCreditScore; }
     public void setMinCreditScore(Integer minCreditScore) { this.minCreditScore = minCreditScore; }
 
+    public BigDecimal getMaxDebtRatio() { return maxDebtRatio; }
+    public void setMaxDebtRatio(BigDecimal maxDebtRatio) { this.maxDebtRatio = maxDebtRatio; }
+
     public BigDecimal getMinIncome() { return minIncome; }
     public void setMinIncome(BigDecimal minIncome) { this.minIncome = minIncome; }
+
+    public BigDecimal getProcessingFee() { return processingFee; }
+    public void setProcessingFee(BigDecimal processingFee) { this.processingFee = processingFee; }
 
     public BigDecimal getProcessingFeeRate() { return processingFeeRate; }
     public void setProcessingFeeRate(BigDecimal processingFeeRate) { this.processingFeeRate = processingFeeRate; }
 
+    public BigDecimal getEarlyPaymentPenalty() { return earlyPaymentPenalty; }
+    public void setEarlyPaymentPenalty(BigDecimal earlyPaymentPenalty) { this.earlyPaymentPenalty = earlyPaymentPenalty; }
+
     public BigDecimal getEarlyPaymentPenaltyRate() { return earlyPaymentPenaltyRate; }
     public void setEarlyPaymentPenaltyRate(BigDecimal earlyPaymentPenaltyRate) { this.earlyPaymentPenaltyRate = earlyPaymentPenaltyRate; }
+
+    public BigDecimal getLatePaymentPenalty() { return latePaymentPenalty; }
+    public void setLatePaymentPenalty(BigDecimal latePaymentPenalty) { this.latePaymentPenalty = latePaymentPenalty; }
 
     public BigDecimal getLatePaymentPenaltyRate() { return latePaymentPenaltyRate; }
     public void setLatePaymentPenaltyRate(BigDecimal latePaymentPenaltyRate) { this.latePaymentPenaltyRate = latePaymentPenaltyRate; }
 
+    public String getRequiredDocuments() { return requiredDocuments; }
+    public void setRequiredDocuments(String requiredDocuments) { this.requiredDocuments = requiredDocuments; }
+
+    public String getTermsAndConditions() { return termsAndConditions; }
+    public void setTermsAndConditions(String termsAndConditions) { this.termsAndConditions = termsAndConditions; }
+
+    public String getSpecialConditions() { return specialConditions; }
+    public void setSpecialConditions(String specialConditions) { this.specialConditions = specialConditions; }
+
+    public String getMarketingMessage() { return marketingMessage; }
+    public void setMarketingMessage(String marketingMessage) { this.marketingMessage = marketingMessage; }
+
+    public Boolean getIsFeatured() { return isFeatured; }
+    public void setIsFeatured(Boolean isFeatured) { this.isFeatured = isFeatured; }
+
+    public Integer getDisplayOrder() { return displayOrder; }
+    public void setDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
+
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
-
-    public Boolean getApprovalRequired() { return approvalRequired; }
-    public void setApprovalRequired(Boolean approvalRequired) { this.approvalRequired = approvalRequired; }
-
-    public BigDecimal getAutoApprovalLimit() { return autoApprovalLimit; }
-    public void setAutoApprovalLimit(BigDecimal autoApprovalLimit) { this.autoApprovalLimit = autoApprovalLimit; }
 
     public List<LoanApplication> getLoanApplications() { return loanApplications; }
     public void setLoanApplications(List<LoanApplication> loanApplications) { this.loanApplications = loanApplications; }
 
-    // toString
     @Override
     public String toString() {
         return "LoanProduct{" +
                 "id=" + getId() +
-                ", productCode='" + productCode + '\'' +
+                ", name='" + name + '\'' +
                 ", productName='" + productName + '\'' +
                 ", loanType=" + loanType +
                 ", minAmount=" + minAmount +

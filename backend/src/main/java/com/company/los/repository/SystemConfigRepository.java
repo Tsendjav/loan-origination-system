@@ -17,7 +17,7 @@ import java.util.Optional;
  * System Configuration Repository Interface
  */
 @Repository
-public interface SystemConfigRepository extends JpaRepository<SystemConfig, String> {
+public interface SystemConfigRepository extends JpaRepository<SystemConfig, String> { // Changed to SystemConfig entity
 
     // Суурь хайлтууд
     /**
@@ -161,14 +161,14 @@ public interface SystemConfigRepository extends JpaRepository<SystemConfig, Stri
     /**
      * Integer утга авах
      */
-    @Query("SELECT CAST(sc.configValue AS INTEGER) FROM SystemConfig sc " +
+    @Query("SELECT CAST(sc.configValue AS int) FROM SystemConfig sc " +
            "WHERE sc.configKey = :configKey AND sc.isActive = true AND sc.valueType = 'INTEGER'")
     Optional<Integer> findIntegerValue(@Param("configKey") String configKey);
 
     /**
      * Decimal утга авах
      */
-    @Query("SELECT CAST(sc.configValue AS DECIMAL) FROM SystemConfig sc " +
+    @Query("SELECT CAST(sc.configValue AS double) FROM SystemConfig sc " +
            "WHERE sc.configKey = :configKey AND sc.isActive = true AND sc.valueType = 'DECIMAL'")
     Optional<java.math.BigDecimal> findDecimalValue(@Param("configKey") String configKey);
 
@@ -228,8 +228,8 @@ public interface SystemConfigRepository extends JpaRepository<SystemConfig, Stri
      * Буруу төрлийн утгатай тохиргоонууд
      */
     @Query("SELECT sc FROM SystemConfig sc WHERE " +
-           "(sc.valueType = 'INTEGER' AND sc.configValue NOT REGEXP '^-?[0-9]+$') OR " +
-           "(sc.valueType = 'DECIMAL' AND sc.configValue NOT REGEXP '^-?[0-9]+(\\.[0-9]+)?$') OR " +
+           "(sc.valueType = 'INTEGER' AND FUNCTION('REGEXP', sc.configValue, '^-?[0-9]+$') = FALSE) OR " + // Changed NOT FUNCTION(...) to FUNCTION(...) = FALSE
+           "(sc.valueType = 'DECIMAL' AND FUNCTION('REGEXP', sc.configValue, '^-?[0-9]+(\\.[0-9]+)?$') = FALSE) OR " + // Changed NOT FUNCTION(...) to FUNCTION(...) = FALSE
            "(sc.valueType = 'BOOLEAN' AND LOWER(sc.configValue) NOT IN ('true', 'false', '1', '0', 'yes', 'no', 'on', 'off'))")
     List<SystemConfig> findInvalidValueConfigs();
 
@@ -369,7 +369,7 @@ public interface SystemConfigRepository extends JpaRepository<SystemConfig, Stri
     @Query("SELECT " +
            "COUNT(sc) as totalConfigs, " +
            "COUNT(CASE WHEN sc.isActive = true THEN 1 END) as activeConfigs, " +
-           "COUNT(CASE WHEN DATE(sc.updatedAt) = CURRENT_DATE THEN 1 END) as updatedToday, " +
+           "COUNT(CASE WHEN FUNCTION('DATE', sc.updatedAt) = CURRENT_DATE THEN 1 END) as updatedToday, " +
            "COUNT(CASE WHEN sc.isRuntimeEditable = false THEN 1 END) as readOnlyConfigs, " +
            "COUNT(DISTINCT sc.category) as categories " +
            "FROM SystemConfig sc")

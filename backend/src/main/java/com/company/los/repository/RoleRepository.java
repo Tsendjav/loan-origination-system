@@ -13,13 +13,14 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Дүрийн Repository
  * Role Repository Interface for RBAC
  */
 @Repository
-public interface RoleRepository extends JpaRepository<Role, String> {
+public interface RoleRepository extends JpaRepository<Role, UUID> {
 
     // Суурь хайлтууд
     /**
@@ -42,37 +43,37 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      */
     boolean existsByDisplayName(String displayName);
 
-    // Түвшингээр хайх
+    // Эрэмбээр хайх (priority ашиглах)
     /**
-     * Түвшингээр хайх
+     * Эрэмбээр хайх
      */
-    Page<Role> findByLevelOrder(Integer levelOrder, Pageable pageable);
+    Page<Role> findByPriority(Integer priority, Pageable pageable);
 
     /**
-     * Түвшингийн хязгаараар хайх
+     * Эрэмбийн хязгаараар хайх
      */
-    @Query("SELECT r FROM Role r WHERE r.levelOrder BETWEEN :minLevel AND :maxLevel")
-    Page<Role> findByLevelOrderBetween(@Param("minLevel") Integer minLevel,
-                                     @Param("maxLevel") Integer maxLevel,
-                                     Pageable pageable);
+    @Query("SELECT r FROM Role r WHERE r.priority BETWEEN :minPriority AND :maxPriority")
+    Page<Role> findByPriorityBetween(@Param("minPriority") Integer minPriority,
+                                   @Param("maxPriority") Integer maxPriority,
+                                   Pageable pageable);
 
     /**
-     * Өндөр түвшний дүрүүд
+     * Өндөр эрэмбийн дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.levelOrder >= :highLevelThreshold ORDER BY r.levelOrder DESC")
-    List<Role> findHighLevelRoles(@Param("highLevelThreshold") Integer highLevelThreshold);
+    @Query("SELECT r FROM Role r WHERE r.priority >= :highPriorityThreshold ORDER BY r.priority DESC")
+    List<Role> findHighPriorityRoles(@Param("highPriorityThreshold") Integer highPriorityThreshold);
 
     // Системийн дүр
     /**
      * Системийн дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.isSystemRole = true")
+    @Query("SELECT r FROM Role r WHERE r.type = 'SYSTEM'")
     List<Role> findSystemRoles();
 
     /**
      * Системийн бус дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.isSystemRole = false")
+    @Query("SELECT r FROM Role r WHERE r.type != 'SYSTEM'")
     Page<Role> findNonSystemRoles(Pageable pageable);
 
     /**
@@ -147,7 +148,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Хэрэглэгчийн ID-гаар дүр хайх
      */
     @Query("SELECT r FROM Role r JOIN r.users u WHERE u.id = :userId")
-    List<Role> findRolesByUserId(@Param("userId") String userId);
+    List<Role> findRolesByUserId(@Param("userId") UUID userId);
 
     /**
      * Олон хэрэглэгчтэй дүрүүд
@@ -160,8 +161,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Харагдах нэрээр хайх (орчуулга дэмжих)
      */
     @Query("SELECT r FROM Role r WHERE " +
-           "LOWER(r.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(r.displayNameMn, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
+           "LOWER(r.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
     Page<Role> findByDisplayNameContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
 
     /**
@@ -170,41 +170,40 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     @Query("SELECT r FROM Role r WHERE " +
            "LOWER(r.name) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(r.displayName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(r.displayNameMn, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(COALESCE(r.description, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
     Page<Role> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
 
     // Hierarchy холбоотой
     /**
-     * Илүү өндөр түвшний дүрүүд
+     * Илүү өндөр эрэмбийн дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.levelOrder > :levelOrder ORDER BY r.levelOrder ASC")
-    List<Role> findHigherLevelRoles(@Param("levelOrder") Integer levelOrder);
+    @Query("SELECT r FROM Role r WHERE r.priority > :priority ORDER BY r.priority ASC")
+    List<Role> findHigherPriorityRoles(@Param("priority") Integer priority);
 
     /**
-     * Илүү доод түвшний дүрүүд
+     * Илүү доод эрэмбийн дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.levelOrder < :levelOrder ORDER BY r.levelOrder DESC")
-    List<Role> findLowerLevelRoles(@Param("levelOrder") Integer levelOrder);
+    @Query("SELECT r FROM Role r WHERE r.priority < :priority ORDER BY r.priority DESC")
+    List<Role> findLowerPriorityRoles(@Param("priority") Integer priority);
 
     /**
-     * Ижил түвшний дүрүүд
+     * Ижил эрэмбийн дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.levelOrder = :levelOrder AND r.id != :excludeId")
-    List<Role> findSameLevelRoles(@Param("levelOrder") Integer levelOrder, @Param("excludeId") String excludeId);
+    @Query("SELECT r FROM Role r WHERE r.priority = :priority AND r.id != :excludeId")
+    List<Role> findSamePriorityRoles(@Param("priority") Integer priority, @Param("excludeId") UUID excludeId);
 
     /**
-     * Түвшингээр эрэмбэлсэн дүрүүд
+     * Эрэмбээр эрэмбэлсэн дүрүүд
      */
-    @Query("SELECT r FROM Role r ORDER BY r.levelOrder DESC, r.name ASC")
-    List<Role> findAllOrderedByLevel();
+    @Query("SELECT r FROM Role r ORDER BY r.priority DESC, r.name ASC")
+    List<Role> findAllOrderedByPriority();
 
     // Статистик
     /**
-     * Түвшингээр тоолох
+     * Эрэмбээр тоолох
      */
-    @Query("SELECT r.levelOrder, COUNT(r) FROM Role r GROUP BY r.levelOrder ORDER BY r.levelOrder")
-    List<Object[]> countByLevelOrder();
+    @Query("SELECT r.priority, COUNT(r) FROM Role r GROUP BY r.priority ORDER BY r.priority")
+    List<Object[]> countByPriority();
 
     /**
      * Хэрэглэгчдийн тоогоор статистик
@@ -224,8 +223,8 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Системийн болон энгийн дүрийн тоо
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN r.isSystemRole = true THEN 1 END) as systemRoles, " +
-           "COUNT(CASE WHEN r.isSystemRole = false THEN 1 END) as regularRoles, " +
+           "COUNT(CASE WHEN r.type = 'SYSTEM' THEN 1 END) as systemRoles, " +
+           "COUNT(CASE WHEN r.type != 'SYSTEM' THEN 1 END) as regularRoles, " +
            "COUNT(CASE WHEN r.isDefault = true THEN 1 END) as defaultRoles " +
            "FROM Role r")
     Object[] getRoleTypeStats();
@@ -235,18 +234,18 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Дэвшилтэт филтертэй хайлт
      */
     @Query("SELECT r FROM Role r WHERE " +
-           "(:minLevel IS NULL OR r.levelOrder >= :minLevel) AND " +
-           "(:maxLevel IS NULL OR r.levelOrder <= :maxLevel) AND " +
-           "(:isSystemRole IS NULL OR r.isSystemRole = :isSystemRole) AND " +
+           "(:minPriority IS NULL OR r.priority >= :minPriority) AND " +
+           "(:maxPriority IS NULL OR r.priority <= :maxPriority) AND " +
+           "(:type IS NULL OR r.type = :type) AND " +
            "(:isDefault IS NULL OR r.isDefault = :isDefault) AND " +
-           "(:hasUsers IS NULL OR (SIZE(r.users) > 0) = :hasUsers) AND " +
-           "(:hasPermissions IS NULL OR (SIZE(r.permissions) > 0) = :hasPermissions) AND " +
+           "(:hasUsers IS NULL OR (:hasUsers = TRUE AND SIZE(r.users) > 0) OR (:hasUsers = FALSE AND SIZE(r.users) = 0)) AND " +
+           "(:hasPermissions IS NULL OR (:hasPermissions = TRUE AND SIZE(r.permissions) > 0) OR (:hasPermissions = FALSE AND SIZE(r.permissions) = 0)) AND " +
            "(:minUsers IS NULL OR SIZE(r.users) >= :minUsers) AND " +
            "(:maxUsers IS NULL OR SIZE(r.users) <= :maxUsers)")
     Page<Role> findByAdvancedFilters(
-            @Param("minLevel") Integer minLevel,
-            @Param("maxLevel") Integer maxLevel,
-            @Param("isSystemRole") Boolean isSystemRole,
+            @Param("minPriority") Integer minPriority,
+            @Param("maxPriority") Integer maxPriority,
+            @Param("type") Role.RoleType type,
             @Param("isDefault") Boolean isDefault,
             @Param("hasUsers") Boolean hasUsers,
             @Param("hasPermissions") Boolean hasPermissions,
@@ -259,66 +258,66 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Дүрт эрх нэмэх
      */
     @Modifying
-    @Query("INSERT INTO role_permissions (role_id, permission_id, granted_by, granted_at) VALUES (:roleId, :permissionId, :grantedBy, CURRENT_TIMESTAMP)")
-    void addPermissionToRole(@Param("roleId") String roleId, 
-                           @Param("permissionId") String permissionId,
+    @Query(value = "INSERT INTO role_permissions (role_id, permission_id, granted_by, granted_at) VALUES (:roleId, :permissionId, :grantedBy, CURRENT_TIMESTAMP)", nativeQuery = true)
+    void addPermissionToRole(@Param("roleId") UUID roleId, 
+                           @Param("permissionId") UUID permissionId,
                            @Param("grantedBy") String grantedBy);
 
     /**
      * Дүрээс эрх хасах
      */
     @Modifying
-    @Query("DELETE FROM role_permissions WHERE role_id = :roleId AND permission_id = :permissionId")
-    void removePermissionFromRole(@Param("roleId") String roleId, @Param("permissionId") String permissionId);
+    @Query(value = "DELETE FROM role_permissions WHERE role_id = :roleId AND permission_id = :permissionId", nativeQuery = true)
+    void removePermissionFromRole(@Param("roleId") UUID roleId, @Param("permissionId") UUID permissionId);
 
     /**
      * Дүрийн бүх эрх хасах
      */
     @Modifying
-    @Query("DELETE FROM role_permissions WHERE role_id = :roleId")
-    void removeAllPermissionsFromRole(@Param("roleId") String roleId);
+    @Query(value = "DELETE FROM role_permissions WHERE role_id = :roleId", nativeQuery = true)
+    void removeAllPermissionsFromRole(@Param("roleId") UUID roleId);
 
     /**
      * Дүрүүдийн эрх солих
      */
     @Modifying
-    @Query("UPDATE role_permissions SET permission_id = :newPermissionId WHERE role_id IN :roleIds AND permission_id = :oldPermissionId")
-    int replacePermissionInRoles(@Param("roleIds") List<String> roleIds,
-                               @Param("oldPermissionId") String oldPermissionId,
-                               @Param("newPermissionId") String newPermissionId);
+    @Query(value = "UPDATE role_permissions SET permission_id = :newPermissionId WHERE role_id IN :roleIds AND permission_id = :oldPermissionId", nativeQuery = true)
+    int replacePermissionInRoles(@Param("roleIds") List<UUID> roleIds,
+                               @Param("oldPermissionId") UUID oldPermissionId,
+                               @Param("newPermissionId") UUID newPermissionId);
 
     // Хэрэглэгч удирдлага
     /**
      * Дүрт хэрэглэгч нэмэх
      */
     @Modifying
-    @Query("INSERT INTO user_roles (user_id, role_id, assigned_by, assigned_at) VALUES (:userId, :roleId, :assignedBy, CURRENT_TIMESTAMP)")
-    void addUserToRole(@Param("userId") String userId, 
-                     @Param("roleId") String roleId,
+    @Query(value = "INSERT INTO user_roles (user_id, role_id, assigned_by, assigned_at) VALUES (:userId, :roleId, :assignedBy, CURRENT_TIMESTAMP)", nativeQuery = true)
+    void addUserToRole(@Param("userId") UUID userId, 
+                     @Param("roleId") UUID roleId,
                      @Param("assignedBy") String assignedBy);
 
     /**
      * Дүрээс хэрэглэгч хасах
      */
     @Modifying
-    @Query("DELETE FROM user_roles WHERE user_id = :userId AND role_id = :roleId")
-    void removeUserFromRole(@Param("userId") String userId, @Param("roleId") String roleId);
+    @Query(value = "DELETE FROM user_roles WHERE user_id = :userId AND role_id = :roleId", nativeQuery = true)
+    void removeUserFromRole(@Param("userId") UUID userId, @Param("roleId") UUID roleId);
 
     /**
      * Дүрийн бүх хэрэглэгч хасах
      */
     @Modifying
-    @Query("DELETE FROM user_roles WHERE role_id = :roleId")
-    void removeAllUsersFromRole(@Param("roleId") String roleId);
+    @Query(value = "DELETE FROM user_roles WHERE role_id = :roleId", nativeQuery = true)
+    void removeAllUsersFromRole(@Param("roleId") UUID roleId);
 
     /**
      * Олон хэрэглэгчид дүр өгөх
      */
     @Modifying
-    @Query("INSERT INTO user_roles (user_id, role_id, assigned_by, assigned_at) " +
-           "SELECT :userId, r.id, :assignedBy, CURRENT_TIMESTAMP FROM Role r WHERE r.id IN :roleIds")
-    void assignRolesToUser(@Param("userId") String userId,
-                         @Param("roleIds") List<String> roleIds,
+    @Query(value = "INSERT INTO user_roles (user_id, role_id, assigned_by, assigned_at) " +
+           "SELECT :userId, r.id, :assignedBy, CURRENT_TIMESTAMP FROM roles r WHERE r.id IN :roleIds", nativeQuery = true)
+    void assignRolesToUser(@Param("userId") UUID userId,
+                         @Param("roleIds") List<UUID> roleIds,
                          @Param("assignedBy") String assignedBy);
 
     // Validation
@@ -327,7 +326,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      */
     @Query("SELECT CASE WHEN COUNT(ur) > 0 THEN true ELSE false END " +
            "FROM User u JOIN u.roles ur WHERE u.id = :userId AND ur.id = :roleId")
-    Boolean userHasRole(@Param("userId") String userId, @Param("roleId") String roleId);
+    Boolean userHasRole(@Param("userId") UUID userId, @Param("roleId") UUID roleId);
 
     /**
      * Дүр тодорхой эрхтэй эсэхийг шалгах
@@ -335,7 +334,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END " +
            "FROM Role r JOIN r.permissions p " +
            "WHERE r.id = :roleId AND p.name = :permissionName")
-    Boolean roleHasPermissionByName(@Param("roleId") String roleId, @Param("permissionName") String permissionName);
+    Boolean roleHasPermissionByName(@Param("roleId") UUID roleId, @Param("permissionName") String permissionName);
 
     /**
      * Дүр ресурс дээр эрхтэй эсэхийг шалгах
@@ -343,7 +342,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END " +
            "FROM Role r JOIN r.permissions p " +
            "WHERE r.id = :roleId AND p.resource = :resource AND p.action = :action")
-    Boolean roleHasResourcePermission(@Param("roleId") String roleId,
+    Boolean roleHasResourcePermission(@Param("roleId") UUID roleId,
                                     @Param("resource") String resource,
                                     @Param("action") String action);
 
@@ -351,13 +350,13 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     /**
      * Ашиглагдаагүй дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE SIZE(r.users) = 0 AND r.isSystemRole = false")
+    @Query("SELECT r FROM Role r WHERE SIZE(r.users) = 0 AND r.type != 'SYSTEM'")
     List<Role> findUnusedRoles();
 
     /**
      * Эрхгүй дүрүүд (системийн биш)
      */
-    @Query("SELECT r FROM Role r WHERE SIZE(r.permissions) = 0 AND r.isSystemRole = false")
+    @Query("SELECT r FROM Role r WHERE SIZE(r.permissions) = 0 AND r.type != 'SYSTEM'")
     List<Role> findEmptyRoles();
 
     /**
@@ -370,19 +369,19 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     /**
      * Админ дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.name LIKE '%ADMIN%' OR r.levelOrder >= 8")
+    @Query("SELECT r FROM Role r WHERE r.name LIKE '%ADMIN%' OR r.priority >= 80")
     List<Role> findAdminRoles();
 
     /**
      * Менежерийн дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.name LIKE '%MANAGER%' OR r.levelOrder BETWEEN 5 AND 7")
+    @Query("SELECT r FROM Role r WHERE r.name LIKE '%MANAGER%' OR r.priority BETWEEN 50 AND 79")
     List<Role> findManagerRoles();
 
     /**
      * Ажилтны дүрүүд
      */
-    @Query("SELECT r FROM Role r WHERE r.levelOrder <= 4 AND r.isSystemRole = false")
+    @Query("SELECT r FROM Role r WHERE r.priority <= 49 AND r.type != 'SYSTEM'")
     List<Role> findEmployeeRoles();
 
     /**
@@ -398,20 +397,20 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Хэрэглэгчийн хамгийн өндөр дүр
      */
     @Query("SELECT r FROM Role r JOIN r.users u WHERE u.id = :userId " +
-           "ORDER BY r.levelOrder DESC LIMIT 1")
-    Optional<Role> findHighestRoleForUser(@Param("userId") String userId);
+           "ORDER BY r.priority DESC")
+    Optional<Role> findHighestRoleForUser(@Param("userId") UUID userId);
 
     /**
      * Хэрэглэгчийн хамгийн доод дүр
      */
     @Query("SELECT r FROM Role r JOIN r.users u WHERE u.id = :userId " +
-           "ORDER BY r.levelOrder ASC LIMIT 1")
-    Optional<Role> findLowestRoleForUser(@Param("userId") String userId);
+           "ORDER BY r.priority ASC")
+    Optional<Role> findLowestRoleForUser(@Param("userId") UUID userId);
 
     /**
      * Дүрийн шаталсан жагсаалт
      */
-    @Query("SELECT r FROM Role r WHERE r.isActive = true ORDER BY r.levelOrder DESC, r.name ASC")
+    @Query("SELECT r FROM Role r WHERE r.isActive = true ORDER BY r.priority DESC, r.name ASC")
     List<Role> findRoleHierarchy();
 
     // Dashboard
@@ -420,7 +419,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      */
     @Query("SELECT " +
            "COUNT(r) as totalRoles, " +
-           "COUNT(CASE WHEN r.isSystemRole = true THEN 1 END) as systemRoles, " +
+           "COUNT(CASE WHEN r.type = 'SYSTEM' THEN 1 END) as systemRoles, " +
            "COUNT(CASE WHEN r.isDefault = true THEN 1 END) as defaultRoles, " +
            "COUNT(CASE WHEN SIZE(r.users) = 0 THEN 1 END) as emptyRoles, " +
            "COUNT(CASE WHEN SIZE(r.permissions) = 0 THEN 1 END) as permissionlessRoles, " +
@@ -430,18 +429,18 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     Object[] getRoleDashboardStats();
 
     /**
-     * Түвшний тархалт
+     * Эрэмбийн тархалт
      */
-    @Query("SELECT r.levelOrder, COUNT(r), AVG(SIZE(r.users)), AVG(SIZE(r.permissions)) " +
-           "FROM Role r GROUP BY r.levelOrder ORDER BY r.levelOrder DESC")
-    List<Object[]> getLevelDistribution();
+    @Query("SELECT r.priority, COUNT(r), AVG(SIZE(r.users)), AVG(SIZE(r.permissions)) " +
+           "FROM Role r GROUP BY r.priority ORDER BY r.priority DESC")
+    List<Object[]> getPriorityDistribution();
 
     // Data integrity
     /**
      * Дүрийн өгөгдлийн integrity шалгах
      */
     @Query("SELECT r FROM Role r WHERE " +
-           "r.name IS NULL OR r.displayName IS NULL OR r.levelOrder IS NULL")
+           "r.name IS NULL OR r.displayName IS NULL OR r.priority IS NULL")
     List<Role> findRolesWithDataIssues();
 
     /**
@@ -463,7 +462,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      * Дүр хуулбарлах
      */
     @Query("SELECT p FROM Permission p JOIN p.roles r WHERE r.id = :sourceRoleId")
-    List<Permission> findPermissionsForCopying(@Param("sourceRoleId") String sourceRoleId);
+    List<Permission> findPermissionsForCopying(@Param("sourceRoleId") UUID sourceRoleId);
 
     /**
      * Шаблон дүрүүд
@@ -478,16 +477,16 @@ public interface RoleRepository extends JpaRepository<Role, String> {
     @Modifying
     @Query("UPDATE Role r SET r.displayName = CONCAT(r.displayName, ' (Archived)'), r.isActive = false " +
            "WHERE r.id IN :roleIds")
-    int archiveRoles(@Param("roleIds") List<String> roleIds);
+    int archiveRoles(@Param("roleIds") List<UUID> roleIds);
 
     /**
-     * Олон дүрийн түвшин өөрчлөх
+     * Олон дүрийн эрэмбэ өөрчлөх
      */
     @Modifying
-    @Query("UPDATE Role r SET r.levelOrder = :newLevel, r.updatedBy = :updatedBy " +
+    @Query("UPDATE Role r SET r.priority = :newPriority, r.updatedBy = :updatedBy " +
            "WHERE r.id IN :roleIds")
-    int updateLevelForRoles(@Param("roleIds") List<String> roleIds,
-                          @Param("newLevel") Integer newLevel,
+    int updatePriorityForRoles(@Param("roleIds") List<UUID> roleIds,
+                          @Param("newPriority") Integer newPriority,
                           @Param("updatedBy") String updatedBy);
 
     // Security checks
@@ -511,7 +510,7 @@ public interface RoleRepository extends JpaRepository<Role, String> {
      */
     @Query("SELECT r.name, p.resource, p.action FROM Role r " +
            "JOIN r.permissions p " +
-           "ORDER BY r.levelOrder DESC, r.name, p.resource, p.action")
+           "ORDER BY r.priority DESC, r.name, p.resource, p.action")
     List<Object[]> getRolePermissionMatrix();
 
     /**
@@ -521,5 +520,5 @@ public interface RoleRepository extends JpaRepository<Role, String> {
            "JOIN p.roles r " +
            "JOIN r.users u " +
            "WHERE u.id = :userId")
-    List<Permission> findCombinedPermissionsForUser(@Param("userId") String userId);
+    List<Permission> findCombinedPermissionsForUser(@Param("userId") UUID userId);
 }
