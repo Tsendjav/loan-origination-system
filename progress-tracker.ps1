@@ -411,7 +411,7 @@ function Show-BackendFileStatus {
         "Backend Entities" = @("Customer.java", "LoanApplication.java", "Document.java", "DocumentType.java", "BaseEntity.java")
         "Backend Repositories" = @("CustomerRepository.java", "DocumentRepository.java", "DocumentTypeRepository.java")
         "Backend Services" = @("DocumentService.java", "DocumentServiceImpl.java")
-        "Backend Controllers" = @("DocumentController.java", "AuthController.java", "HealthController.java")
+        "Backend Controllers" = @("HealthController.java", "AuthController.java", "DocumentController.java", "CustomerController.java", "LoanApplicationController.java")
         "Backend DTOs" = @("DocumentDto.java", "DocumentTypeDto.java")
         "Configuration" = @("LoanOriginationApplication.java", "JpaConfig.java", "CorsConfig.java", "SecurityConfig.java", "application.yml")
     }
@@ -422,24 +422,44 @@ function Show-BackendFileStatus {
             $found = $false
             $filePath = ""
             
-            # Дэлгэрэнгүй хайлт - бүх боломжит замуудыг шалгах
+            # ЗАСВАРЛАСАН: Дэлгэрэнгүй хайлт - Windows болон Linux файлын замд тохирно
             $searchPaths = @()
             
             if ($file.EndsWith(".java")) {
-                $searchPaths = @(
-                    "backend\src\main\java\com\company\los\entity\$file",
-                    "backend\src\main\java\com\company\los\repository\$file", 
-                    "backend\src\main\java\com\company\los\service\$file",
-                    "backend\src\main\java\com\company\los\service\impl\$file",
-                    "backend\src\main\java\com\company\los\controller\$file",
-                    "backend\src\main\java\com\company\los\dto\$file",
-                    "backend\src\main\java\com\company\los\config\$file",
-                    "backend\src\main\java\com\company\los\security\$file",
-                    "backend\src\main\java\com\company\los\$file"
+                # Java файлуудыг хайх газрууд
+                $basePaths = @(
+                    "backend\src\main\java\com\company\los",
+                    "backend/src/main/java/com/company/los"
                 )
+                
+                $subPaths = @(
+                    "entity",
+                    "repository", 
+                    "service",
+                    "service\impl",
+                    "service/impl",
+                    "controller",
+                    "dto",
+                    "config",
+                    "security",
+                    ""
+                )
+                
+                foreach ($basePath in $basePaths) {
+                    foreach ($subPath in $subPaths) {
+                        if ($subPath -eq "") {
+                            $searchPaths += "$basePath\$file"
+                            $searchPaths += "$basePath/$file"
+                        } else {
+                            $searchPaths += "$basePath\$subPath\$file"
+                            $searchPaths += "$basePath/$subPath/$file"
+                        }
+                    }
+                }
             } elseif ($file.EndsWith(".yml") -or $file.EndsWith(".yaml")) {
                 $searchPaths = @(
-                    "backend\src\main\resources\$file"
+                    "backend\src\main\resources\$file",
+                    "backend/src/main/resources/$file"
                 )
             }
             
@@ -447,7 +467,7 @@ function Show-BackendFileStatus {
             foreach ($searchPath in $searchPaths) {
                 if (Test-Path $searchPath) {
                     $found = $true
-                    $filePath = $searchPath.Replace("\", "/")
+                    $filePath = $searchPath -replace "\\", "/"
                     break
                 }
             }
@@ -458,34 +478,93 @@ function Show-BackendFileStatus {
             } else {
                 Write-ColoredText "    ❌ $file" "Red" -ToBackendLog
                 
-                # DocumentServiceImpl-д зориулсан нэмэлт лог
+                # НЭМЭЛТ МЭДЭЭЛЭЛ: Хайх ёстой газрууд
                 if ($file -eq "DocumentServiceImpl.java") {
-                    Write-ColoredText "       💡 Шалгах: backend\src\main\java\com\company\los\service\impl\DocumentServiceImpl.java" "Yellow" -ToBackendLog
+                    Write-ColoredText "       💡 Хайх газрууд:" "Yellow" -ToBackendLog
+                    Write-ColoredText "          - backend\src\main\java\com\company\los\service\impl\DocumentServiceImpl.java" "Gray" -ToBackendLog
+                    Write-ColoredText "          - backend/src/main/java/com/company/los/service/impl/DocumentServiceImpl.java" "Gray" -ToBackendLog
+                } elseif ($file -eq "AuthController.java") {
+                    Write-ColoredText "       💡 Үүсгэх хэрэгтэй: backend\src\main\java\com\company\los\controller\AuthController.java" "Yellow" -ToBackendLog
                 }
             }
         }
         Write-ColoredText "" "White" -ToBackendLog
     }
     
-    # Нэмэлт файл шалгалт
+    # НЭМЭЛТ ШАЛГАЛТ: Чухал файлуудын дэлгэрэнгүй мэдээлэл
     Write-ColoredText "  🔍 Нэмэлт файл шалгалт:" "Cyan" -ToBackendLog
     
     $criticalFiles = @{
-        "DocumentServiceImpl.java" = "backend\src\main\java\com\company\los\service\impl\DocumentServiceImpl.java"
-        "AuthController.java" = "backend\src\main\java\com\company\los\controller\AuthController.java"  
-        "HealthController.java" = "backend\src\main\java\com\company\los\controller\HealthController.java"
-        "CorsConfig.java" = "backend\src\main\java\com\company\los\config\CorsConfig.java"
-        "SecurityConfig.java" = "backend\src\main\java\com\company\los\config\SecurityConfig.java"
+        "DocumentServiceImpl.java" = @(
+            "backend\src\main\java\com\company\los\service\impl\DocumentServiceImpl.java",
+            "backend/src/main/java/com/company/los/service/impl/DocumentServiceImpl.java"
+        )
+        "AuthController.java" = @(
+            "backend\src\main\java\com\company\los\controller\AuthController.java",
+            "backend/src/main/java/com/company/los/controller/AuthController.java"
+        )
+        "HealthController.java" = @(
+            "backend\src\main\java\com\company\los\controller\HealthController.java",
+            "backend/src/main/java/com/company/los/controller/HealthController.java"
+        )
+        "SecurityConfig.java" = @(
+            "backend\src\main\java\com\company\los\config\SecurityConfig.java",
+            "backend/src/main/java/com/company/los/config/SecurityConfig.java"
+        )
     }
     
     foreach ($fileName in $criticalFiles.Keys) {
-        $fullPath = $criticalFiles[$fileName]
-        if (Test-Path $fullPath) {
-            $size = (Get-Item $fullPath).Length
-            Write-ColoredText "    ✅ $fileName байна ($size bytes)" "Green" -ToBackendLog
-        } else {
-            Write-ColoredText "    ❌ $fileName байхгүй - $fullPath" "Red" -ToBackendLog
+        $foundPath = $null
+        $fileSize = 0
+        
+        foreach ($possiblePath in $criticalFiles[$fileName]) {
+            if (Test-Path $possiblePath) {
+                $foundPath = $possiblePath
+                $fileSize = (Get-Item $possiblePath).Length
+                break
+            }
         }
+        
+        if ($foundPath) {
+            Write-ColoredText "    ✅ $fileName байна ($fileSize bytes) - $foundPath" "Green" -ToBackendLog
+        } else {
+            Write-ColoredText "    ❌ $fileName байхгүй" "Red" -ToBackendLog
+            Write-ColoredText "       📝 Үүсгэх хэрэгтэй газар:" "Yellow" -ToBackendLog
+            foreach ($path in $criticalFiles[$fileName]) {
+                Write-ColoredText "          $path" "Gray" -ToBackendLog
+            }
+        }
+    }
+    
+    # BACKEND ENDPOINT ШАЛГАЛТ
+    Write-ColoredText "" "White" -ToBackendLog
+    Write-ColoredText "  🌐 Backend API Endpoint шалгалт:" "Blue" -ToBackendLog
+    
+    if ($backendHealth.Success) {
+        Write-ColoredText "    ✅ Backend ажиллаж байна" "Green" -ToBackendLog
+        
+        # API endpoints тест
+        $testEndpoints = @(
+            @{ Name = "Health"; Url = "http://localhost:8080/los/api/v1/health" },
+            @{ Name = "Simple Health"; Url = "http://localhost:8080/los/api/v1/health/simple" },
+            @{ Name = "Auth"; Url = "http://localhost:8080/los/api/v1/auth/login" }
+        )
+        
+        foreach ($endpoint in $testEndpoints) {
+            try {
+                $result = Test-HttpEndpoint $endpoint.Url 3
+                if ($result.Success) {
+                    Write-ColoredText "    ✅ $($endpoint.Name) endpoint ажиллаж байна ($($result.StatusCode))" "Green" -ToBackendLog
+                } else {
+                    Write-ColoredText "    ⚠️  $($endpoint.Name) endpoint алдаа ($($result.StatusCode))" "Yellow" -ToBackendLog
+                }
+            } catch {
+                Write-ColoredText "    ❌ $($endpoint.Name) endpoint тест алдаа" "Red" -ToBackendLog
+            }
+        }
+    } else {
+        Write-ColoredText "    ❌ Backend ажиллахгүй байна" "Red" -ToBackendLog
+        Write-ColoredText "       💡 Backend эхлүүлэх: cd backend && .\mvnw.cmd spring-boot:run" "Yellow" -ToBackendLog
     }
 }
 
@@ -753,7 +832,7 @@ try {
         if ($weekProgress[$weekKey].Percentage -eq 100) {
             Write-ColoredText "   ✅ БҮРЭН ДУУССАН" "Green"
         } elseif ($weekProgress[$weekKey].Percentage -ge 75) {
-            Write-ColoredText "   🟢 БАГ ЗҮЙЛ ДУТУУ" "Green"
+            Write-ColoredText "   🟢 БАГА ЗҮЙЛ ДУТУУ" "Green"
         } elseif ($weekProgress[$weekKey].Percentage -ge 50) {
             Write-ColoredText "   🟡 ХЭСЭГЧЛЭН ДУУССАН" "Yellow"
         } elseif ($weekProgress[$weekKey].Percentage -ge 25) {
@@ -1081,6 +1160,6 @@ Write-ColoredText "🧪 API тест хийх: .\progress-tracker.ps1 -TestMode"
 # Автомат дуусгахгүй - PowerShell ISE/VS Code-д ажиллах боломж
 if ($Host.Name -eq "ConsoleHost") {
     Write-ColoredText ""
-    Write-ColoredText "Аливаа товч дарж гарна уу..." "Gray"
+    Write-ColoredText "Дурын товч дарж гарна уу..." "Gray"
     $null = Read-Host
 }
