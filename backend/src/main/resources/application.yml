@@ -2,7 +2,7 @@
 # LOS (Loan Origination System) Main Configuration - ЭЦСИЙН ХУВИЛБАР (ЗАСВАРЛАСАН)
 # =====================================================================================
 # Created: 2025-07-26
-# Updated: БҮРЭН ЗАСВАРЛАСАН - Schema засварласан, Hibernate DDL тохиргоо өөрчлөгдсөн
+# Updated: БҮРЭН ЗАСВАРЛАСАН - JWT тохиргоо app секц дээр шилжүүлсэн
 # =====================================================================================
 
 server:
@@ -117,13 +117,6 @@ spring:
     default-timeout: 30
     rollback-on-commit-failure: true
 
-# JWT Configuration
-jwt:
-  secret: ${JWT_SECRET:mySecretKeyForJWTTokenGenerationAndValidation123456}
-  expiration: 7200000  # 2 hours in milliseconds
-  issuer: loan-origination-system
-  refresh-expiration: 86400000  # 24 hours
-
 # Management/Actuator Configuration
 management:
   endpoints:
@@ -182,6 +175,13 @@ app:
   name: "Loan Origination System"
   version: "1.0.0"
   description: "LOS - Зээлийн хүсэлтийн цогц систем"
+  
+  # ⭐ JWT Configuration - Шилжүүлсэн ⭐
+  jwt:
+    secret: myVerySecretKeyThatIsAtLeast32CharactersLong
+    expiration: 86400000  # 24 hours
+    refresh-expiration: 604800000  # 7 days
+    issuer: loan-origination-system
   
   # Security Configuration
   security:
@@ -322,6 +322,10 @@ logging:
 
 # Production Application Configuration
 app:
+  jwt:
+    secret: ${JWT_SECRET:myVerySecretKeyThatIsAtLeast32CharactersLong}
+    expiration: ${JWT_EXPIRATION:86400000}
+    refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
   security:
     cors:
       allowed-origins: ${ALLOWED_ORIGINS:https://los.company.com}
@@ -380,6 +384,10 @@ logging:
     
 # Test Application Configuration
 app:
+  jwt:
+    secret: testSecretKeyThatIsAtLeast32CharactersLong
+    expiration: 3600000  # 1 hour for tests
+    refresh-expiration: 7200000  # 2 hours for tests
   notification:
     email:
       enabled: false
@@ -403,10 +411,11 @@ app:
 # 🗄️ H2 Database:
 #    JDBC URL: jdbc:h2:mem:losdb
 #    Username: sa
-#    Password: (бусад)
+#    Password: (хоосон)
 #
-# ⭐ ЗАСВАРЛАСАН ХУВИЛБАР:
-#    - Hibernate DDL auto: none (schema.sql ашиглана)
-#    - Schema.sql-д activity_logs, audit_logs, system_configs нэмэгдсэн
-#    - Junction tables composite primary key-тэй болгосон
+# ⭐ JWT Тохиргоо:
+#    Secret: myVerySecretKeyThatIsAtLeast32CharactersLong
+#    Access Token: 24 цаг
+#    Refresh Token: 7 хоног
+#    Issuer: loan-origination-system
 # =====================================================================================

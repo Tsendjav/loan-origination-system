@@ -205,7 +205,7 @@ public class User implements UserDetails {
             for (Role role : roles) {
                 authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
                 
-                // Add permission-based authorities
+                // Add permission-based authorities (if role has permissions)
                 if (role.getPermissions() != null) {
                     for (Permission permission : role.getPermissions()) {
                         authorities.add(new SimpleGrantedAuthority(permission.getName()));

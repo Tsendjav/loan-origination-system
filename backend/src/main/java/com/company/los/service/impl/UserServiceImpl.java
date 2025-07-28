@@ -917,8 +917,18 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Map<String, Object> getTodayUserStats() {
-        Map<String, Object> results = userRepository.getTodayUserStats();
-        return results;
+        // ЗАСВАРЛАСАН: Object[] -> Map<String, Object> хөрвүүлэлт
+        Object[] results = userRepository.getTodayUserStats();
+        Map<String, Object> statsMap = new HashMap<>();
+        
+        if (results != null && results.length > 0) {
+            // Assuming the array contains: [totalRegistered, activeUsers, newUsers, etc.]
+            statsMap.put("totalRegistered", results.length > 0 ? results[0] : 0);
+            statsMap.put("activeUsers", results.length > 1 ? results[1] : 0);
+            statsMap.put("newUsers", results.length > 2 ? results[2] : 0);
+        }
+        
+        return statsMap;
     }
 
     @Override

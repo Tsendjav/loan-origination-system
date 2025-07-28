@@ -36,6 +36,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
 
     /**
+     * Username эсвэл email-ээр хайх
+     */
+    @Query("SELECT u FROM User u WHERE u.username = :identifier OR u.email = :identifier")
+    Optional<User> findByUsernameOrEmail(@Param("identifier") String identifier);
+
+    /**
      * Хэрэглэгчийн нэр байгаа эсэхийг шалгах
      */
     boolean existsByUsername(String username);
@@ -410,68 +416,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
                                @Param("newDepartment") String newDepartment,
                                @Param("updatedBy") String updatedBy);
 
-    // Performance хяналт
-    /**
-     * Менежерийн шулуун доор нь ажилладаг хүмүүс
-     */
-    @Query("SELECT u FROM User u WHERE u.manager.id = :managerId " +
-           "ORDER BY u.position, u.lastName, u.firstName")
-    List<User> findDirectReports(@Param("managerId") UUID managerId);
-
-    // Security audit
-    /**
-     * Эрсдэлтэй хэрэглэгчид
-     */
-    @Query("SELECT DISTINCT u FROM User u " +
-           "JOIN u.roles r " +
-           "JOIN r.permissions p " +
-           "WHERE p.action IN ('DELETE', 'APPROVE', 'AUDIT') AND " +
-           "p.resource IN ('SYSTEM', 'USER', 'ROLE')")
-    List<User> findHighRiskUsers();
-
-    /**
-     * Олон эрхтэй хэрэглэгчид
-     */
-    @Query("SELECT u, COUNT(DISTINCT p) as permissionCount FROM User u " +
-           "JOIN u.roles r " +
-           "JOIN r.permissions p " +
-           "GROUP BY u " +
-           "HAVING COUNT(DISTINCT p) > :permissionThreshold " +
-           "ORDER BY permissionCount DESC")
-    List<Object[]> findUsersWithTooManyPermissions(@Param("permissionThreshold") int permissionThreshold);
-
-    // Data quality
-    /**
-     * Дутуу мэдээлэлтэй хэрэглэгчид
-     */
-    @Query("SELECT u FROM User u WHERE " +
-           "u.firstName IS NULL OR u.firstName = '' OR " +
-           "u.lastName IS NULL OR u.lastName = '' OR " +
-           "u.email IS NULL OR u.email = '' OR " +
-           "u.department IS NULL OR u.department = ''")
-    List<User> findUsersWithIncompleteProfiles();
-
-    /**
-     * Ажлын мэдээлэл дутуу хэрэглэгчид
-     */
-    @Query("SELECT u FROM User u WHERE " +
-           "u.employeeId IS NULL OR u.position IS NULL OR u.department IS NULL")
-    List<User> findUsersWithIncompleteWorkInfo();
-
-    /**
-     * Хэрэглэгчийн нэр давхцаж байгаа эсэхийг шалгах (ID-гаар хасах)
-     */
-    @Query("SELECT COUNT(u) > 0 FROM User u WHERE " +
-            "LOWER(u.username) = LOWER(:username) AND u.id != :excludeId")
-    boolean existsByUsernameIgnoreCaseAndIdNot(@Param("username") String username, @Param("excludeId") UUID excludeId);
-
-    /**
-     * И-мэйл давхцаж байгаа эсэхийг шалгах (ID-гаар хасах)
-     */
-    @Query("SELECT COUNT(u) > 0 FROM User u WHERE " +
-            "LOWER(u.email) = LOWER(:email) AND u.id != :excludeId")
-    boolean existsByEmailIgnoreCaseAndIdNot(@Param("email") String email, @Param("excludeId") UUID excludeId);
-
     // Permission and authorization methods
     /**
      * Resource дээр эрхтэй хэрэглэгчид
@@ -505,19 +449,33 @@ public interface UserRepository extends JpaRepository<User, UUID> {
            "WHERE u.id = :userId")
     List<Permission> findUserPermissions(@Param("userId") UUID userId);
 
+    /**
+     * Хэрэглэгчийн нэр давхцаж байгаа эсэхийг шалгах (ID-гаар хасах)
+     */
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE " +
+            "LOWER(u.username) = LOWER(:username) AND u.id != :excludeId")
+    boolean existsByUsernameIgnoreCaseAndIdNot(@Param("username") String username, @Param("excludeId") UUID excludeId);
+
+    /**
+     * И-мэйл давхцаж байгаа эсэхийг шалгах (ID-гаар хасах)
+     */
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE " +
+            "LOWER(u.email) = LOWER(:email) AND u.id != :excludeId")
+    boolean existsByEmailIgnoreCaseAndIdNot(@Param("email") String email, @Param("excludeId") UUID excludeId);
+
     // Dashboard статистик
     /**
      * Өнөөдрийн хэрэглэгчийн статистик
      */
-    @Query("SELECT new map(" +
+    @Query("SELECT " +
            "COUNT(CASE WHEN FUNCTION('DATE', u.createdAt) = CURRENT_DATE THEN 1 END) as todayRegistered, " +
            "COUNT(CASE WHEN u.isActive = true AND u.isLocked = false THEN 1 END) as activeUsers, " +
            "COUNT(CASE WHEN u.isLocked = true THEN 1 END) as lockedUsers, " +
            "COUNT(CASE WHEN FUNCTION('DATE', u.lastLoginAt) = CURRENT_DATE THEN 1 END) as todayLoggedIn, " +
            "COUNT(CASE WHEN u.isEmailVerified = false THEN 1 END) as unverifiedEmails, " +
-           "COUNT(CASE WHEN u.failedLoginAttempts >= 3 THEN 1 END) as withFailedAttempts) " +
+           "COUNT(CASE WHEN u.failedLoginAttempts >= 3 THEN 1 END) as withFailedAttempts " +
            "FROM User u")
-    Map<String, Object> getTodayUserStats();
+    Object[] getTodayUserStats();
 
     /**
      * Хэрэглэгчийн үндсэн статистик

@@ -270,14 +270,15 @@ function App() {
   };
 
   const renderApiEndpointStatus = () => {
-    const entries = Object.entries(apiEndpoints);
-    if (entries.length === 0) return null;
+    // "health-simple" endpoint-ийг харуулахгүйгээр шүүж байна
+    const filteredEntries = Object.entries(apiEndpoints).filter(([name]) => name !== 'health-simple');
+    if (filteredEntries.length === 0) return null;
 
     return (
       <div style={{ marginTop: 16 }}>
         <Typography.Text strong>API Endpoints:</Typography.Text>
         <div style={{ marginTop: 8 }}>
-          {entries.map(([name, status]) => (
+          {filteredEntries.map(([name, status]) => (
             <Tag key={name} color={status ? 'green' : 'red'} style={{ marginBottom: 4 }}>
               {name}: {status ? 'OK' : 'Failed'}
             </Tag>
@@ -566,7 +567,7 @@ function App() {
                     <p>Харилцагчийн удирдлагын хэсэг удахгүй нэмэгдэнэ...</p>
                     {!authState.isAuthenticated && (
                       <Alert
-                        message="Эхлээд нэвтэрнэ үү"
+                        message="Анхай нэвтэрнэ үү"
                         description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
                         type="warning"
                         showIcon
@@ -580,7 +581,7 @@ function App() {
                     <p>Зээлийн хүсэлтийн хэсэг удахгүй нэмэгдэнэ...</p>
                     {!authState.isAuthenticated && (
                       <Alert
-                        message="Эхлээд нэвтэрнэ үү"
+                        message="Анхай нэвтэрнэ үү"
                         description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
                         type="warning"
                         showIcon

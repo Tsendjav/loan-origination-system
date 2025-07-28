@@ -1,59 +1,64 @@
 package com.company.los.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.company.los.dto.AuthResponseDto;
+import com.company.los.dto.LoginRequestDto;
+import com.company.los.entity.User;
+import com.company.los.service.impl.AuthServiceImpl;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * ⭐ AUTH CONTROLLER - API AUTHENTICATION ⭐
  * - /api/v1/auth/login endpoint
  * - /api/v1/auth/logout endpoint
  * - /api/v1/auth/me endpoint
+ * - /api/v1/auth/refresh endpoint
  * - CORS тохиргоотой
  * - SecurityConfig-тай уялдаатай
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
 @CrossOrigin(origins = {"http://localhost:3001", "http://localhost:3000"})
+@RequiredArgsConstructor
 public class AuthController {
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final AuthServiceImpl authService;
 
     /**
      * API Login endpoint
      * POST /api/v1/auth/login
      */
     @PostMapping("/login")
-    public ResponseEntity<Map<String, Object>> login(@RequestBody Map<String, String> credentials) {
-        String username = credentials.get("username");
-        String password = credentials.get("password");
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDto loginRequest) {
+        log.info("🔐 API Login attempt: {}", loginRequest.getUsername());
         
-        System.out.println("🔐 API Login attempt: " + username);
-        
-        // Хөгжүүлэлтийн зориулалтаар энгийн шалгалт
-        // Продакшн дээр UserDetailsService ашиглах хэрэгтэй
-        // isValidUser функцэд LoginRequest объект дамжуулахын тулд түр зуурын LoginRequest үүсгэж байна.
-        // Хэрэв та LoginRequest классыг үүсгээгүй бол энэ хэсгийг өөрчлөх шаардлагатай.
-        LoginRequest loginRequest = new LoginRequest(username, password); // LoginRequest класс байхгүй бол үүсгэх эсвэл шууд username, password дамжуулах
-        if (isValidUser(loginRequest)) { // isValidUser функцэд LoginRequest объект дамжуулж байна
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("token", "dummy-jwt-token-" + System.currentTimeMillis());
-            response.put("user", createUserInfo(username));
+        try {
+            // Normalize the request
+            loginRequest.normalizeUsername();
+            loginRequest.ensureTimestamp();
+            loginRequest.ensurePlatform();
             
-            System.out.println("✅ API Login successful: " + username);
-            return ResponseEntity.ok(response);
-        } else {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("message", "Нэвтрэх нэр эсвэл нууц үг буруу");
+            AuthResponseDto response = authService.login(loginRequest);
             
-            System.out.println("❌ API Login failed: " + username);
+            if (response.isSuccess()) {
+                log.info("✅ API Login successful: {}", loginRequest.getUsername());
+                return ResponseEntity.ok(response);
+            } else {
+                log.warn("❌ API Login failed: {} - {}", loginRequest.getUsername(), response.getMessage());
+                return ResponseEntity.status(401).body(response);
+            }
+        } catch (Exception e) {
+            log.error("❌ API Login error: {} - {}", loginRequest.getUsername(), e.getMessage(), e);
+            
+            AuthResponseDto errorResponse = AuthResponseDto.failure("Нэвтрэх нэр эсвэл нууц үг буруу");
             return ResponseEntity.status(401).body(errorResponse);
         }
     }
@@ -63,13 +68,27 @@ public class AuthController {
      * POST /api/v1/auth/logout
      */
     @PostMapping("/logout")
-    public ResponseEntity<Map<String, Object>> logout() {
-        System.out.println("🚪 API Logout");
+    public ResponseEntity<Map<String, Object>> logout(@RequestHeader(value = "Authorization", required = false) String token) {
+        log.info("🚪 API Logout");
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "Амжилттай гарлаа");
-        return ResponseEntity.ok(response);
+        try {
+            if (token != null) {
+                // Bearer token-оос жинхэнэ token-ийг салгах
+                String jwtToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+                authService.logoutUser(jwtToken);
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Амжилттай гарлаа");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Logout error: {}", e.getMessage(), e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Гарахад алдаа гарлаа");
+            return ResponseEntity.status(500).body(errorResponse);
+        }
     }
 
     /**
@@ -77,94 +96,116 @@ public class AuthController {
      * GET /api/v1/auth/me
      */
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> getCurrentUser() {
-        // Продакшн дээр JWT token-оос user мэдээлэл авах хэрэгтэй
-        // Одоо хөгжүүлэлтийн зориулалтаар default user буцаана
-        Map<String, Object> user = createUserInfo("admin");
-        return ResponseEntity.ok(user);
+    public ResponseEntity<?> getCurrentUser(@RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            if (token == null) {
+                return ResponseEntity.status(401).body(Map.of("error", "Authorization header is missing"));
+            }
+            
+            // Bearer token-оос жинхэнэ token-ийг салгах
+            String jwtToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            
+            Optional<User> userOpt = authService.getCurrentUser(jwtToken);
+            
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                Map<String, Object> userInfo = new HashMap<>();
+                userInfo.put("id", user.getId().toString());
+                userInfo.put("username", user.getUsername());
+                userInfo.put("email", user.getEmail());
+                userInfo.put("firstName", user.getFirstName());
+                userInfo.put("lastName", user.getLastName());
+                userInfo.put("fullName", user.getFullName());
+                userInfo.put("roles", user.getRoles());
+                userInfo.put("department", user.getDepartment());
+                userInfo.put("position", user.getPosition());
+                userInfo.put("isActive", user.getIsActive());
+                userInfo.put("status", user.getStatus());
+                userInfo.put("lastLoginAt", user.getLastLoginAt());
+                
+                return ResponseEntity.ok(userInfo);
+            } else {
+                return ResponseEntity.status(401).body(Map.of("error", "Invalid token"));
+            }
+        } catch (Exception e) {
+            log.error("Get current user error: {}", e.getMessage(), e);
+            return ResponseEntity.status(401).body(Map.of("error", "Invalid token"));
+        }
     }
 
     /**
-     * User шалгах - хөгжүүлэлтийн зориулалт
-     * Продакшн дээр UserDetailsService ашиглана
+     * Token refresh endpoint
+     * POST /api/v1/auth/refresh
      */
-    private boolean isValidUser(LoginRequest request) { // Параметрийг LoginRequest болгон өөрчилсөн
-        // NULL CHECK нэмэх
-        if (request == null || request.getUsername() == null || request.getPassword() == null) {
-            return false;
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> request) {
+        try {
+            String refreshToken = request.get("refreshToken");
+            if (refreshToken == null || refreshToken.trim().isEmpty()) {
+                AuthResponseDto errorResponse = AuthResponseDto.failure("Refresh token шаардлагатай");
+                return ResponseEntity.status(400).body(errorResponse);
+            }
+            
+            AuthResponseDto response = authService.refreshToken(refreshToken);
+            
+            if (response.isSuccess()) {
+                return ResponseEntity.ok(response);
+            } else {
+                return ResponseEntity.status(401).body(response);
+            }
+        } catch (Exception e) {
+            log.error("Refresh token error: {}", e.getMessage(), e);
+            AuthResponseDto errorResponse = AuthResponseDto.failure("Token сэргээхэд алдаа гарлаа");
+            return ResponseEntity.status(401).body(errorResponse);
         }
-        
-        // data.sql файлтай тохирсон credentials
-        Map<String, String> defaultUsers = Map.of( // validUsers-ийг defaultUsers болгон өөрчилсөн
-            "admin", "admin123",
-            "loan_officer", "loan123", 
-            "manager", "manager123"
-        );
-        
-        return defaultUsers.containsKey(request.getUsername()) && 
-               defaultUsers.get(request.getUsername()).equals(request.getPassword());
     }
 
     /**
-     * User мэдээлэл үүсгэх
+     * Token validation endpoint
+     * GET /api/v1/auth/validate
      */
-    private Map<String, Object> createUserInfo(String username) {
-        Map<String, Object> user = new HashMap<>();
-        
-        switch (username) {
-            case "admin":
-                user.put("id", "1");
-                user.put("username", "admin");
-                user.put("role", "SUPER_ADMIN");
-                user.put("name", "Админ хэрэглэгч");
-                break;
-            case "loan_officer":
-                user.put("id", "2");
-                user.put("username", "loan_officer");
-                user.put("role", "LOAN_OFFICER");
-                user.put("name", "Зээлийн ажилтан");
-                break;
-            case "manager":
-                user.put("id", "3");
-                user.put("username", "manager");
-                user.put("role", "MANAGER");
-                user.put("name", "Менежер");
-                break;
-            default:
-                user.put("id", "1");
-                user.put("username", "admin");
-                user.put("role", "SUPER_ADMIN");
-                user.put("name", "Админ хэрэглэгч");
+    @GetMapping("/validate")
+    public ResponseEntity<Map<String, Object>> validateToken(@RequestHeader(value = "Authorization", required = false) String token) {
+        try {
+            Map<String, Object> response = new HashMap<>();
+            
+            if (token == null) {
+                response.put("valid", false);
+                response.put("message", "Token байхгүй");
+                return ResponseEntity.ok(response);
+            }
+            
+            String jwtToken = token.startsWith("Bearer ") ? token.substring(7) : token;
+            boolean isValid = authService.validateJwtToken(jwtToken);
+            
+            response.put("valid", isValid);
+            if (isValid) {
+                response.put("message", "Token хүчинтэй");
+            } else {
+                response.put("message", "Token хүчингүй");
+            }
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Token validation error: {}", e.getMessage(), e);
+            Map<String, Object> response = new HashMap<>();
+            response.put("valid", false);
+            response.put("message", "Token шалгахад алдаа гарлаа");
+            return ResponseEntity.ok(response);
         }
-        
-        return user;
     }
 
-    // LoginRequest классыг нэмсэн, хэрэв танд ийм класс байхгүй бол
-    // эсвэл таны төсөлд өөр газар тодорхойлогдсон бол үүнийг хасах боломжтой.
-    public static class LoginRequest {
-        private String username;
-        private String password;
-
-        public LoginRequest(String username, String password) {
-            this.username = username;
-            this.password = password;
-        }
-
-        public String getUsername() {
-            return username;
-        }
-
-        public void setUsername(String username) {
-            this.username = username;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
-        }
+    /**
+     * Health check endpoint
+     * GET /api/v1/auth/health
+     */
+    @GetMapping("/health")
+    public ResponseEntity<Map<String, Object>> healthCheck() {
+        Map<String, Object> health = new HashMap<>();
+        health.put("status", "UP");
+        health.put("service", "Authentication Service");
+        health.put("timestamp", java.time.LocalDateTime.now());
+        health.put("version", "1.0.0");
+        return ResponseEntity.ok(health);
     }
 }

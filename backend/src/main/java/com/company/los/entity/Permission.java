@@ -29,7 +29,7 @@ public class Permission {
     // Action enum
     public enum Action {
         CREATE("CREATE", "Үүсгэх"),
-        READ("READ", "Харах"),
+        read("READ", "Харах"),
         UPDATE("UPDATE", "Засварлах"),
         DELETE("DELETE", "Устгах"),
         APPROVE("APPROVE", "Зөвшөөрөх"),
@@ -82,28 +82,6 @@ public class Permission {
 
         public String getCode() { return code; }
         public String getMongolianName() { return mongolianName; }
-    }
-
-    // Permission level enum
-    public enum PermissionLevel {
-        LOW("LOW", "Бага", 1),
-        MEDIUM("MEDIUM", "Дунд", 2),
-        HIGH("HIGH", "Өндөр", 3),
-        CRITICAL("CRITICAL", "Эгзэгтэй", 4);
-
-        private final String code;
-        private final String mongolianName;
-        private final int level;
-
-        PermissionLevel(String code, String mongolianName, int level) {
-            this.code = code;
-            this.mongolianName = mongolianName;
-            this.level = level;
-        }
-
-        public String getCode() { return code; }
-        public String getMongolianName() { return mongolianName; }
-        public int getLevel() { return level; }
     }
 
     @Id
@@ -428,6 +406,20 @@ public class Permission {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        if (this.createdAt == null) {
+            this.createdAt = now;
+        }
+        this.updatedAt = now;
+    }
+
     @Override
     public String toString() {
         return "Permission{" +
@@ -442,5 +434,18 @@ public class Permission {
                 ", isActive=" + isActive +
                 ", isDeleted=" + isDeleted +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Permission)) return false;
+        Permission permission = (Permission) o;
+        return id != null && id.equals(permission.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

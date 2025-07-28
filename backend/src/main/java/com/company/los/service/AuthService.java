@@ -1,10 +1,14 @@
 package com.company.los.service;
 
+import com.company.los.dto.AuthResponseDto;
+import com.company.los.dto.LoginRequestDto;
 import com.company.los.dto.UserDto;
+import com.company.los.entity.User;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -14,6 +18,11 @@ import java.util.UUID;
 public interface AuthService {
 
     // Authentication
+    /**
+     * Хэрэглэгч нэвтрэх (LoginRequestDto ашиглан)
+     */
+    AuthResponseDto login(LoginRequestDto loginRequest);
+    
     /**
      * Хэрэглэгч нэвтрэх
      */
@@ -48,6 +57,16 @@ public interface AuthService {
      * Token сэргээх
      */
     String refreshJwtToken(String token);
+    
+    /**
+     * Refresh token ашиглан шинэ token авах
+     */
+    AuthResponseDto refreshToken(String refreshToken);
+
+    /**
+     * Одоогийн хэрэглэгчийг авах
+     */
+    Optional<User> getCurrentUser(String token);
 
     // Logout
     /**
