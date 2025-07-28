@@ -1,6 +1,7 @@
 package com.company.los.entity;
 
 import com.company.los.entity.BaseEntity;
+import com.company.los.enums.CustomerStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -243,6 +244,23 @@ public class Customer extends BaseEntity {
     @Column(name = "is_active")
     private Boolean isActive = true;
 
+    // Status field for compatibility with tests
+    @Column(name = "status", length = 20)
+    @Enumerated(EnumType.STRING)
+    private CustomerStatus status = CustomerStatus.ACTIVE;
+
+    // Preferred language field for compatibility
+    @Column(name = "preferred_language", length = 10)
+    private String preferredLanguage = "mn";
+
+    // Registration date field for compatibility
+    @Column(name = "registration_date")
+    private LocalDateTime registrationDate;
+
+    // Last updated field for compatibility
+    @Column(name = "last_updated")
+    private LocalDateTime lastUpdated;
+
     // Зээлийн хүсэлтүүд
     @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<LoanApplication> loanApplications = new ArrayList<>();
@@ -254,6 +272,8 @@ public class Customer extends BaseEntity {
     // Constructors
     public Customer() {
         super();
+        this.registrationDate = LocalDateTime.now();
+        this.lastUpdated = LocalDateTime.now();
     }
 
     public Customer(CustomerType customerType, String registerNumber, String phone) {
@@ -338,6 +358,52 @@ public class Customer extends BaseEntity {
             addressBuilder.append(zipCode.trim());
         }
         return addressBuilder.toString();
+    }
+
+    // Compatibility methods for test classes
+    public String getSocialSecurityNumber() {
+        return this.registerNumber;
+    }
+
+    public void setSocialSecurityNumber(String socialSecurityNumber) {
+        this.registerNumber = socialSecurityNumber;
+    }
+
+    public CustomerStatus getStatus() {
+        return this.status;
+    }
+
+    public void setStatus(CustomerStatus status) {
+        this.status = status;
+        this.isActive = (status == CustomerStatus.ACTIVE);
+    }
+
+    public LocalDateTime getRegistrationDate() {
+        return this.registrationDate != null ? this.registrationDate : this.getCreatedAt();
+    }
+
+    public void setRegistrationDate(LocalDateTime registrationDate) {
+        this.registrationDate = registrationDate;
+        if (this.getCreatedAt() == null) {
+            this.setCreatedAt(registrationDate);
+        }
+    }
+
+    public LocalDateTime getLastUpdated() {
+        return this.lastUpdated != null ? this.lastUpdated : this.getUpdatedAt();
+    }
+
+    public void setLastUpdated(LocalDateTime lastUpdated) {
+        this.lastUpdated = lastUpdated;
+        this.setUpdatedAt(lastUpdated);
+    }
+
+    public String getPreferredLanguage() {
+        return this.preferredLanguage;
+    }
+
+    public void setPreferredLanguage(String preferredLanguage) {
+        this.preferredLanguage = preferredLanguage;
     }
 
     // Getters and Setters

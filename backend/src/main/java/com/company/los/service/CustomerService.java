@@ -2,6 +2,8 @@ package com.company.los.service;
 
 import com.company.los.dto.CustomerDto;
 import com.company.los.entity.Customer;
+import com.company.los.enums.CustomerStatus;
+import com.company.los.enums.KYCStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -9,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -63,6 +66,11 @@ public interface CustomerService {
      * И-мэйлээр хайх
      */
     CustomerDto getCustomerByEmail(String email);
+
+    /**
+     * И-мэйлээр харилцагч хайх (Optional буцаах)
+     */
+    Optional<CustomerDto> findByEmail(String email);
 
     /**
      * Ерөнхий хайлт
@@ -121,6 +129,11 @@ public interface CustomerService {
      */
     Page<CustomerDto> getIncompleteKycCustomers(Pageable pageable);
 
+    /**
+     * KYC статус өөрчлөх
+     */
+    CustomerDto updateKYCStatus(UUID customerId, KYCStatus newStatus);
+
     // Дупликат шалгалт
     /**
      * Дупликат харилцагч шалгах
@@ -149,9 +162,25 @@ public interface CustomerService {
     boolean existsByEmail(String email);
 
     /**
+     * И-мэйл боломжтой эсэхийг шалгах (хуучин нэр)
+     */
+    boolean isEmailAvailable(String email);
+
+    /**
+     * И-мэйл давхардаагүй эсэхийг шалгах (шинэ нэр)
+     */
+    boolean isEmailUnique(String email);
+
+    /**
      * Харилцагчийн мэдээлэл хүчинтэй эсэхийг шалгах
      */
     boolean validateCustomerData(CustomerDto customerDto);
+
+    // Status management
+    /**
+     * Харилцагчийн статус өөрчлөх
+     */
+    CustomerDto updateCustomerStatus(UUID customerId, CustomerStatus newStatus);
 
     // Зээлийн хүсэлттэй холбоотой
     /**

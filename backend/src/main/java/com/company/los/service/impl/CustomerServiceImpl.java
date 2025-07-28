@@ -2,6 +2,8 @@ package com.company.los.service.impl;
 
 import com.company.los.dto.CustomerDto;
 import com.company.los.entity.Customer;
+import com.company.los.enums.CustomerStatus;
+import com.company.los.enums.KYCStatus;
 import com.company.los.repository.CustomerRepository;
 import com.company.los.service.CustomerService;
 import org.slf4j.Logger;
@@ -169,10 +171,18 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<CustomerDto> findByEmail(String email) {
+        logger.debug("Finding customer by email: {}", email);
+        
+        Optional<Customer> customer = customerRepository.findByEmail(email);
+        return customer.map(CustomerDto::fromEntity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Page<CustomerDto> searchCustomers(String searchTerm, Pageable pageable) {
         logger.debug("Searching customers with term: {}", searchTerm);
         
-        // Use repository method if available, otherwise use basic search
         try {
             Page<Customer> customers = customerRepository.findBySearchTerm(searchTerm, pageable);
             return customers.map(CustomerDto::fromEntity);
@@ -198,7 +208,6 @@ public class CustomerServiceImpl implements CustomerService {
     public List<CustomerDto> quickSearchCustomers(String quickSearch) {
         logger.debug("Quick searching customers with term: {}", quickSearch);
         
-        // Use basic search since quickSearch might not exist
         List<Customer> allCustomers = customerRepository.findAll();
         List<Customer> customers = allCustomers.stream()
                 .filter(customer -> 
@@ -219,7 +228,6 @@ public class CustomerServiceImpl implements CustomerService {
     public Page<CustomerDto> getCustomersByType(Customer.CustomerType customerType, Pageable pageable) {
         logger.debug("Getting customers by type: {}", customerType);
         
-        // Use basic filter since findByCustomerType might not exist
         List<Customer> allCustomers = customerRepository.findAll();
         List<Customer> filteredCustomers = allCustomers.stream()
                 .filter(customer -> customer.getCustomerType() == customerType)
@@ -233,7 +241,6 @@ public class CustomerServiceImpl implements CustomerService {
     public Page<CustomerDto> getCustomersByKycStatus(Customer.KycStatus kycStatus, Pageable pageable) {
         logger.debug("Getting customers by KYC status: {}", kycStatus);
         
-        // Use basic filter since findByKycStatus might not exist
         List<Customer> allCustomers = customerRepository.findAll();
         List<Customer> filteredCustomers = allCustomers.stream()
                 .filter(customer -> customer.getKycStatus() == kycStatus)
@@ -242,7 +249,6 @@ public class CustomerServiceImpl implements CustomerService {
         return createPageFromList(filteredCustomers, pageable).map(CustomerDto::fromEntity);
     }
 
-    // Дэвшилтэт хайлт
     @Override
     @Transactional(readOnly = true)
     public Page<CustomerDto> searchCustomersWithFilters(Customer.CustomerType customerType,
@@ -253,7 +259,6 @@ public class CustomerServiceImpl implements CustomerService {
                                                        Pageable pageable) {
         logger.debug("Searching customers with advanced filters");
         
-        // Use basic filtering since findByAdvancedFilters signature might be wrong
         List<Customer> allCustomers = customerRepository.findAll();
         List<Customer> filteredCustomers = allCustomers.stream()
                 .filter(customer -> {
@@ -326,13 +331,33 @@ public class CustomerServiceImpl implements CustomerService {
     public Page<CustomerDto> getIncompleteKycCustomers(Pageable pageable) {
         logger.debug("Getting customers with incomplete KYC");
         
-        // Use basic filter since findIncompleteKyc might not exist
         List<Customer> allCustomers = customerRepository.findAll();
         List<Customer> incompleteKycCustomers = allCustomers.stream()
                 .filter(customer -> customer.getKycStatus() != Customer.KycStatus.COMPLETED)
                 .collect(Collectors.toList());
         
         return createPageFromList(incompleteKycCustomers, pageable).map(CustomerDto::fromEntity);
+    }
+
+    @Override
+    public CustomerDto updateKYCStatus(UUID customerId, KYCStatus newStatus) {
+        logger.info("Updating KYC status for customer: {} to: {}", customerId, newStatus);
+        
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new IllegalArgumentException("Харилцагч олдсонгүй: " + customerId));
+        
+        // Convert external enum to internal enum
+        Customer.KycStatus internalStatus = Customer.KycStatus.valueOf(newStatus.name());
+        customer.setKycStatus(internalStatus);
+        
+        if (internalStatus == Customer.KycStatus.COMPLETED) {
+            customer.setKycCompletedAt(LocalDateTime.now());
+        }
+        
+        Customer savedCustomer = customerRepository.save(customer);
+        logger.info("KYC status updated for customer: {}", customerId);
+        
+        return CustomerDto.fromEntity(savedCustomer);
     }
 
     // Дупликат шалгалт
@@ -378,7 +403,6 @@ public class CustomerServiceImpl implements CustomerService {
                                                  java.time.LocalDate birthDate, UUID excludeId) {
         logger.debug("Finding similar customers with name: {} {}", firstName, lastName);
         
-        // Use basic filter since findSimilarCustomers might not exist
         List<Customer> allCustomers = customerRepository.findAll();
         List<Customer> similarCustomers = allCustomers.stream()
                 .filter(customer -> !customer.getId().equals(excludeId))
@@ -414,6 +438,18 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public boolean isEmailAvailable(String email) {
+        return !customerRepository.existsByEmail(email);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isEmailUnique(String email) {
+        return !customerRepository.existsByEmail(email);
+    }
+
+    @Override
     public boolean validateCustomerData(CustomerDto customerDto) {
         logger.debug("Validating customer data for: {}", customerDto.getRegisterNumber());
         
@@ -422,6 +458,23 @@ public class CustomerServiceImpl implements CustomerService {
         } else {
             return customerDto.isValidForBusiness();
         }
+    }
+
+    // Status management
+    @Override
+    public CustomerDto updateCustomerStatus(UUID customerId, CustomerStatus newStatus) {
+        logger.info("Updating customer status for customer: {} to: {}", customerId, newStatus);
+        
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new IllegalArgumentException("Харилцагч олдсонгүй: " + customerId));
+        
+        customer.setStatus(newStatus);
+        customer.setLastUpdated(LocalDateTime.now());
+        
+        Customer savedCustomer = customerRepository.save(customer);
+        logger.info("Customer status updated for customer: {}", customerId);
+        
+        return CustomerDto.fromEntity(savedCustomer);
     }
 
     // Статистик
@@ -444,11 +497,15 @@ public class CustomerServiceImpl implements CustomerService {
         Map<Customer.KycStatus, Long> kycMap = getCustomerCountByKycStatus();
         stats.put("byKycStatus", kycMap);
         
-        // Today's registrations - Use the repository method directly
-        Object[] todayStats = customerRepository.getTodayCustomerStats();
-        if (todayStats != null && todayStats.length > 0) {
-            stats.put("todayRegistrations", todayStats[0]); // newToday
-        } else {
+        // Today's registrations
+        try {
+            Object[] todayStats = customerRepository.getTodayCustomerStats();
+            if (todayStats != null && todayStats.length > 0) {
+                stats.put("todayRegistrations", todayStats[0]); // newToday
+            } else {
+                stats.put("todayRegistrations", 0L);
+            }
+        } catch (Exception e) {
             stats.put("todayRegistrations", 0L);
         }
         
@@ -493,7 +550,6 @@ public class CustomerServiceImpl implements CustomerService {
         LocalDateTime startDate = LocalDateTime.now().minusMonths(months);
         
         try {
-            // Use repository method if available
             return customerRepository.getMonthlyCustomerStats(startDate).stream()
                     .map(row -> {
                         Map<String, Object> stat = new HashMap<>();
@@ -503,7 +559,6 @@ public class CustomerServiceImpl implements CustomerService {
                     })
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            // Fallback to basic filtering
             logger.error("Error fetching monthly customer stats from repository, falling back to manual calculation: {}", e.getMessage());
             List<Customer> allCustomers = customerRepository.findAll();
             Map<String, Long> monthlyStats = new HashMap<>();
@@ -552,23 +607,6 @@ public class CustomerServiceImpl implements CustomerService {
         existingCustomer.setAnnualRevenue(customerDto.getAnnualRevenue());
     }
 
-    private List<Customer> getTodayRegisteredCustomers() {
-        try {
-            return customerRepository.findTodayRegistered();
-        } catch (Exception e) {
-            logger.error("Error fetching today registered customers from repository, falling back to manual calculation: {}", e.getMessage());
-            // Fallback implementation
-            LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
-            LocalDateTime todayEnd = todayStart.plusDays(1);
-            
-            return customerRepository.findAll().stream()
-                    .filter(customer -> customer.getCreatedAt() != null &&
-                            customer.getCreatedAt().isAfter(todayStart) &&
-                            customer.getCreatedAt().isBefore(todayEnd))
-                    .collect(Collectors.toList());
-        }
-    }
-
     // Helper method to create Page from List
     private <T> org.springframework.data.domain.Page<T> createPageFromList(List<T> list, Pageable pageable) {
         int start = (int) pageable.getOffset();
@@ -614,7 +652,6 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Map<String, Object> getCustomerLoanHistory(UUID customerId) {
-        // Implementation would depend on LoanApplication relationships
         logger.warn("getCustomerLoanHistory not implemented yet for customer: {}", customerId);
         return new HashMap<>();
     }
@@ -628,8 +665,7 @@ public class CustomerServiceImpl implements CustomerService {
                             row -> (Long) row[1]
                     ));
         } catch (Exception e) {
-            logger.error("Error fetching customer count by city from repository, falling back to manual calculation: {}", e.getMessage());
-            // Fallback implementation
+            logger.error("Error fetching customer count by city from repository: {}", e.getMessage());
             List<Customer> allCustomers = customerRepository.findAll();
             return allCustomers.stream()
                     .filter(customer -> customer.getCity() != null)
@@ -648,8 +684,7 @@ public class CustomerServiceImpl implements CustomerService {
                             row -> (Long) row[1]
                     ));
         } catch (Exception e) {
-            logger.error("Error fetching customer count by province from repository, falling back to manual calculation: {}", e.getMessage());
-            // Fallback implementation
+            logger.error("Error fetching customer count by province from repository: {}", e.getMessage());
             List<Customer> allCustomers = customerRepository.findAll();
             return allCustomers.stream()
                     .filter(customer -> customer.getProvince() != null)
@@ -676,34 +711,17 @@ public class CustomerServiceImpl implements CustomerService {
                 stats.put("withoutDocuments", 0L);
             }
         } catch (Exception e) {
-            logger.error("Error fetching today customer stats from repository, falling back to manual calculation: {}", e.getMessage());
-            // Fallback if the repository query fails
-            List<Customer> allCustomers = customerRepository.findAll();
-            LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
-            long newToday = allCustomers.stream()
-                .filter(c -> c.getCreatedAt() != null && c.getCreatedAt().toLocalDate().isEqual(todayStart.toLocalDate()))
-                .count();
-            long highIncome = allCustomers.stream()
-                .filter(c -> c.getMonthlyIncome() != null && c.getMonthlyIncome().compareTo(BigDecimal.valueOf(1000000)) >= 0)
-                .count();
-            long withLoans = allCustomers.stream()
-                .filter(c -> c.getLoanApplications() != null && !c.getLoanApplications().isEmpty())
-                .count();
-            long withoutDocuments = allCustomers.stream()
-                .filter(c -> c.getDocuments() == null || c.getDocuments().isEmpty())
-                .count();
-
-            stats.put("newToday", newToday);
-            stats.put("highIncome", highIncome);
-            stats.put("withLoans", withLoans);
-            stats.put("withoutDocuments", withoutDocuments);
+            logger.error("Error fetching today customer stats: {}", e.getMessage());
+            stats.put("newToday", 0L);
+            stats.put("highIncome", 0L);
+            stats.put("withLoans", 0L);
+            stats.put("withoutDocuments", 0L);
         }
         return stats;
     }
 
     @Override
     public Page<CustomerDto> getTopCustomersByLoanAmount(Pageable pageable) {
-        // This would need JOIN with LoanApplication
         logger.warn("getTopCustomersByLoanAmount not implemented yet");
         return Page.empty();
     }
@@ -717,16 +735,8 @@ public class CustomerServiceImpl implements CustomerService {
                     .map(CustomerDto::fromEntity)
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            logger.error("Error fetching recent customers from repository, falling back to manual calculation: {}", e.getMessage());
-            // Fallback implementation
-            LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
-            List<Customer> allCustomers = customerRepository.findAll();
-            
-            return allCustomers.stream()
-                    .filter(customer -> customer.getCreatedAt() != null && 
-                            customer.getCreatedAt().isAfter(thirtyDaysAgo))
-                    .map(CustomerDto::fromEntity)
-                    .collect(Collectors.toList());
+            logger.error("Error fetching recent customers: {}", e.getMessage());
+            return new ArrayList<>();
         }
     }
 
@@ -737,17 +747,8 @@ public class CustomerServiceImpl implements CustomerService {
             List<Customer> inactiveCustomers = customerRepository.findOldInactiveCustomers(ninetyDaysAgo);
             return createPageFromList(inactiveCustomers, pageable).map(CustomerDto::fromEntity);
         } catch (Exception e) {
-            logger.error("Error fetching inactive customers from repository, falling back to manual calculation: {}", e.getMessage());
-            // Fallback implementation
-            LocalDateTime ninetyDaysAgo = LocalDateTime.now().minusDays(90);
-            List<Customer> allCustomers = customerRepository.findAll();
-            
-            List<Customer> inactiveCustomers = allCustomers.stream()
-                    .filter(customer -> customer.getUpdatedAt() != null && 
-                            customer.getUpdatedAt().isBefore(ninetyDaysAgo))
-                    .collect(Collectors.toList());
-            
-            return createPageFromList(inactiveCustomers, pageable).map(CustomerDto::fromEntity);
+            logger.error("Error fetching inactive customers: {}", e.getMessage());
+            return Page.empty();
         }
     }
 

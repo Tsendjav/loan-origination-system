@@ -1,0 +1,267 @@
+# Development Environment Configuration for LOS
+# This configuration is optimized for local development
+
+server:
+  port: 8080
+  servlet:
+    context-path: /los
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: on_param
+    include-exception: false
+
+spring:
+  profiles:
+    active: dev
+    
+  # Database Configuration - H2 for development
+  datasource:
+    url: jdbc:h2:mem:losdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    driverClassName: org.h2.Driver
+    username: sa
+    password: 
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 300000
+      leak-detection-threshold: 60000
+      
+  # JPA/Hibernate Configuration
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: create-drop
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        
+  # H2 Console (for development only)
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+      settings:
+        web-allow-others: true
+        trace: false
+        
+  # Redis Configuration (disabled for development)
+  redis:
+    host: localhost
+    port: 6379
+    database: 0
+    timeout: 2000ms
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+    # Disable Redis health check in dev
+    health:
+      redis:
+        enabled: false
+        
+  # Cache Configuration
+  cache:
+    type: simple
+    cache-names:
+      - customers
+      - loanProducts
+      - documents
+      - userPermissions
+      
+  # Jackson Configuration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: true
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+    
+  # File Upload Configuration
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+      file-size-threshold: 2KB
+      
+  # Security Configuration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Disable JWT in development
+          issuer-uri: 
+          
+  # Mail Configuration (disabled for development)
+  mail:
+    host: localhost
+    port: 1025
+    username: 
+    password: 
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            
+# Application Specific Configuration
+app:
+  name: "LOS Development"
+  version: "1.0.0-DEV"
+  description: "Loan Origination System - Development Environment"
+  
+  # JWT Configuration
+  jwt:
+    enabled: false  # Disable JWT for easier development
+    secret: dev-secret-key-for-testing-only-not-for-production
+    expiration: 86400 # 24 hours in seconds
+    refresh-expiration: 604800 # 7 days in seconds
+    
+  # File Storage Configuration
+  file:
+    upload-dir: ./uploads/dev
+    max-size: 52428800 # 50MB
+    allowed-types:
+      - pdf
+      - jpg
+      - jpeg
+      - png
+      - doc
+      - docx
+      - xls
+      - xlsx
+      
+  # Loan Configuration
+  loan:
+    default-interest-rate: 12.0
+    max-loan-amount: 100000000 # 100M MNT
+    min-loan-amount: 500000    # 500K MNT
+    max-loan-term: 360         # 30 years in months
+    min-loan-term: 6           # 6 months
+    
+  # Customer Configuration
+  customer:
+    auto-kyc: false
+    welcome-email: false
+    
+  # Notification Configuration
+  notification:
+    email:
+      enabled: false
+    sms:
+      enabled: false
+    push:
+      enabled: false
+      
+  # External Services Configuration
+  external:
+    credit-bureau:
+      enabled: false
+      url: http://localhost:8082/credit-bureau
+      timeout: 30000
+    payment-gateway:
+      enabled: false
+      url: http://localhost:8083/payment
+      timeout: 30000
+    document-verification:
+      enabled: false
+      url: http://localhost:8084/verification
+      timeout: 30000
+      
+  # Development Tools
+  dev:
+    data-loader:
+      enabled: true
+      load-sample-data: true
+    debug:
+      enabled: true
+      log-sql: true
+      log-transactions: true
+      
+# Logging Configuration
+logging:
+  level:
+    com.company.los: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/los-dev.log
+    max-size: 100MB
+    max-history: 30
+    
+# Management/Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    info:
+      enabled: true
+    metrics:
+      enabled: true
+    loggers:
+      enabled: true
+    configprops:
+      enabled: true
+    env:
+      enabled: true
+      show-values: always
+  health:
+    redis:
+      enabled: false
+    db:
+      enabled: true
+    diskspace:
+      enabled: true
+      threshold: 100MB
+  info:
+    env:
+      enabled: true
+    build:
+      enabled: true
+    git:
+      enabled: true
+      mode: full
+      
+# CORS Configuration for Development
+cors:
+  allowed-origins: 
+    - http://localhost:3000
+    - http://localhost:3001
+    - http://127.0.0.1:3000
+    - http://127.0.0.1:3001
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - PATCH
+    - OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+  max-age: 3600

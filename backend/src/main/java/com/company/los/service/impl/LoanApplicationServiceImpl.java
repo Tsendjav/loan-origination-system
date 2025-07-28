@@ -727,8 +727,8 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
 
     @Transactional(readOnly = true)
     public List<LoanApplicationDto> getPendingApplications() {
-        // Use basic status search
-        List<LoanApplication> applications = loanApplicationRepository.findByStatus("PENDING", 
+        // Use SUBMITTED status instead of PENDING since PENDING doesn't exist in LoanStatus enum
+        List<LoanApplication> applications = loanApplicationRepository.findByStatus("SUBMITTED", 
                 PageRequest.of(0, 1000)).getContent();
         return applications.stream()
                 .map(LoanApplicationDto::fromEntity)
@@ -808,20 +808,30 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
                status == LoanApplication.ApplicationStatus.DISBURSED;
     }
 
+    /**
+     * Зээлийн статусыг хүсэлтийн статус руу хөрвүүлэх
+     * Алдааг засарсан хувилбар - зөвхөн LoanStatus enum-д байгаа утгуудыг ашиглана
+     */
     private LoanApplication.ApplicationStatus convertLoanStatusToApplicationStatus(LoanStatus loanStatus) {
         switch (loanStatus) {
-            case DRAFT: return LoanApplication.ApplicationStatus.DRAFT;
-            case SUBMITTED: return LoanApplication.ApplicationStatus.SUBMITTED;
-            case PENDING: return LoanApplication.ApplicationStatus.PENDING;
-            case DOCUMENT_REVIEW:
-            case CREDIT_CHECK:
-            case RISK_ASSESSMENT:
-            case MANAGER_REVIEW: return LoanApplication.ApplicationStatus.UNDER_REVIEW;
-            case APPROVED: return LoanApplication.ApplicationStatus.APPROVED;
-            case REJECTED: return LoanApplication.ApplicationStatus.REJECTED;
-            case CANCELLED: return LoanApplication.ApplicationStatus.CANCELLED;
-            case DISBURSED: return LoanApplication.ApplicationStatus.DISBURSED;
-            default: return LoanApplication.ApplicationStatus.DRAFT;
+            case DRAFT: 
+                return LoanApplication.ApplicationStatus.DRAFT;
+            case SUBMITTED: 
+                return LoanApplication.ApplicationStatus.SUBMITTED;
+            case UNDER_REVIEW: 
+                return LoanApplication.ApplicationStatus.UNDER_REVIEW;
+            case APPROVED: 
+                return LoanApplication.ApplicationStatus.APPROVED;
+            case REJECTED: 
+                return LoanApplication.ApplicationStatus.REJECTED;
+            case CANCELLED: 
+                return LoanApplication.ApplicationStatus.CANCELLED;
+            case DISBURSED: 
+                return LoanApplication.ApplicationStatus.DISBURSED;
+            case COMPLETED: 
+                return LoanApplication.ApplicationStatus.DISBURSED; // COMPLETED статусыг DISBURSED болгон тооцно
+            default: 
+                return LoanApplication.ApplicationStatus.DRAFT;
         }
     }
 
