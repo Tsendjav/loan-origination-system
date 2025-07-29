@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.company.los.entity.Customer;
+import com.company.los.enums.CustomerStatus; // CustomerStatus-г импортлох
 import jakarta.validation.constraints.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,6 +110,9 @@ public class CustomerDto {
     // Системийн мэдээлэл
     private Boolean isActive = true;
 
+    // CustomerStatus талбарыг нэмэх
+    private CustomerStatus status;
+
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
 
@@ -133,6 +137,7 @@ public class CustomerDto {
         this.customerType = Customer.CustomerType.INDIVIDUAL;
         this.kycStatus = Customer.KycStatus.PENDING;
         this.isActive = true;
+        this.status = CustomerStatus.PENDING_VERIFICATION; // Эхний утгыг тохируулах
     }
 
     public CustomerDto(Customer.CustomerType customerType, String firstName, String lastName, 
@@ -188,6 +193,7 @@ public class CustomerDto {
         }
         
         dto.setIsActive(customer.getIsActive());
+        dto.setStatus(customer.getStatus()); // Статусыг entity-ээс DTO руу хуулах
         dto.setCreatedAt(customer.getCreatedAt());
         dto.setUpdatedAt(customer.getUpdatedAt());
         
@@ -223,6 +229,7 @@ public class CustomerDto {
         dto.setRegisterNumber(customer.getRegisterNumber());
         dto.setPhone(customer.getPhone());
         dto.setKycStatus(customer.getKycStatus());
+        dto.setStatus(customer.getStatus()); // Статусыг summary DTO-д нэмэх
 
         dto.setDisplayName(dto.calculateDisplayName());
         dto.setKycStatusDisplay(dto.calculateKycStatusDisplay());
@@ -268,6 +275,7 @@ public class CustomerDto {
         }
         
         customer.setIsActive(this.isActive);
+        customer.setStatus(this.status); // Статусыг DTO-оос entity руу хуулах
         customer.setCreatedAt(this.createdAt);
         customer.setUpdatedAt(this.updatedAt);
         
@@ -309,6 +317,7 @@ public class CustomerDto {
             case IN_PROGRESS: return "Хийгдэж байна";
             case COMPLETED: return "Дууссан";
             case REJECTED: return "Татгалзсан";
+            case FAILED: return "Амжилтгүй"; // FAILED-г нэмэх
             default: return kycStatus.toString();
         }
     }
@@ -359,6 +368,7 @@ public class CustomerDto {
             case IN_PROGRESS: return "badge-info";
             case COMPLETED: return "badge-success";
             case REJECTED: return "badge-danger";
+            case FAILED: return "badge-danger"; // FAILED-г нэмэх
             default: return "badge-secondary";
         }
     }
@@ -373,7 +383,8 @@ public class CustomerDto {
     }
 
     public boolean canApplyForLoan() {
-        return isActive && isKycCompleted;
+        // isActive нь Boolean тул шууд ашиглаж болно
+        return Boolean.TRUE.equals(isActive) && Boolean.TRUE.equals(isKycCompleted);
     }
 
     // Getters and Setters
@@ -455,6 +466,10 @@ public class CustomerDto {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
+    // CustomerStatus-ийн getter/setter-г нэмэх
+    public CustomerStatus getStatus() { return status; }
+    public void setStatus(CustomerStatus status) { this.status = status; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -500,6 +515,7 @@ public class CustomerDto {
                 ", registerNumber='" + registerNumber + '\'' +
                 ", phone='" + phone + '\'' +
                 ", kycStatus=" + kycStatus +
+                ", status=" + status + // toString-д статусыг нэмэх
                 '}';
     }
 }

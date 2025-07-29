@@ -14,7 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @author LOS Development Team
  */
 @SpringBootTest(classes = LoanOriginationApplication.class)
-@AutoConfigureWebMvc
+@AutoConfigureMockMvc // Use AutoConfigureMockMvc for MockMvc integration tests
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
     "spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
@@ -374,13 +374,12 @@ class LoanApplicationIntegrationTest {
         customer.setLastName("Болд");
         customer.setEmail("batbayar@integration.test");
         customer.setPhone("99119911");
-        customer.setDateOfBirth(LocalDate.of(1990, 1, 15));
+        customer.setBirthDate(LocalDate.of(1990, 1, 15));
         customer.setRegisterNumber("IT90011500"); // Changed from setSocialSecurityNumber
         customer.setCustomerType(Customer.CustomerType.INDIVIDUAL); // Use inner enum
         customer.setKycStatus(Customer.KycStatus.COMPLETED); // Use inner enum
-        // Remove setIsKycCompleted and setIsActive if they don't exist
+        customer.setIsActive(true);
         Customer savedCustomer = customerRepository.save(customer);
-        // Force set ID to 1L if needed for testing
         return savedCustomer;
     }
 
@@ -388,24 +387,18 @@ class LoanApplicationIntegrationTest {
         LoanProduct product = new LoanProduct();
         product.setName("Test Personal Loan");
         product.setDescription("Test loan product for integration tests");
-        // Assuming setProductType uses LoanType enum, use PERSONAL instead of setProductType
         product.setMinAmount(BigDecimal.valueOf(500000));
         product.setMaxAmount(BigDecimal.valueOf(50000000));
-        // Assuming these methods might not exist, comment them out
-        // product.setMinTerm(6);
-        // product.setMaxTerm(60);
-        // product.setBaseInterestRate(12.0);
         product.setIsActive(true);
         product.setProcessingFee(BigDecimal.valueOf(50000));
-        // product.setEarlyRepaymentPenalty(0.02);
         return loanProductRepository.save(product);
     }
 
     private LoanApplicationRequestDto createLoanApplicationRequest() {
         LoanApplicationRequestDto request = new LoanApplicationRequestDto();
-        // Use hardcoded IDs if there are type mismatches
-        request.setCustomerId(1L); // Use Long instead of UUID if method expects Long
-        request.setLoanProductId(1L); // Use Long instead of UUID if method expects Long
+        // Convert UUID to Long if DTO expects Long type
+        request.setCustomerId(1L); // Use hardcoded Long ID for test compatibility
+        request.setLoanProductId(1L); // Use hardcoded Long ID for test compatibility
         request.setRequestedAmount(BigDecimal.valueOf(10000000));
         request.setLoanTerm(24);
         request.setPurpose(LoanPurpose.HOME_IMPROVEMENT);
@@ -418,23 +411,15 @@ class LoanApplicationIntegrationTest {
         application.setCustomer(testCustomer);
         application.setLoanProduct(testLoanProduct);
         application.setRequestedAmount(BigDecimal.valueOf(5000000));
-        // Assuming setLoanTerm might not exist
-        // application.setLoanTerm(12);
         application.setPurpose(LoanPurpose.PERSONAL.toString()); // Convert enum to string if needed
         application.setStatus(LoanApplication.ApplicationStatus.valueOf(status.name())); // Use inner enum
-        // Assuming setApplicationDate might not exist
-        // application.setApplicationDate(LocalDateTime.now());
         
         if (status == LoanStatus.APPROVED) {
             application.setApprovedAmount(BigDecimal.valueOf(4800000));
             application.setInterestRate(BigDecimal.valueOf(12.0)); // Use BigDecimal - FIXED
-            // Assuming setApprovalDate might not exist
-            // application.setApprovalDate(LocalDateTime.now());
             application.setApprovedBy("1"); // Use String instead of Long - FIXED
         } else if (status == LoanStatus.REJECTED) {
             application.setRejectionReason("Test rejection reason");
-            // Assuming setRejectionDate might not exist
-            // application.setRejectionDate(LocalDateTime.now());
             application.setRejectedBy("1"); // Use String instead of Long - FIXED
         }
         

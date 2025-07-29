@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -347,7 +348,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .orElseThrow(() -> new IllegalArgumentException("Харилцагч олдсонгүй: " + customerId));
         
         // Convert external enum to internal enum
-        Customer.KycStatus internalStatus = Customer.KycStatus.valueOf(newStatus.name());
+        Customer.KycStatus internalStatus = convertToInternalKycStatus(newStatus);
         customer.setKycStatus(internalStatus);
         
         if (internalStatus == Customer.KycStatus.COMPLETED) {
@@ -358,6 +359,26 @@ public class CustomerServiceImpl implements CustomerService {
         logger.info("KYC status updated for customer: {}", customerId);
         
         return CustomerDto.fromEntity(savedCustomer);
+    }
+
+    /**
+     * External KYCStatus enum-ийг Internal Customer.KycStatus enum-д хөрвүүлэх
+     */
+    private Customer.KycStatus convertToInternalKycStatus(KYCStatus externalStatus) {
+        switch (externalStatus) {
+            case PENDING:
+                return Customer.KycStatus.PENDING;
+            case IN_PROGRESS:
+                return Customer.KycStatus.IN_PROGRESS;
+            case COMPLETED:
+                return Customer.KycStatus.COMPLETED;
+            case REJECTED:
+                return Customer.KycStatus.REJECTED;
+            case FAILED:
+                return Customer.KycStatus.FAILED;
+            default:
+                throw new IllegalArgumentException("Unknown KYC Status: " + externalStatus);
+        }
     }
 
     // Дупликат шалгалт

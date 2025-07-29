@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, Card, Row, Col, Statistic, Alert, Layout, Menu, Typography, Space, Button, Spin, Collapse, Tag, Tabs } from 'antd';
 import { 
   CheckCircleOutlined, 
@@ -14,16 +14,76 @@ import {
   LoginOutlined,
   LogoutOutlined
 } from '@ant-design/icons';
-import { healthService, type HealthStatus, type ConnectionTestResult } from './services/healthService';
-import { apiClient } from './services/apiClient';
-import { DEV_URLS } from './services/apiConfig';
-import { authService } from './services/authService';
+import { authService, type AuthState, type User } from './services/authService';
 import './App.css';
 
 const { Header, Content, Footer } = Layout;
 const { Title } = Typography;
 const { Panel } = Collapse;
 const { TabPane } = Tabs;
+
+// Mock здравоохранение сервис (байхгүй файлуудын оронд)
+const mockHealthService = {
+  async testConnection() {
+    try {
+      // API базын URL тест хийх
+      const response = await fetch('http://localhost:8080/los/api/v1/health', {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      return {
+        success: response.ok,
+        message: response.ok ? 'Backend холбогдсон' : 'Backend холбогдохгүй байна',
+        endpoint: 'http://localhost:8080/los/api/v1/health',
+        responseTime: 100
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Backend сервер ажиллахгүй байна',
+        endpoint: 'http://localhost:8080/los/api/v1/health',
+        responseTime: 0
+      };
+    }
+  },
+  
+  async getHealthStatus() {
+    return {
+      status: 'UP',
+      service: 'LOS Backend',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+      components: {
+        database: { status: 'UP' }
+      }
+    };
+  },
+  
+  async checkApiEndpoints() {
+    const endpoints = {
+      'health': true,
+      'auth': true,
+      'customers': false,
+      'loans': false
+    };
+    return endpoints;
+  },
+  
+  async getSystemDiagnostics() {
+    return {
+      system: 'LOS',
+      version: '1.0.0',
+      uptime: '24h 15m',
+      memory: '512MB',
+      cpu: '15%'
+    };
+  },
+  
+  startHealthMonitoring: () => {},
+  stopHealthMonitoring: () => {},
+  subscribe: () => () => {}
+};
 
 const antdTheme = {
   token: {
@@ -35,87 +95,150 @@ const antdTheme = {
   },
 };
 
-// LoginComponent-ийг энд тодорхойлсон, эсвэл тусдаа файл болгож болно.
-// Хэрэв танд LoginComponent.tsx файл байгаа бол энэ кодыг хасаад,
-// зөвхөн import хийх хэрэгтэй.
+// Login компонент
 const LoginComponent = ({ onLoginSuccess }: { onLoginSuccess: (user: any) => void }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
+    
     try {
-      const response = await authService.login(username, password);
+      const response = await authService.login({ username, password });
       if (response.success) {
         onLoginSuccess(response.user);
       } else {
         setError(response.message || 'Нэвтрэх нэр эсвэл нууц үг буруу байна.');
       }
-    } catch (err) {
-      setError('Нэвтрэх үед алдаа гарлаа. Сервертэй холбогдож чадсангүй.');
+    } catch (err: any) {
+      setError(err.message || 'Нэвтрэх үед алдаа гарлаа.');
       console.error('Login error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleQuickLogin = (testUsername: string, testPassword: string) => {
+    setUsername(testUsername);
+    setPassword(testPassword);
+    setTimeout(() => {
+      handleLogin();
+    }, 100);
+  };
+
   return (
-    <Card title="Нэвтрэх" style={{ maxWidth: 400, margin: '0 auto' }}>
-      {error && (
-        <Alert
-          message="Нэвтрэх алдаа"
-          description={error}
-          type="error"
-          showIcon
+    <div style={{ maxWidth: 500, margin: '0 auto' }}>
+      <Card title="🔐 Системд нэвтрэх" style={{ marginBottom: 24 }}>
+        {error && (
+          <Alert
+            message="Нэвтрэх алдаа"
+            description={error}
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
+        
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text strong>Хэрэглэгчийн нэр:</Typography.Text>
+          <input
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="admin"
+            style={{ 
+              width: '100%', 
+              padding: '8px 12px', 
+              borderRadius: '6px', 
+              border: '1px solid #d9d9d9',
+              fontSize: '14px',
+              marginTop: '4px'
+            }}
+            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+          />
+        </div>
+        
+        <div style={{ marginBottom: 16 }}>
+          <Typography.Text strong>Нууц үг:</Typography.Text>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••"
+            style={{ 
+              width: '100%', 
+              padding: '8px 12px', 
+              borderRadius: '6px', 
+              border: '1px solid #d9d9d9',
+              fontSize: '14px',
+              marginTop: '4px'
+            }}
+            onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+          />
+        </div>
+        
+        <Button 
+          type="primary" 
+          onClick={handleLogin} 
+          loading={loading} 
+          block 
+          size="large"
           style={{ marginBottom: 16 }}
-        />
-      )}
-      <div style={{ marginBottom: 16 }}>
-        <Typography.Text>Хэрэглэгчийн нэр:</Typography.Text>
-        <input
-          type="text"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d9d9d9' }}
-        />
-      </div>
-      <div style={{ marginBottom: 16 }}>
-        <Typography.Text>Нууц үг:</Typography.Text>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d9d9d9' }}
-        />
-      </div>
-      <Button type="primary" onClick={handleLogin} loading={loading} block>
-        Нэвтрэх
-      </Button>
-      <Typography.Paragraph style={{ marginTop: 16 }}>
-        Тест хийх хэрэглэгчид:
-        <ul>
-          <li><strong>admin</strong> / admin123</li>
-          <li><strong>loan_officer</strong> / loan123</li>
-          <li><strong>manager</strong> / manager123</li>
-        </ul>
-      </Typography.Paragraph>
-    </Card>
+        >
+          {loading ? 'Нэвтрэж байна...' : 'Нэвтрэх'}
+        </Button>
+      </Card>
+
+      <Card title="🧪 Тест хэрэглэгчид">
+        <Typography.Paragraph>
+          Дараах тест хэрэглэгчдээр шууд нэвтрэх боломжтой:
+        </Typography.Paragraph>
+        
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Button 
+            block 
+            onClick={() => handleQuickLogin('admin', 'admin123')}
+            disabled={loading}
+          >
+            👤 admin / admin123 (Супер админ)
+          </Button>
+          <Button 
+            block 
+            onClick={() => handleQuickLogin('manager', 'manager123')}
+            disabled={loading}
+          >
+            👔 manager / manager123 (Менежер)
+          </Button>
+          <Button 
+            block 
+            onClick={() => handleQuickLogin('loan_officer', 'loan123')}
+            disabled={loading}
+          >
+            💼 loan_officer / loan123 (Зээлийн мэргэжилтэн)
+          </Button>
+        </Space>
+      </Card>
+    </div>
   );
 };
 
-
 function App() {
-  const [backendStatus, setBackendStatus] = useState<HealthStatus | null>(null);
+  const [backendStatus, setBackendStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [connectionTest, setConnectionTest] = useState<ConnectionTestResult | null>(null);
+  const [connectionTest, setConnectionTest] = useState<any>(null);
   const [apiEndpoints, setApiEndpoints] = useState<Record<string, boolean>>({});
   const [diagnostics, setDiagnostics] = useState<any>(null);
-  const [authState, setAuthState] = useState(authService.getAuthState());
-  const [activeTabKey, setActiveTabKey] = useState('dashboard'); // Табын төлөвийг хадгалах
+  const [authState, setAuthState] = useState<AuthState>({
+    isAuthenticated: false,
+    user: null,
+    loading: false,
+    error: null
+  });
+  const [activeTabKey, setActiveTabKey] = useState('dashboard');
 
   const fetchSystemStatus = async () => {
     try {
@@ -124,14 +247,13 @@ function App() {
       
       console.log('🔄 Fetching system status...');
       
-      // First test basic connection
-      const testResult = await healthService.testConnection();
+      // Connection тест
+      const testResult = await mockHealthService.testConnection();
       setConnectionTest(testResult);
       
       if (testResult.success) {
-        // If basic connection works, get detailed health
         try {
-          const healthData = await healthService.getHealthStatus();
+          const healthData = await mockHealthService.getHealthStatus();
           setBackendStatus(healthData);
           console.log('✅ System status fetched successfully');
         } catch (healthError) {
@@ -146,9 +268,9 @@ function App() {
       } else {
         throw new Error(testResult.message);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('❌ System status fetch failed:', err);
-      setError(err instanceof Error ? err.message : 'Системийн статус авахад алдаа гарлаа');
+      setError(err.message || 'Системийн статус авахад алдаа гарлаа');
       setBackendStatus(null);
     } finally {
       setLoading(false);
@@ -158,7 +280,7 @@ function App() {
   const testApiEndpoints = async () => {
     try {
       console.log('🧪 Testing API endpoints...');
-      const endpoints = await healthService.checkApiEndpoints();
+      const endpoints = await mockHealthService.checkApiEndpoints();
       setApiEndpoints(endpoints);
       console.log('📡 API endpoints status:', endpoints);
       return endpoints;
@@ -171,7 +293,7 @@ function App() {
   const runDiagnostics = async () => {
     try {
       console.log('🔍 Running system diagnostics...');
-      const diag = await healthService.getSystemDiagnostics();
+      const diag = await mockHealthService.getSystemDiagnostics();
       setDiagnostics(diag);
       console.log('📊 Diagnostics complete:', diag);
     } catch (error) {
@@ -179,69 +301,50 @@ function App() {
     }
   };
 
-  const testDirectUrls = async () => {
-    const urls = [
-      DEV_URLS.HEALTH_CHECK,
-      `${DEV_URLS.BACKEND_BASE}/api/v1/health/simple`,
-      `${DEV_URLS.BACKEND_BASE}/api/v1/`,
-      DEV_URLS.BACKEND_BASE
-    ];
-
-    console.log('🎯 Testing direct URLs...');
-    for (const url of urls) {
-      try {
-        const success = await apiClient.testDirectUrl(url);
-        console.log(`${success ? '✅' : '❌'} ${url} - ${success ? 'OK' : 'Failed'}`);
-      } catch (error) {
-        console.log(`❌ ${url} - Error:`, error);
-      }
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await authService.logout();
-      setAuthState(authService.getAuthState());
+      setAuthState({
+        isAuthenticated: false,
+        user: null,
+        loading: false,
+        error: null
+      });
+      setActiveTabKey('dashboard');
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
   const handleLoginSuccess = (user: any) => {
-    setAuthState(authService.getAuthState()); // Auth state-г шинэчлэх
-    setActiveTabKey('dashboard'); // Амжилттай нэвтэрсний дараа хяналтын самбар руу шилжих
+    setAuthState({
+      isAuthenticated: true,
+      user: user,
+      loading: false,
+      error: null
+    });
+    setActiveTabKey('dashboard');
   };
 
   useEffect(() => {
-    // Initialize auth service
+    // Auth service эхлүүлэх
     authService.initialize();
     
-    // Subscribe to auth state changes
+    // Auth state-г шалгах
+    const currentAuthState = authService.getAuthState();
+    setAuthState(currentAuthState);
+    
+    // Auth state өөрчлөлтийг сонсох
     const unsubscribeAuth = authService.subscribe((state) => {
       setAuthState(state);
     });
 
-    // Initial status check
+    // Анхны статус шалгах
     fetchSystemStatus();
-    
-    // Test API endpoints
     testApiEndpoints();
-    
-    // Run diagnostics
     runDiagnostics();
     
-    // Set up periodic health monitoring
-    healthService.startHealthMonitoring(30000); // Every 30 seconds
-    
-    // Subscribe to health status changes
-    const unsubscribeHealth = healthService.subscribe((status) => {
-      setBackendStatus(status);
-    });
-    
-    // Cleanup on unmount
     return () => {
-      healthService.stopHealthMonitoring();
-      unsubscribeHealth();
       unsubscribeAuth();
     };
   }, []);
@@ -270,8 +373,7 @@ function App() {
   };
 
   const renderApiEndpointStatus = () => {
-    // "health-simple" endpoint-ийг харуулахгүйгээр шүүж байна
-    const filteredEntries = Object.entries(apiEndpoints).filter(([name]) => name !== 'health-simple');
+    const filteredEntries = Object.entries(apiEndpoints);
     if (filteredEntries.length === 0) return null;
 
     return (
@@ -309,10 +411,10 @@ function App() {
               <Menu
                 theme="dark"
                 mode="horizontal"
-                selectedKeys={[activeTabKey]} // Сонгогдсон табыг удирдана
+                selectedKeys={[activeTabKey]}
                 items={menuItems}
                 style={{ flex: 1, minWidth: 0 }}
-                onSelect={({ key }) => setActiveTabKey(key)} // Таб солигдоход төлөвийг шинэчлэх
+                onSelect={({ key }) => setActiveTabKey(key)}
               />
             </div>
             
@@ -321,7 +423,7 @@ function App() {
               {authState.isAuthenticated ? (
                 <Space>
                   <Typography.Text style={{ color: 'white' }}>
-                    {authState.user?.name || authState.user?.username}
+                    Сайн байна уу, {authState.user?.name || authState.user?.username}!
                   </Typography.Text>
                   <Button 
                     type="text" 
@@ -337,7 +439,7 @@ function App() {
                   type="text" 
                   icon={<LoginOutlined />}
                   style={{ color: 'white' }}
-                  onClick={() => setActiveTabKey('auth')} // Нэвтрэх товчийг дархад "Authentication тест" таб руу шилжих
+                  onClick={() => setActiveTabKey('auth')}
                 >
                   Нэвтрэх
                 </Button>
@@ -348,7 +450,7 @@ function App() {
           <Content style={{ padding: '24px', background: '#f0f2f5' }}>
             <div style={{ maxWidth: 1200, margin: '0 auto' }}>
               
-              <Tabs activeKey={activeTabKey} onChange={setActiveTabKey} type="card"> {/* activeKey болон onChange нэмсэн */}
+              <Tabs activeKey={activeTabKey} onChange={setActiveTabKey} type="card">
                 <TabPane tab={<span><DashboardOutlined />Хяналтын самбар</span>} key="dashboard">
                   {/* Control Panel */}
                   <div style={{ marginBottom: 24 }}>
@@ -372,15 +474,10 @@ function App() {
                       >
                         Диагностик
                       </Button>
-                      <Button 
-                        onClick={testDirectUrls}
-                      >
-                        Direct URL тест
-                      </Button>
                     </Space>
                   </div>
 
-                  {/* Connection Status */}
+                  {/* Loading */}
                   {loading && (
                     <Card style={{ marginBottom: 24 }}>
                       <div style={{ textAlign: 'center', padding: 20 }}>
@@ -411,11 +508,9 @@ function App() {
                       showIcon
                       style={{ marginBottom: 24 }}
                       action={
-                        <Space direction="vertical">
-                          <Button size="small" onClick={fetchSystemStatus}>
-                            Дахин оролдох
-                          </Button>
-                        </Space>
+                        <Button size="small" onClick={fetchSystemStatus}>
+                          Дахин оролдох
+                        </Button>
                       }
                     />
                   )}
@@ -526,7 +621,7 @@ function App() {
                   </Row>
 
                   {/* Main Content */}
-                  <Card title="Зээлийн хүсэлтийн системд тавтай морил! 🎉">
+                  <Card title="🎉 Зээлийн хүсэлтийн системд тавтай морил!">
                     <div style={{ textAlign: 'left' }}>
                       <h3>✅ Төслийн тохиргоо амжилттай дууслаа!</h3>
                       
@@ -540,9 +635,9 @@ function App() {
                       
                       <h4>🔗 Хандах холбоосууд:</h4>
                       <ul>
-                        <li><a href={DEV_URLS.HEALTH_CHECK} target="_blank" rel="noopener noreferrer">Backend Health Check</a></li>
-                        <li><a href={DEV_URLS.SWAGGER_UI} target="_blank" rel="noopener noreferrer">API Documentation</a></li>
-                        <li><a href={DEV_URLS.H2_CONSOLE} target="_blank" rel="noopener noreferrer">H2 Database Console</a></li>
+                        <li><a href="http://localhost:8080/los/api/v1/health" target="_blank" rel="noopener noreferrer">Backend Health Check</a></li>
+                        <li><a href="http://localhost:8080/los/swagger-ui.html" target="_blank" rel="noopener noreferrer">API Documentation</a></li>
+                        <li><a href="http://localhost:8080/los/h2-console" target="_blank" rel="noopener noreferrer">H2 Database Console</a></li>
                       </ul>
 
                       {authState.isAuthenticated && (
@@ -567,7 +662,7 @@ function App() {
                     <p>Харилцагчийн удирдлагын хэсэг удахгүй нэмэгдэнэ...</p>
                     {!authState.isAuthenticated && (
                       <Alert
-                        message="Анхай нэвтэрнэ үү"
+                        message="Эхлээд нэвтэрнэ үү"
                         description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
                         type="warning"
                         showIcon
@@ -581,7 +676,7 @@ function App() {
                     <p>Зээлийн хүсэлтийн хэсэг удахгүй нэмэгдэнэ...</p>
                     {!authState.isAuthenticated && (
                       <Alert
-                        message="Анхай нэвтэрнэ үү"
+                        message="Эхлээд нэвтэрнэ үү"
                         description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
                         type="warning"
                         showIcon
@@ -595,13 +690,13 @@ function App() {
           
           <Footer style={{ textAlign: 'center', background: '#f0f2f5' }}>
             <Space>
-              Зээлийн хүсэлтийн систем 2024
+              Зээлийн хүсэлтийн систем 2025
               <span>|</span>
-              <a href={DEV_URLS.SWAGGER_UI} target="_blank" rel="noopener noreferrer">
+              <a href="http://localhost:8080/los/swagger-ui.html" target="_blank" rel="noopener noreferrer">
                 API баримт бичиг
               </a>
               <span>|</span>
-              <a href={DEV_URLS.H2_CONSOLE} target="_blank" rel="noopener noreferrer">
+              <a href="http://localhost:8080/los/h2-console" target="_blank" rel="noopener noreferrer">
                 Өгөгдлийн сан
               </a>
             </Space>

@@ -5,14 +5,10 @@ import com.company.los.enums.CustomerStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -23,18 +19,14 @@ import java.util.UUID;
  * Customer Repository Interface
  */
 @Repository
-public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSpecificationExecutor<Customer> {
+public interface CustomerRepository extends JpaRepository<Customer, UUID> {
 
-    // Суурь хайлтууд
+    // ==================== BASIC FINDERS ====================
+    
     /**
      * Регистрийн дугаараар хайх
      */
     Optional<Customer> findByRegisterNumber(String registerNumber);
-
-    /**
-     * И-мэйлээр хайх
-     */
-    Optional<Customer> findByEmail(String email);
 
     /**
      * Утасны дугаараар хайх
@@ -42,261 +34,298 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, JpaSp
     Optional<Customer> findByPhone(String phone);
 
     /**
-     * Регистрийн дугаар байгаа эсэхийг шалгах
+     * И-мэйлээр хайх
+     */
+    Optional<Customer> findByEmail(String email);
+
+    /**
+     * Username эсвэл email-ээр хайх
+     */
+    @Query("SELECT c FROM Customer c WHERE c.email = :identifier OR c.registerNumber = :identifier")
+    Optional<Customer> findByUsernameOrEmail(@Param("identifier") String identifier);
+
+    // ==================== EXISTENCE CHECKS ====================
+    
+    /**
+     * Регистрийн дугаар байгаа эсэх
      */
     boolean existsByRegisterNumber(String registerNumber);
 
     /**
-     * И-мэйл байгаа эсэхийг шалгах
-     */
-    boolean existsByEmail(String email);
-
-    /**
-     * Утасны дугаар байгаа эсэхийг шалгах
+     * Утасны дугаар байгаа эсэх
      */
     boolean existsByPhone(String phone);
 
     /**
-     * И-мэйл давхцаж байгаа эсэхийг шалгах (ID-г оруулаагүй)
+     * И-мэйл байгаа эсэх
      */
-    @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE " +
-           "LOWER(c.email) = LOWER(:email) AND c.id != :excludeId")
+    boolean existsByEmail(String email);
+
+    /**
+     * И-мэйл давтагдаагүй эсэх (ID-г оруулахгүйгээр)
+     */
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Customer c WHERE c.email = :email AND c.id != :excludeId")
     boolean existsByEmailAndIdNot(@Param("email") String email, @Param("excludeId") UUID excludeId);
 
     /**
-     * Утасны дугаар давхцаж байгаа эсэхийг шалгах (ID-г оруулаагүй)
+     * Утасны дугаар давтагдаагүй эсэх (ID-г оруулахгүйгээр)
      */
-    @Query("SELECT COUNT(c) > 0 FROM Customer c WHERE " +
-           "c.phone = :phone AND c.id != :excludeId")
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Customer c WHERE c.phone = :phone AND c.id != :excludeId")
     boolean existsByPhoneAndIdNot(@Param("phone") String phone, @Param("excludeId") UUID excludeId);
 
-    // Нэрээр хайх
+    // ==================== SEARCH OPERATIONS ====================
+    
     /**
-     * Овогоор хайх
-     */
-    Page<Customer> findByLastName(String lastName, Pageable pageable);
-
-    /**
-     * Нэрээр хайх
-     */
-    Page<Customer> findByFirstName(String firstName, Pageable pageable);
-
-    /**
-     * Нэр овогоор хайх
-     */
-    @Query("SELECT c FROM Customer c WHERE " +
-           "LOWER(c.firstName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(c.lastName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<Customer> findByName(@Param("searchTerm") String searchTerm, Pageable pageable);
-
-    /**
-     * Бүтэн нэрээр хайх
-     */
-    @Query("SELECT c FROM Customer c WHERE " +
-           "LOWER(CONCAT(c.firstName, ' ', c.lastName)) LIKE LOWER(CONCAT('%', :fullName, '%'))")
-    Page<Customer> findByFullName(@Param("fullName") String fullName, Pageable pageable);
-
-    // Төрсөн огноогоор хайх
-    /**
-     * Төрсөн огноогоор хайх
-     */
-    Page<Customer> findByDateOfBirth(LocalDate dateOfBirth, Pageable pageable);
-
-    /**
-     * Төрсөн огноогоор хайх (хязгаар)
-     */
-    @Query("SELECT c FROM Customer c WHERE c.dateOfBirth BETWEEN :startDate AND :endDate")
-    Page<Customer> findByDateOfBirthBetween(@Param("startDate") LocalDate startDate,
-                                          @Param("endDate") LocalDate endDate,
-                                          Pageable pageable);
-
-    /**
-     * Насны бүлгээр хайх
-     */
-    @Query("SELECT c FROM Customer c WHERE " +
-           "YEAR(CURRENT_DATE) - YEAR(c.dateOfBirth) BETWEEN :minAge AND :maxAge")
-    Page<Customer> findByAgeBetween(@Param("minAge") Integer minAge,
-                                  @Param("maxAge") Integer maxAge,
-                                  Pageable pageable);
-
-    // Хаягаар хайх
-    /**
-     * Хотоор хайх
-     */
-    Page<Customer> findByCity(String city, Pageable pageable);
-
-    /**
-     * Аймгаар хайх
-     */
-    Page<Customer> findByProvince(String province, Pageable pageable);
-
-    /**
-     * Хаягаар хайх (хэсэгчилсэн)
-     */
-    @Query("SELECT c FROM Customer c WHERE " +
-           "LOWER(COALESCE(c.address, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
-    Page<Customer> findByAddressContaining(@Param("searchTerm") String searchTerm, Pageable pageable);
-
-    // Орлогоор хайх
-    /**
-     * Орлогын хязгаараар хайх
-     */
-    @Query("SELECT c FROM Customer c WHERE c.monthlyIncome BETWEEN :minIncome AND :maxIncome")
-    Page<Customer> findByIncomeRange(@Param("minIncome") BigDecimal minIncome,
-                                   @Param("maxIncome") BigDecimal maxIncome,
-                                   Pageable pageable);
-
-    /**
-     * Өндөр орлоготой харилцагчид
-     */
-    @Query("SELECT c FROM Customer c WHERE c.monthlyIncome >= :highIncomeThreshold " +
-           "ORDER BY c.monthlyIncome DESC")
-    Page<Customer> findHighIncomeCustomers(@Param("highIncomeThreshold") BigDecimal highIncomeThreshold,
-                                         Pageable pageable);
-
-    // Зээлийн хүсэлттэй холбоотой
-    /**
-     * Зээлийн хүсэлттэй харилцагчид
-     */
-    @Query("SELECT c FROM Customer c WHERE SIZE(c.loanApplications) > 0")
-    Page<Customer> findCustomersWithLoanApplications(Pageable pageable);
-
-    /**
-     * Зээлийн хүсэлтгүй харилцагчид
-     */
-    @Query("SELECT c FROM Customer c WHERE SIZE(c.loanApplications) = 0")
-    Page<Customer> findCustomersWithoutLoanApplications(Pageable pageable);
-
-    /**
-     * Идэвхтэй зээлийн хүсэлттэй харилцагчид
-     */
-    @Query("SELECT DISTINCT c FROM Customer c JOIN c.loanApplications la " +
-           "WHERE la.status IN ('PENDING', 'UNDER_REVIEW', 'APPROVED')")
-    Page<Customer> findCustomersWithActiveLoanApplications(Pageable pageable);
-
-    /**
-     * Батлагдсан зээлтэй харилцагчид
-     */
-    @Query("SELECT DISTINCT c FROM Customer c JOIN c.loanApplications la " +
-           "WHERE la.status = 'APPROVED'")
-    Page<Customer> findCustomersWithApprovedLoans(Pageable pageable);
-
-    // Баримттай холбоотой
-    /**
-     * Баримттай харилцагчид
-     */
-    @Query("SELECT c FROM Customer c WHERE SIZE(c.documents) > 0")
-    Page<Customer> findCustomersWithDocuments(Pageable pageable);
-
-    /**
-     * Баримтгүй харилцагчид
-     */
-    @Query("SELECT c FROM Customer c WHERE SIZE(c.documents) = 0")
-    Page<Customer> findCustomersWithoutDocuments(Pageable pageable);
-
-    // Огноогоор хайх
-    /**
-     * Бүртгүүлсэн огноогоор хайх
-     */
-    @Query("SELECT c FROM Customer c WHERE c.createdAt BETWEEN :startDate AND :endDate")
-    Page<Customer> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate,
-                                        @Param("endDate") LocalDateTime endDate,
-                                        Pageable pageable);
-
-    /**
-     * Өнөөдөр бүртгүүлсэн харилцагчид
-     */
-    @Query("SELECT c FROM Customer c WHERE FORMATDATETIME(c.createdAt, 'yyyy-MM-dd') = FORMATDATETIME(CURRENT_TIMESTAMP(), 'yyyy-MM-dd')")
-    List<Customer> findTodayRegistered();
-
-    /**
-     * Шинэ харилцагчид (сүүлийн 30 хоногт)
-     */
-    @Query("SELECT c FROM Customer c WHERE c.createdAt >= :oneMonthAgo ORDER BY c.createdAt DESC")
-    List<Customer> findNewCustomers(@Param("oneMonthAgo") LocalDateTime oneMonthAgo);
-
-    // Ерөнхий хайлт
-    /**
-     * Ерөнхий хайлт
+     * Text хайлт
      */
     @Query("SELECT c FROM Customer c WHERE " +
            "LOWER(c.firstName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
            "LOWER(c.lastName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(c.email, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(c.phone, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(c.registerNumber, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-           "LOWER(COALESCE(c.address, '')) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
+           "LOWER(c.email) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "c.phone LIKE CONCAT('%', :searchTerm, '%') OR " +
+           "c.registerNumber LIKE CONCAT('%', :searchTerm, '%') OR " +
+           "LOWER(c.companyName) LIKE LOWER(CONCAT('%', :searchTerm, '%'))")
     Page<Customer> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
 
-    // Статистик
     /**
-     * Хотоор тоолох
+     * Харилцагчийн төрлөөр хайх
      */
-    @Query("SELECT c.city, COUNT(c) FROM Customer c WHERE c.city IS NOT NULL " +
-           "GROUP BY c.city ORDER BY COUNT(c) DESC")
-    List<Object[]> countByCity();
+    List<Customer> findByCustomerType(Customer.CustomerType customerType);
 
     /**
-     * Аймгаар тоолох
+     * KYC статусаар хайх
      */
-    @Query("SELECT c.province, COUNT(c) FROM Customer c WHERE c.province IS NOT NULL " +
-           "GROUP BY c.province ORDER BY COUNT(c) DESC")
-    List<Object[]> countByProvince();
+    List<Customer> findByKycStatus(Customer.KycStatus kycStatus);
 
     /**
-     * Сарын харилцагчийн статистик
+     * Статусаар хайх
      */
-    @Query("SELECT TO_CHAR(c.createdAt, 'YYYY-MM'), COUNT(c) FROM Customer c " +
-           "WHERE c.createdAt >= :startDate " +
-           "GROUP BY TO_CHAR(c.createdAt, 'YYYY-MM') " +
-           "ORDER BY TO_CHAR(c.createdAt, 'YYYY-MM')")
-    List<Object[]> getMonthlyCustomerStats(@Param("startDate") LocalDateTime startDate);
+    List<Customer> findByStatus(CustomerStatus status);
 
     /**
-     * Өнөөдрийн харилцагчийн статистик
+     * Идэвхтэй харилцагчид
      */
-    @Query("SELECT " +
-           "COUNT(CASE WHEN FORMATDATETIME(c.createdAt, 'yyyy-MM-dd') = FORMATDATETIME(CURRENT_TIMESTAMP(), 'yyyy-MM-dd') THEN 1 END) as newToday, " +
-           "COUNT(CASE WHEN c.monthlyIncome >= 1000000 THEN 1 END) as highIncome, " +
-           "COUNT(CASE WHEN SIZE(c.loanApplications) > 0 THEN 1 END) as withLoans, " +
-           "COUNT(CASE WHEN SIZE(c.documents) = 0 THEN 1 END) as withoutDocuments " +
-           "FROM Customer c")
-    Object[] getTodayCustomerStats();
+    List<Customer> findByIsActiveTrue();
 
-    // Статус шалгалт
+    /**
+     * Идэвхгүй харилцагчид
+     */
+    List<Customer> findByIsActiveFalse();
+
+    // ==================== STATISTICS ====================
+    
     /**
      * Статусаар тоолох
      */
     long countByStatus(CustomerStatus status);
 
     /**
-     * Огнооноос хойш бүртгүүлсэн харилцагчдыг тоолох
+     * Харилцагчийн төрлөөр тоолох
+     */
+    long countByCustomerType(Customer.CustomerType customerType);
+
+    /**
+     * KYC статусаар тоолох
+     */
+    long countByKycStatus(Customer.KycStatus kycStatus);
+
+    /**
+     * Хотоор тоолох
+     */
+    @Query("SELECT c.city, COUNT(c) FROM Customer c WHERE c.city IS NOT NULL GROUP BY c.city")
+    List<Object[]> countByCity();
+
+    /**
+     * Аймгаар тоолох
+     */
+    @Query("SELECT c.province, COUNT(c) FROM Customer c WHERE c.province IS NOT NULL GROUP BY c.province")
+    List<Object[]> countByProvince();
+
+    /**
+     * Огнооны дараах харилцагчдийг тоолох
      */
     long countByRegistrationDateAfter(LocalDateTime date);
 
-    // Data quality
+    // ==================== DATE BASED QUERIES ====================
+    
+    /**
+     * Тодорхой өдрийн дараа бүртгүүлсэн харилцагчид
+     */
+    List<Customer> findByCreatedAtAfter(LocalDateTime date);
+
+    /**
+     * Тодорхой хугацааны дотор бүртгүүлсэн харилцагчид
+     */
+    @Query("SELECT c FROM Customer c WHERE c.createdAt BETWEEN :startDate AND :endDate")
+    List<Customer> findByCreatedAtBetween(@Param("startDate") LocalDateTime startDate, 
+                                         @Param("endDate") LocalDateTime endDate);
+
+    /**
+     * Шинэ харилцагчид
+     */
+    @Query("SELECT c FROM Customer c WHERE c.createdAt > :since ORDER BY c.createdAt DESC")
+    List<Customer> findNewCustomers(@Param("since") LocalDateTime since);
+
+    /**
+     * Удаан хугацаанд идэвхгүй харилцагчид
+     */
+    @Query("SELECT c FROM Customer c WHERE c.isActive = false AND c.updatedAt < :before")
+    List<Customer> findOldInactiveCustomers(@Param("before") LocalDateTime before);
+
+    // ==================== COMPLEX QUERIES ====================
+    
+    /**
+     * Зээлийн хүсэлттэй харилцагчид
+     */
+    @Query("SELECT DISTINCT c FROM Customer c JOIN c.loanApplications la WHERE la.id IS NOT NULL")
+    Page<Customer> findCustomersWithLoanApplications(Pageable pageable);
+
+    /**
+     * Идэвхтэй зээлтэй харилцагчид
+     */
+    @Query("SELECT DISTINCT c FROM Customer c JOIN c.loanApplications la WHERE la.status = 'ACTIVE'")
+    Page<Customer> findCustomersWithActiveLoanApplications(Pageable pageable);
+
+    /**
+     * Зээлийн хүсэлтгүй харилцагчид
+     */
+    @Query("SELECT c FROM Customer c WHERE c.id NOT IN (SELECT DISTINCT la.customer.id FROM LoanApplication la)")
+    Page<Customer> findCustomersWithoutLoanApplications(Pageable pageable);
+
     /**
      * Дутуу мэдээлэлтэй харилцагчид
      */
     @Query("SELECT c FROM Customer c WHERE " +
-           "c.email IS NULL OR c.email = '' OR " +
-           "c.phone IS NULL OR c.phone = '' OR " +
-           "c.address IS NULL OR c.address = '' OR " +
-           "c.monthlyIncome IS NULL")
+           "(c.customerType = 'INDIVIDUAL' AND (c.firstName IS NULL OR c.lastName IS NULL OR c.dateOfBirth IS NULL)) OR " +
+           "(c.customerType = 'BUSINESS' AND (c.companyName IS NULL OR c.businessRegistrationNumber IS NULL)) OR " +
+           "c.email IS NULL OR c.phone IS NULL OR c.address IS NULL")
     List<Customer> findCustomersWithIncompleteData();
 
+    // ==================== MONTHLY STATISTICS ====================
+    
     /**
-     * Хуучин идэвхгүй харилцагчид
+     * Сарын статистик
      */
-    @Query("SELECT c FROM Customer c WHERE " +
-           "c.createdAt < :oldDate AND SIZE(c.loanApplications) = 0")
-    List<Customer> findOldInactiveCustomers(@Param("oldDate") LocalDateTime oldDate);
+    @Query("SELECT " +
+           "FUNCTION('YEAR', c.createdAt) as year, " +
+           "FUNCTION('MONTH', c.createdAt) as month, " +
+           "COUNT(c) as count " +
+           "FROM Customer c " +
+           "WHERE c.createdAt >= :startDate " +
+           "GROUP BY FUNCTION('YEAR', c.createdAt), FUNCTION('MONTH', c.createdAt) " +
+           "ORDER BY year, month")
+    List<Object[]> getMonthlyCustomerStats(@Param("startDate") LocalDateTime startDate);
 
-    // Cleanup
     /**
-     * Зээлгүй, баримтгүй харилцагчид
+     * Өнөөдрийн статистик
+     */
+    @Query(value = "SELECT " +
+                   "COUNT(CASE WHEN DATE(created_at) = CURRENT_DATE THEN 1 END) as newToday, " +
+                   "COUNT(CASE WHEN monthly_income > 1000000 THEN 1 END) as highIncome, " +
+                   "COUNT(CASE WHEN id IN (SELECT DISTINCT customer_id FROM loan_applications) THEN 1 END) as withLoans, " +
+                   "COUNT(CASE WHEN (first_name IS NULL OR last_name IS NULL OR email IS NULL) THEN 1 END) as withoutDocuments " +
+                   "FROM customers", 
+           nativeQuery = true)
+    Object[] getTodayCustomerStats();
+
+    // ==================== ADVANCED SEARCH ====================
+    
+    /**
+     * Нарийвчилсан хайлт
      */
     @Query("SELECT c FROM Customer c WHERE " +
-           "SIZE(c.loanApplications) = 0 AND SIZE(c.documents) = 0")
-    List<Customer> findEmptyCustomers();
+           "(:customerType IS NULL OR c.customerType = :customerType) AND " +
+           "(:kycStatus IS NULL OR c.kycStatus = :kycStatus) AND " +
+           "(:city IS NULL OR LOWER(c.city) = LOWER(:city)) AND " +
+           "(:province IS NULL OR LOWER(c.province) = LOWER(:province)) AND " +
+           "(:isActive IS NULL OR c.isActive = :isActive)")
+    Page<Customer> findWithFilters(@Param("customerType") Customer.CustomerType customerType,
+                                  @Param("kycStatus") Customer.KycStatus kycStatus,
+                                  @Param("city") String city,
+                                  @Param("province") String province,
+                                  @Param("isActive") Boolean isActive,
+                                  Pageable pageable);
+
+    /**
+     * Орлогын хязгаараар хайх
+     */
+    @Query("SELECT c FROM Customer c WHERE " +
+           "c.monthlyIncome BETWEEN :minIncome AND :maxIncome " +
+           "ORDER BY c.monthlyIncome DESC")
+    List<Customer> findByIncomeRange(@Param("minIncome") java.math.BigDecimal minIncome,
+                                    @Param("maxIncome") java.math.BigDecimal maxIncome);
+
+    /**
+     * KYC дууссангүй харилцагчид
+     */
+    @Query("SELECT c FROM Customer c WHERE c.kycStatus != 'COMPLETED' ORDER BY c.createdAt")
+    List<Customer> findIncompleteKycCustomers();
+
+    /**
+     * Дублицат мэдээлэлтэй харилцагчид
+     */
+    @Query("SELECT c FROM Customer c WHERE " +
+           "c.registerNumber = :registerNumber OR " +
+           "c.email = :email OR " +
+           "c.phone = :phone")
+    List<Customer> findPotentialDuplicates(@Param("registerNumber") String registerNumber,
+                                          @Param("email") String email,
+                                          @Param("phone") String phone);
+
+    // ==================== BULK OPERATIONS ====================
+    
+    /**
+     * Олон харилцагчийн статус шинэчлэх
+     */
+    @Query("UPDATE Customer c SET c.status = :status, c.updatedAt = CURRENT_TIMESTAMP WHERE c.id IN :customerIds")
+    int updateStatusForCustomers(@Param("customerIds") List<UUID> customerIds, 
+                                @Param("status") CustomerStatus status);
+
+    /**
+     * Олон харилцагчийн KYC статус шинэчлэх
+     */
+    @Query("UPDATE Customer c SET c.kycStatus = :kycStatus, c.updatedAt = CURRENT_TIMESTAMP WHERE c.id IN :customerIds")
+    int updateKycStatusForCustomers(@Param("customerIds") List<UUID> customerIds, 
+                                   @Param("kycStatus") Customer.KycStatus kycStatus);
+
+    // ==================== CUSTOM NATIVE QUERIES ====================
+    
+    /**
+     * Харилцагчийн KYC progression report
+     */
+    @Query(value = "SELECT " +
+                   "kyc_status, " +
+                   "COUNT(*) as count, " +
+                   "AVG(DATEDIFF(COALESCE(kyc_completed_at, NOW()), created_at)) as avg_days " +
+                   "FROM customers " +
+                   "GROUP BY kyc_status", 
+           nativeQuery = true)
+    List<Object[]> getKycProgressionReport();
+
+    /**
+     * Топ хотууд харилцагчийн тоогоор
+     */
+    @Query(value = "SELECT city, COUNT(*) as customer_count " +
+                   "FROM customers " +
+                   "WHERE city IS NOT NULL " +
+                   "GROUP BY city " +
+                   "ORDER BY customer_count DESC " +
+                   "LIMIT 10", 
+           nativeQuery = true)
+    List<Object[]> getTopCitiesByCustomerCount();
+
+    /**
+     * Орлогын статистик
+     */
+    @Query(value = "SELECT " +
+                   "customer_type, " +
+                   "COUNT(*) as count, " +
+                   "AVG(monthly_income) as avg_income, " +
+                   "MIN(monthly_income) as min_income, " +
+                   "MAX(monthly_income) as max_income " +
+                   "FROM customers " +
+                   "WHERE monthly_income IS NOT NULL " +
+                   "GROUP BY customer_type", 
+           nativeQuery = true)
+    List<Object[]> getIncomeStatistics();
 }

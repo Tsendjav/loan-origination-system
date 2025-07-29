@@ -23,8 +23,7 @@ import org.springframework.http.HttpStatus;
 
 /**
  * ⭐ LOAN ORIGINATION SYSTEM SECURITY CONFIGURATION - БҮРЭН ХУВИЛБАР ⭐
- * 
- * Security тохиргоо:
+ * * Security тохиргоо:
  * - BCrypt password encoding
  * - AuthenticationManager bean (AuthServiceImpl-д шаардлагатай)
  * - DaoAuthenticationProvider
@@ -33,12 +32,11 @@ import org.springframework.http.HttpStatus;
  * - H2 Console зөвшөөрөл
  * - Development mode тохиргоо
  * - JWT dependency-гүй simplified хувилбар
- * 
- * @author LOS Development Team
+ * * @author LOS Development Team
  * @version 4.1 (AuthenticationManager нэмэгдсэн)
  * @since 2025-07-28
  */
-@Slf4j
+@Slf4j // Энэ аннотацийг нэмсэн
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true, jsr250Enabled = true)
@@ -221,8 +219,7 @@ public class SecurityConfig {
  * =====================================================================================
  * ⭐ БҮРЭН ХУВИЛБАР - AuthenticationManager DEPENDENCY ЗАСВАРЛАСАН ⭐
  * =====================================================================================
- * 
- * ✅ Гол засварууд:
+ * * ✅ Гол засварууд:
  * 1. Package хадгалагдсан: com.company.los.config
  * 2. AuthenticationManager bean нэмэгдсэн - AuthServiceImpl-д шаардлагатай
  * 3. DaoAuthenticationProvider bean нэмэгдсэн
@@ -233,28 +230,22 @@ public class SecurityConfig {
  * 8. API endpoints зөвхөн /los prefix болон prefix-гүй хоёулаа дэмжинэ
  * 9. Development mode-д бүх API endpoints зөвшөөрөгдсөн
  * 10. Bean зөрчил засварласан
- * 
- * 🔧 Нэмэлт beans:
+ * * 🔧 Нэмэлт beans:
  * - AuthenticationManager (AuthServiceImpl dependency)
  * - DaoAuthenticationProvider (UserDetailsService + PasswordEncoder)
  * - PasswordEncoder (BCrypt)
- * 
- * 🧪 Тест:
+ * * 🧪 Тест:
  * - curl http://localhost:8080/los/api/v1/health -> 200 OK
  * - curl http://localhost:8080/api/v1/health -> 200 OK  
  * - curl http://localhost:8080/los/h2-console -> 200 OK
- * 
- * 🌐 CORS тохиргоо: CorsConfig.java файлаас удирдагдана
- * 
- * 🔑 Default хэрэглэгчид:
+ * * 🌐 CORS тохиргоо: CorsConfig.java файлаас удирдагдана
+ * * 🔑 Default хэрэглэгчид:
  * - admin / admin123 (SUPER_ADMIN role)
  * - loan_officer / loan123 (LOAN_OFFICER role)
  * - manager / manager123 (MANAGER role)
- * 
- * ⚠️ АНХААРУУЛГА:
+ * * ⚠️ АНХААРУУЛГА:
  * Production орчинд API endpoints-н authentication дахин идэвхжүүлэх шаардлагатай
- * 
- * 📁 Файлын байршил: 
+ * * 📁 Файлын байршил: 
  * src/main/java/com/company/los/config/SecurityConfig.java
  * =====================================================================================
  */

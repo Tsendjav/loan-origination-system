@@ -20,95 +20,92 @@ import java.util.UUID;
  */
 public interface CustomerService {
 
-    // CRUD операциуд
+    // ==================== CRUD OPERATIONS ====================
+    
     /**
      * Шинэ харилцагч үүсгэх
      */
     CustomerDto createCustomer(CustomerDto customerDto);
 
     /**
-     * Харилцагчийн мэдээлэл авах
+     * Харилцагчийг ID-аар авах
      */
     CustomerDto getCustomerById(UUID id);
 
     /**
-     * Харилцагчийн мэдээлэл шинэчлэх
+     * Харилцагч шинэчлэх
      */
     CustomerDto updateCustomer(UUID id, CustomerDto customerDto);
 
     /**
-     * Харилцагч устгах (soft delete)
+     * Харилцагч устгах
      */
     void deleteCustomer(UUID id);
 
     /**
-     * Устгасан харилцагч сэргээх
+     * Харилцагч сэргээх
      */
     CustomerDto restoreCustomer(UUID id);
 
-    // Хайлт операциуд
+    // ==================== SEARCH OPERATIONS ====================
+    
     /**
-     * Бүх харилцагчдын жагсаалт
+     * Бүх харилцагчийн жагсаалт авах (pagination-тай)
      */
     Page<CustomerDto> getAllCustomers(Pageable pageable);
 
     /**
-     * Регистрийн дугаараар хайх
+     * Регистрийн дугаараар харилцагч авах
      */
     CustomerDto getCustomerByRegisterNumber(String registerNumber);
 
     /**
-     * Утасны дугаараар хайх
+     * Утасны дугаараар харилцагч авах
      */
     CustomerDto getCustomerByPhone(String phone);
 
     /**
-     * И-мэйлээр хайх
+     * И-мэйлээр харилцагч авах (exception буцаана эсвэл олдохгүй бол)
      */
     CustomerDto getCustomerByEmail(String email);
 
     /**
-     * И-мэйлээр харилцагч хайх (Optional буцаах)
+     * И-мэйлээр харилцагч хайх (Optional буцаана)
      */
     Optional<CustomerDto> findByEmail(String email);
 
     /**
-     * Ерөнхий хайлт
+     * Харилцагч хайх (text search)
      */
     Page<CustomerDto> searchCustomers(String searchTerm, Pageable pageable);
 
     /**
-     * Хурдан хайлт
+     * Хурдан хайлт (autocomplete-д ашиглах)
      */
     List<CustomerDto> quickSearchCustomers(String quickSearch);
 
     /**
-     * Харилцагчийн төрлөөр хайх
+     * Харилцагчийн төрлөөр харилцагч авах
      */
     Page<CustomerDto> getCustomersByType(Customer.CustomerType customerType, Pageable pageable);
 
     /**
-     * KYC статусаар хайх
+     * KYC статусаар харилцагч авах
      */
     Page<CustomerDto> getCustomersByKycStatus(Customer.KycStatus kycStatus, Pageable pageable);
 
-    // Дэвшилтэт хайлт
     /**
-     * Филтертэй дэвшилтэт хайлт
+     * Нарийвчилсан filter-тэй хайлт
      */
-    Page<CustomerDto> searchCustomersWithFilters(
-            Customer.CustomerType customerType,
-            Customer.KycStatus kycStatus,
-            String city,
-            String province,
-            BigDecimal minIncome,
-            BigDecimal maxIncome,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            Pageable pageable
-    );
+    Page<CustomerDto> searchCustomersWithFilters(Customer.CustomerType customerType,
+                                               Customer.KycStatus kycStatus,
+                                               String city, String province,
+                                               BigDecimal minIncome, BigDecimal maxIncome,
+                                               LocalDateTime startDate, LocalDateTime endDate,
+                                               Pageable pageable);
 
-    // KYC удирдлага
+    // ==================== KYC MANAGEMENT ====================
+    
     /**
      * KYC процесс эхлүүлэх
      */
@@ -125,64 +122,106 @@ public interface CustomerService {
     CustomerDto retryKyc(UUID customerId, String reason);
 
     /**
-     * KYC дуусаагүй харилцагчид
+     * KYC дууссангүй харилцагчдийн жагсаалт
      */
     Page<CustomerDto> getIncompleteKycCustomers(Pageable pageable);
 
     /**
-     * KYC статус өөрчлөх
+     * KYC статус шинэчлэх (external enum parameter)
      */
     CustomerDto updateKYCStatus(UUID customerId, KYCStatus newStatus);
 
-    // Дупликат шалгалт
+    // ==================== DUPLICATE CHECKING ====================
+    
     /**
-     * Дупликат харилцагч шалгах
+     * Давхардсан харилцагч хайх
      */
     List<CustomerDto> findDuplicateCustomers(CustomerDto customerDto);
 
     /**
-     * Төстэй харилцагч хайх
+     * Ижил төстэй харилцагч хайх
      */
-    List<CustomerDto> findSimilarCustomers(String firstName, String lastName, java.time.LocalDate birthDate, UUID excludeId);
+    List<CustomerDto> findSimilarCustomers(String firstName, String lastName, 
+                                         java.time.LocalDate birthDate, UUID excludeId);
 
-    // Validation
+    // ==================== VALIDATION ====================
+    
     /**
-     * Регистрийн дугаар байгаа эсэхийг шалгах
+     * Регистрийн дугаар байгаа эсэх
      */
     boolean existsByRegisterNumber(String registerNumber);
 
     /**
-     * Утасны дугаар байгаа эсэхийг шалгах
+     * Утасны дугаар байгаа эсэх
      */
     boolean existsByPhone(String phone);
 
     /**
-     * И-мэйл байгаа эсэхийг шалгах
+     * И-мэйл байгаа эсэх
      */
     boolean existsByEmail(String email);
 
     /**
-     * И-мэйл боломжтой эсэхийг шалгах (хуучин нэр)
+     * И-мэйл ашиглах боломжтой эсэх
      */
     boolean isEmailAvailable(String email);
 
     /**
-     * И-мэйл давхардаагүй эсэхийг шалгах (шинэ нэр)
+     * И-мэйл давтагдаагүй эсэх (legacy method)
      */
     boolean isEmailUnique(String email);
 
     /**
-     * Харилцагчийн мэдээлэл хүчинтэй эсэхийг шалгах
+     * Харилцагчийн мэдээлэл зөв эсэх
      */
     boolean validateCustomerData(CustomerDto customerDto);
 
-    // Status management
+    // ==================== STATUS MANAGEMENT ====================
+    
     /**
-     * Харилцагчийн статус өөрчлөх
+     * Харилцагчийн статус шинэчлэх
      */
     CustomerDto updateCustomerStatus(UUID customerId, CustomerStatus newStatus);
 
-    // Зээлийн хүсэлттэй холбоотой
+    // ==================== STATISTICS ====================
+    
+    /**
+     * Харилцагчийн ерөнхий статистик
+     */
+    Map<String, Object> getCustomerStatistics();
+
+    /**
+     * Харилцагчийн тоог төрлөөр ангилах
+     */
+    Map<Customer.CustomerType, Long> getCustomerCountByType();
+
+    /**
+     * Харилцагчийн тоог KYC статусаар ангилах
+     */
+    Map<Customer.KycStatus, Long> getCustomerCountByKycStatus();
+
+    /**
+     * Сарын харилцагчийн статистик
+     */
+    List<Map<String, Object>> getMonthlyCustomerStats(int months);
+
+    /**
+     * Хотоор харилцагчийн тоо
+     */
+    Map<String, Long> getCustomerCountByCity();
+
+    /**
+     * Аймгаар харилцагчийн тоо
+     */
+    Map<String, Long> getCustomerCountByProvince();
+
+    /**
+     * Өнөөдрийн харилцагчийн статистик
+     */
+    Map<String, Object> getTodayCustomerStats();
+
+    // ==================== LOAN RELATED ====================
+    
     /**
      * Зээлийн хүсэлттэй харилцагчид
      */
@@ -203,50 +242,15 @@ public interface CustomerService {
      */
     Map<String, Object> getCustomerLoanHistory(UUID customerId);
 
-    // Статистик
     /**
-     * Харилцагчийн статистик
-     */
-    Map<String, Object> getCustomerStatistics();
-
-    /**
-     * Харилцагчийн төрлөөр статистик
-     */
-    Map<Customer.CustomerType, Long> getCustomerCountByType();
-
-    /**
-     * KYC статусаар статистик
-     */
-    Map<Customer.KycStatus, Long> getCustomerCountByKycStatus();
-
-    /**
-     * Сарын харилцагчийн статистик
-     */
-    List<Map<String, Object>> getMonthlyCustomerStats(int months);
-
-    /**
-     * Хотоор харилцагчийн тоо
-     */
-    Map<String, Long> getCustomerCountByCity();
-
-    /**
-     * Аймгаар харилцагчийн тоо
-     */
-    Map<String, Long> getCustomerCountByProvince();
-
-    // Dashboard
-    /**
-     * Өнөөдрийн харилцагчийн статистик
-     */
-    Map<String, Object> getTodayCustomerStats();
-
-    /**
-     * ТОП харилцагчид (зээлийн дүнгээр)
+     * Зээлийн дүнгээр эрэмбэлсэн харилцагчид
      */
     Page<CustomerDto> getTopCustomersByLoanAmount(Pageable pageable);
 
+    // ==================== CUSTOMER INSIGHTS ====================
+    
     /**
-     * Шинэ харилцагчид (сүүлийн 30 хоногт)
+     * Саяхны харилцагчид
      */
     List<CustomerDto> getRecentCustomers();
 
@@ -255,61 +259,66 @@ public interface CustomerService {
      */
     Page<CustomerDto> getInactiveCustomers(Pageable pageable);
 
-    // Bulk операциуд
     /**
-     * Олон харилцагчийн KYC статус өөрчлөх
+     * Олон харилцагчийн KYC статус шинэчлэх
      */
     int updateKycStatusForCustomers(List<UUID> customerIds, Customer.KycStatus newStatus);
 
+    // ==================== BULK OPERATIONS ====================
+    
     /**
-     * Олон харилцагч үүсгэх (import)
+     * Олон харилцагч нэгэн зэрэг үүсгэх
      */
     List<CustomerDto> createCustomersBulk(List<CustomerDto> customers);
 
     /**
-     * Харилцагчийн мэдээлэл export хийх
+     * Харилцагчдийг Excel-д экспорт хийх
      */
     byte[] exportCustomersToExcel(List<UUID> customerIds);
 
-    // Profile management
+    // ==================== PROFILE MANAGEMENT ====================
+    
     /**
      * Харилцагчийн профайл шинэчлэх
      */
     CustomerDto updateCustomerProfile(UUID id, CustomerDto profileDto);
 
     /**
-     * Харилцагчийн нууцлалын тохиргоо
+     * Нууцлалын тохиргоо шинэчлэх
      */
     CustomerDto updatePrivacySettings(UUID id, Map<String, Boolean> privacySettings);
 
-    // Audit & History
+    // ==================== AUDIT & TRACKING ====================
+    
     /**
      * Харилцагчийн өөрчлөлтийн түүх
      */
     List<Map<String, Object>> getCustomerAuditHistory(UUID customerId);
 
     /**
-     * Харилцагчийн үйл ажиллагааны лого
+     * Харилцагчийн үйл ажиллагааны log
      */
     List<Map<String, Object>> getCustomerActivityLog(UUID customerId, int days);
 
-    // Business rules
+    // ==================== LOAN ELIGIBILITY ====================
+    
     /**
-     * Харилцагч зээл авч болох эсэхийг шалгах
+     * Зээл авах боломжтой эсэх
      */
     boolean canCustomerApplyForLoan(UUID customerId);
 
     /**
-     * Харилцагчийн зээлийн хязгаар тооцоолох
+     * Зээлийн хязгаар тооцоолох
      */
     BigDecimal calculateLoanLimit(UUID customerId);
 
     /**
-     * Харилцагчийн эрсдэлийн категори тодорхойлох
+     * Эрсдэлийн ангилал тодорхойлох
      */
     String determineRiskCategory(UUID customerId);
 
-    // Notification
+    // ==================== NOTIFICATIONS ====================
+    
     /**
      * Харилцагчид мэдэгдэл илгээх
      */
@@ -320,9 +329,10 @@ public interface CustomerService {
      */
     boolean sendKycReminder(UUID customerId);
 
-    // Cleanup operations
+    // ==================== MAINTENANCE ====================
+    
     /**
-     * Идэвхгүй харилцагчдыг цэвэрлэх
+     * Идэвхгүй харилцагчдийг цэвэрлэх
      */
     int cleanupInactiveCustomers(int inactiveDays);
 
@@ -332,7 +342,7 @@ public interface CustomerService {
     List<CustomerDto> getCustomersWithIncompleteInfo();
 
     /**
-     * Өгөгдлийн бүрэн бус байдлыг шалгах
+     * Өгөгдлийн бүрэн бүтэн байдал шалгах
      */
     Map<String, Object> validateDataIntegrity();
 }

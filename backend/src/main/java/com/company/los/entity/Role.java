@@ -13,6 +13,10 @@ import java.util.UUID;
 /**
  * Дүрийн Entity
  * Role Entity for authorization
+ * 
+ * @author LOS Development Team
+ * @version 3.0 - Complete Role Entity with Hierarchy and Business Logic
+ * @since 2025-07-28
  */
 @Entity
 @Table(name = "roles", indexes = {

@@ -1,32 +1,75 @@
 package com.company.los.controller;
 
+import com.company.los.dto.CustomerDto;
+import com.company.los.dto.CustomerRequestDto;
+import com.company.los.dto.CustomerResponseDto;
+import com.company.los.entity.Customer;
+import com.company.los.enums.CustomerStatus;
+import com.company.los.enums.CustomerType;
+import com.company.los.enums.KYCStatus;
+import com.company.los.service.CustomerService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.*;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
+/**
+ * Харилцагчийн REST API Controller
+ * Customer REST API Controller
+ * 
+ * @author LOS Development Team
+ */
 @RestController  
 @RequestMapping("/api/v1/customers")
 @CrossOrigin(origins = {"http://localhost:3001", "http://localhost:3000"})
+@RequiredArgsConstructor
 public class CustomerController {
 
+    private static final Logger logger = LoggerFactory.getLogger(CustomerController.class);
+    private final CustomerService customerService;
+
+    // ==================== CRUD OPERATIONS ====================
+
     /**
-     * Бүх харилцагч авах
+     * Бүх харилцагч авах (pagination-тай)
      * GET /api/v1/customers
      */
     @GetMapping
-    public ResponseEntity<List<Map<String, Object>>> getAllCustomers() {
-        System.out.println("📋 Getting all customers");
+    @PreAuthorize("hasAuthority('customer:view')")
+    public ResponseEntity<ApiResponse<Page<CustomerDto>>> getAllCustomers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "lastName") String sort,
+            @RequestParam(defaultValue = "ASC") String direction) {
         
-        // Хөгжүүлэлтийн зориулалтаар хоосон жагсаалт буцаана
-        // Дараа нь database-аас бодит өгөгдөл авна
-        List<Map<String, Object>> customers = new ArrayList<>();
+        logger.debug("📋 Getting all customers - page: {}, size: {}", page, size);
         
-        return ResponseEntity.ok(customers);
+        try {
+            Sort.Direction sortDirection = Sort.Direction.fromString(direction);
+            Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
+            
+            Page<CustomerDto> customers = customerService.getAllCustomers(pageable);
+            
+            return ResponseEntity.ok(ApiResponse.success(customers));
+        } catch (Exception e) {
+            logger.error("❌ Error getting customers: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Харилцагчдийг авахад алдаа гарлаа"));
+        }
     }
 
     /**
@@ -34,18 +77,22 @@ public class CustomerController {
      * GET /api/v1/customers/{id}
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> getCustomer(@PathVariable String id) {
-        System.out.println("👤 Getting customer: " + id);
+    @PreAuthorize("hasAuthority('customer:view')")
+    public ResponseEntity<ApiResponse<CustomerDto>> getCustomer(@PathVariable UUID id) {
+        logger.debug("👤 Getting customer: {}", id);
         
-        Map<String, Object> customer = new HashMap<>();
-        customer.put("id", id);
-        customer.put("name", "Sample Customer " + id);
-        customer.put("email", "customer" + id + "@example.com");
-        customer.put("phone", "+976-1234-5678");
-        customer.put("createdAt", LocalDateTime.now().toString());
-        customer.put("status", "ACTIVE");
-        
-        return ResponseEntity.ok(customer);
+        try {
+            CustomerDto customer = customerService.getCustomerById(id);
+            return ResponseEntity.ok(ApiResponse.success(customer));
+        } catch (IllegalArgumentException e) {
+            logger.warn("⚠️ Customer not found: {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("Харилцагч олдсонгүй"));
+        } catch (Exception e) {
+            logger.error("❌ Error getting customer {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Системийн алдаа гарлаа"));
+        }
     }
 
     /**
@@ -53,14 +100,414 @@ public class CustomerController {
      * POST /api/v1/customers
      */
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createCustomer(@RequestBody Map<String, Object> customerData) {
-        System.out.println("➕ Creating new customer");
+    @PreAuthorize("hasAuthority('customer:create')")
+    public ResponseEntity<ApiResponse<CustomerDto>> createCustomer(
+            @Valid @RequestBody CustomerRequestDto customerRequest,
+            BindingResult bindingResult) {
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "Харилцагч амжилттай үүсгэгдлээ");
-        response.put("id", "customer-" + System.currentTimeMillis());
+        logger.info("➕ Creating new customer");
         
-        return ResponseEntity.ok(response);
+        if (bindingResult.hasErrors()) {
+            logger.warn("⚠️ Validation errors in customer request");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Мэдээлэл буруу байна", new HashMap<>(getValidationErrors(bindingResult))));
+        }
+        
+        try {
+            // Convert request DTO to service DTO
+            CustomerDto customerDto = convertToDto(customerRequest);
+            
+            CustomerDto createdCustomer = customerService.createCustomer(customerDto);
+            
+            logger.info("✅ Customer created successfully: {}", createdCustomer.getId());
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(createdCustomer, "Харилцагч амжилттай үүсгэгдлээ"));
+                
+        } catch (IllegalArgumentException e) {
+            logger.warn("⚠️ Business validation error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("❌ Error creating customer: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Харилцагч үүсгэхэд алдаа гарлаа"));
+        }
+    }
+
+    /**
+     * Харилцагч шинэчлэх
+     * PUT /api/v1/customers/{id}
+     */
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('customer:update')")
+    public ResponseEntity<ApiResponse<CustomerDto>> updateCustomer(
+            @PathVariable UUID id,
+            @Valid @RequestBody CustomerRequestDto customerRequest,
+            BindingResult bindingResult) {
+        
+        logger.info("📝 Updating customer: {}", id);
+        
+        if (bindingResult.hasErrors()) {
+            logger.warn("⚠️ Validation errors in update request");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Мэдээлэл буруу байна", new HashMap<>(getValidationErrors(bindingResult))));
+        }
+        
+        try {
+            CustomerDto customerDto = convertToDto(customerRequest);
+            CustomerDto updatedCustomer = customerService.updateCustomer(id, customerDto);
+            
+            logger.info("✅ Customer updated successfully: {}", id);
+            return ResponseEntity.ok(ApiResponse.success(updatedCustomer, "Харилцагч амжилттай шинэчлэгдлээ"));
+            
+        } catch (IllegalArgumentException e) {
+            logger.warn("⚠️ Customer not found or validation error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            logger.error("❌ Error updating customer {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Харилцагч шинэчлэхэд алдаа гарлаа"));
+        }
+    }
+
+    /**
+     * Харилцагч устгах
+     * DELETE /api/v1/customers/{id}
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('customer:delete')")
+    public ResponseEntity<ApiResponse<Void>> deleteCustomer(@PathVariable UUID id) {
+        logger.info("🗑️ Deleting customer: {}", id);
+        
+        try {
+            customerService.deleteCustomer(id);
+            
+            logger.info("✅ Customer deleted successfully: {}", id);
+            return ResponseEntity.noContent().build();
+            
+        } catch (IllegalArgumentException e) {
+            logger.warn("⚠️ Customer not found: {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("Харилцагч олдсонгүй"));
+        } catch (Exception e) {
+            logger.error("❌ Error deleting customer {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Харилцагч устгахад алдаа гарлаа"));
+        }
+    }
+
+    // ==================== SEARCH OPERATIONS ====================
+
+    /**
+     * Харилцагч хайх
+     * GET /api/v1/customers/search
+     */
+    @GetMapping("/search")
+    @PreAuthorize("hasAuthority('customer:view')")
+    public ResponseEntity<ApiResponse<Page<CustomerDto>>> searchCustomers(
+            @RequestParam(required = false) String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        
+        logger.debug("🔍 Searching customers with query: {}", query);
+        
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<CustomerDto> customers;
+            
+            if (query == null || query.trim().isEmpty()) {
+                customers = customerService.getAllCustomers(pageable);
+            } else {
+                customers = customerService.searchCustomers(query.trim(), pageable);
+            }
+            
+            return ResponseEntity.ok(ApiResponse.success(customers));
+        } catch (Exception e) {
+            logger.error("❌ Error searching customers: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Харилцагч хайхад алдаа гарлаа"));
+        }
+    }
+
+    // ==================== VALIDATION ====================
+
+    /**
+     * Харилцагчийн мэдээлэл шалгах
+     * POST /api/v1/customers/validate
+     */
+    @PostMapping("/validate")
+    @PreAuthorize("hasAuthority('customer:view')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> validateCustomer(
+            @RequestBody Map<String, String> validation) {
+        
+        logger.debug("✅ Validating customer data");
+        
+        try {
+            Map<String, Object> result = new HashMap<>();
+            
+            String email = validation.get("email");
+            if (email != null) {
+                result.put("emailUnique", customerService.isEmailUnique(email));
+            }
+            
+            String phone = validation.get("phone");
+            if (phone != null) {
+                result.put("phoneAvailable", !customerService.existsByPhone(phone));
+            }
+            
+            String registerNumber = validation.get("registerNumber");
+            if (registerNumber != null) {
+                result.put("registerNumberAvailable", !customerService.existsByRegisterNumber(registerNumber));
+            }
+            
+            return ResponseEntity.ok(ApiResponse.success(result));
+        } catch (Exception e) {
+            logger.error("❌ Error validating customer data: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Мэдээлэл шалгахад алдаа гарлаа"));
+        }
+    }
+
+    // ==================== STATUS MANAGEMENT ====================
+
+    /**
+     * Харилцагчийн статус шинэчлэх
+     * PUT /api/v1/customers/{id}/status
+     */
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('customer:update')")
+    public ResponseEntity<ApiResponse<CustomerDto>> updateCustomerStatus(
+            @PathVariable UUID id,
+            @RequestParam CustomerStatus status) {
+        
+        logger.info("📊 Updating customer status: {} -> {}", id, status);
+        
+        try {
+            CustomerDto updatedCustomer = customerService.updateCustomerStatus(id, status);
+            
+            logger.info("✅ Customer status updated: {}", id);
+            return ResponseEntity.ok(ApiResponse.success(updatedCustomer, "Статус амжилттай шинэчлэгдлээ"));
+            
+        } catch (IllegalArgumentException e) {
+            logger.warn("⚠️ Customer not found: {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("Харилцагч олдсонгүй"));
+        } catch (Exception e) {
+            logger.error("❌ Error updating customer status {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Статус шинэчлэхэд алдаа гарлаа"));
+        }
+    }
+
+    /**
+     * KYC статус шинэчлэх
+     * PUT /api/v1/customers/{id}/kyc-status
+     */
+    @PutMapping("/{id}/kyc-status")
+    @PreAuthorize("hasAuthority('customer:kyc')")
+    public ResponseEntity<ApiResponse<CustomerDto>> updateKycStatus(
+            @PathVariable UUID id,
+            @RequestParam KYCStatus kycStatus) {
+        
+        logger.info("🔐 Updating KYC status: {} -> {}", id, kycStatus);
+        
+        try {
+            CustomerDto updatedCustomer = customerService.updateKYCStatus(id, kycStatus);
+            
+            logger.info("✅ KYC status updated: {}", id);
+            return ResponseEntity.ok(ApiResponse.success(updatedCustomer, "KYC статус амжилттай шинэчлэгдлээ"));
+            
+        } catch (IllegalArgumentException e) {
+            logger.warn("⚠️ Customer not found: {}", id);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("Харилцагч олдсонгүй"));
+        } catch (Exception e) {
+            logger.error("❌ Error updating KYC status {}: {}", id, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("KYC статус шинэчлэхэд алдаа гарлаа"));
+        }
+    }
+
+    // ==================== STATISTICS ====================
+
+    /**
+     * Харилцагчийн статистик
+     * GET /api/v1/customers/statistics
+     */
+    @GetMapping("/statistics")
+    @PreAuthorize("hasAuthority('customer:view')")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getCustomerStatistics() {
+        logger.debug("📊 Getting customer statistics");
+        
+        try {
+            Map<String, Object> statistics = customerService.getCustomerStatistics();
+            
+            return ResponseEntity.ok(ApiResponse.success(statistics));
+        } catch (Exception e) {
+            logger.error("❌ Error getting customer statistics: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Статистик авахад алдаа гарлаа"));
+        }
+    }
+
+    // ==================== HELPER METHODS ====================
+
+    /**
+     * CustomerRequestDto-г CustomerDto болгож хөрвүүлэх
+     */
+    private CustomerDto convertToDto(CustomerRequestDto request) {
+        CustomerDto dto = new CustomerDto();
+        
+        // Basic fields
+        dto.setFirstName(request.getFirstName());
+        dto.setLastName(request.getLastName());
+        dto.setEmail(request.getEmail());
+        dto.setPhone(request.getPhone());
+        dto.setBirthDate(request.getDateOfBirth());
+        dto.setRegisterNumber(request.getSocialSecurityNumber());
+        
+        // Convert external enum to internal enum
+        if (request.getCustomerType() != null) {
+            try {
+                dto.setCustomerType(com.company.los.entity.Customer.CustomerType.valueOf(request.getCustomerType().name()));
+            } catch (IllegalArgumentException e) {
+                logger.warn("⚠️ Invalid customer type: {}", request.getCustomerType());
+                // Default value орлуулж өгье
+                dto.setCustomerType(com.company.los.entity.Customer.CustomerType.INDIVIDUAL);
+            }
+        }
+        
+        return dto;
+    }
+
+    /**
+     * CustomerDto-г CustomerResponseDto болгож хөрвүүлэх
+     */
+    private CustomerResponseDto convertToResponseDto(CustomerDto dto) {
+        CustomerResponseDto response = new CustomerResponseDto();
+        
+        // Type-safe ID conversion - UUID-г String болгох эсвэл Long болгох
+        if (dto.getId() != null) {
+            // UUID-г String болгож хөрвүүлэх (CustomerResponseDto.setId нь String хүлээж байвал)
+            // Эсвэл Long хүлээж байвал: response.setId(dto.getId().hashCode()); гэх мэт
+            try {
+                // Assuming CustomerResponseDto.setId accepts String
+                response.setId(Long.valueOf(Math.abs(dto.getId().hashCode())));
+            } catch (Exception e) {
+                logger.warn("⚠️ Could not set ID: {}", e.getMessage());
+                // Try Long conversion if String doesn't work
+                try {
+                    response.setId(Long.valueOf(Math.abs(dto.getId().hashCode())));
+                } catch (Exception ex) {
+                    logger.error("❌ Could not convert UUID to ID: {}", ex.getMessage());
+                }
+            }
+        }
+        
+        response.setFirstName(dto.getFirstName());
+        response.setLastName(dto.getLastName());
+        response.setEmail(dto.getEmail());
+        response.setPhone(dto.getPhone());
+        response.setDateOfBirth(dto.getBirthDate());
+        response.setSocialSecurityNumber(dto.getRegisterNumber());
+        
+        // Convert internal enum to external enum
+        if (dto.getCustomerType() != null) {
+            try {
+                response.setCustomerType(CustomerType.valueOf(dto.getCustomerType().name()));
+            } catch (IllegalArgumentException e) {
+                logger.warn("⚠️ Could not convert customer type: {}", dto.getCustomerType());
+            }
+        }
+        
+        response.setStatus(dto.getStatus());
+        
+        // Convert internal KYC status to external
+        if (dto.getKycStatus() != null) {
+            try {
+                response.setKycStatus(KYCStatus.valueOf(dto.getKycStatus().name()));
+            } catch (IllegalArgumentException e) {
+                logger.warn("⚠️ Could not convert KYC status: {}", dto.getKycStatus());
+            }
+        }
+        
+        response.setRegistrationDate(dto.getCreatedAt());
+        response.setLastUpdated(dto.getUpdatedAt());
+        
+        return response;
+    }
+
+    /**
+     * Validation алдаануудыг map болгож хөрвүүлэх
+     */
+    private Map<String, String> getValidationErrors(BindingResult bindingResult) {
+        Map<String, String> errors = new HashMap<>();
+        
+        bindingResult.getFieldErrors().forEach(error -> 
+            errors.put(error.getField(), error.getDefaultMessage())
+        );
+        
+        return errors;
+    }
+
+    // ==================== API RESPONSE WRAPPER ====================
+
+    /**
+     * API хариу wrapper класс
+     */
+    public static class ApiResponse<T> {
+        private boolean success;
+        private T data;
+        private String message;
+        private String error;
+        private Map<String, Object> meta;
+
+        public ApiResponse() {}
+
+        public ApiResponse(boolean success, T data, String message) {
+            this.success = success;
+            this.data = data;
+            this.message = message;
+        }
+
+        public static <T> ApiResponse<T> success(T data) {
+            return new ApiResponse<>(true, data, null);
+        }
+
+        public static <T> ApiResponse<T> success(T data, String message) {
+            return new ApiResponse<>(true, data, message);
+        }
+
+        public static <T> ApiResponse<T> error(String error) {
+            ApiResponse<T> response = new ApiResponse<>();
+            response.success = false;
+            response.error = error;
+            return response;
+        }
+
+        public static <T> ApiResponse<T> error(String error, Map<String, Object> meta) {
+            ApiResponse<T> response = new ApiResponse<>();
+            response.success = false;
+            response.error = error;
+            response.meta = meta;
+            return response;
+        }
+
+        // Getters and setters
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+
+        public T getData() { return data; }
+        public void setData(T data) { this.data = data; }
+
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+
+        public String getError() { return error; }
+        public void setError(String error) { this.error = error; }
+
+        public Map<String, Object> getMeta() { return meta; }
+        public void setMeta(Map<String, Object> meta) { this.meta = meta; }
     }
 }

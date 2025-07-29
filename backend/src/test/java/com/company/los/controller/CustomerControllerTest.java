@@ -29,9 +29,7 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -145,13 +143,18 @@ class CustomerControllerTest {
         // Given
         UUID customerId = UUID.randomUUID();
         when(customerService.getCustomerById(customerId))
-            .thenThrow(new RuntimeException("Customer not found"));
+            .thenThrow(new IllegalArgumentException("Харилцагч олдсонгүй"));
 
         // When & Then
         mockMvc.perform(get("/api/v1/customers/{id}", customerId)
                 .contentType(MediaType.APPLICATION_JSON))
                 .andDo(print())
-                .andExpect(status().isInternalServerError());
+                .andExpectAll(
+                    status().isNotFound(),
+                    content().contentType(MediaType.APPLICATION_JSON),
+                    jsonPath("$.success").value(false),
+                    jsonPath("$.error").value("Харилцагч олдсонгүй")
+                );
 
         verify(customerService, times(1)).getCustomerById(customerId);
     }
@@ -321,6 +324,92 @@ class CustomerControllerTest {
     }
 
     @Test
+    @DisplayName("PUT /customers/{id}/status - Should update customer status")
+    @WithMockUser(authorities = "customer:update")
+    void updateCustomerStatus_ShouldUpdateStatus() throws Exception {
+        // Given
+        UUID customerId = UUID.randomUUID();
+        CustomerStatus newStatus = CustomerStatus.SUSPENDED;
+        CustomerDto updatedCustomer = createTestCustomerDto();
+        updatedCustomer.setId(customerId);
+        updatedCustomer.setStatus(newStatus);
+        
+        when(customerService.updateCustomerStatus(customerId, newStatus))
+            .thenReturn(updatedCustomer);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/customers/{id}/status", customerId)
+                .with(csrf())
+                .param("status", newStatus.name())
+                .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpectAll(
+                    status().isOk(),
+                    content().contentType(MediaType.APPLICATION_JSON),
+                    jsonPath("$.success").value(true),
+                    jsonPath("$.data.status").value(newStatus.name())
+                );
+
+        verify(customerService, times(1)).updateCustomerStatus(customerId, newStatus);
+    }
+
+    @Test
+    @DisplayName("PUT /customers/{id}/kyc-status - Should update KYC status")
+    @WithMockUser(authorities = "customer:kyc")
+    void updateKycStatus_ShouldUpdateKycStatus() throws Exception {
+        // Given
+        UUID customerId = UUID.randomUUID();
+        KYCStatus newKycStatus = KYCStatus.COMPLETED;
+        CustomerDto updatedCustomer = createTestCustomerDto();
+        updatedCustomer.setId(customerId);
+        updatedCustomer.setKycStatus(Customer.KycStatus.COMPLETED);
+        
+        when(customerService.updateKYCStatus(customerId, newKycStatus))
+            .thenReturn(updatedCustomer);
+
+        // When & Then
+        mockMvc.perform(put("/api/v1/customers/{id}/kyc-status", customerId)
+                .with(csrf())
+                .param("kycStatus", newKycStatus.name())
+                .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpectAll(
+                    status().isOk(),
+                    content().contentType(MediaType.APPLICATION_JSON),
+                    jsonPath("$.success").value(true),
+                    jsonPath("$.data.kycStatus").value("COMPLETED")
+                );
+
+        verify(customerService, times(1)).updateKYCStatus(customerId, newKycStatus);
+    }
+
+    @Test
+    @DisplayName("GET /customers/statistics - Should return customer statistics")
+    @WithMockUser(authorities = "customer:view")
+    void getCustomerStatistics_ShouldReturnStatistics() throws Exception {
+        // Given
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalCustomers", 100L);
+        stats.put("activeCustomers", 80L);
+        
+        when(customerService.getCustomerStatistics()).thenReturn(stats);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/customers/statistics")
+                .contentType(MediaType.APPLICATION_JSON))
+                .andDo(print())
+                .andExpectAll(
+                    status().isOk(),
+                    content().contentType(MediaType.APPLICATION_JSON),
+                    jsonPath("$.success").value(true),
+                    jsonPath("$.data.totalCustomers").value(100),
+                    jsonPath("$.data.activeCustomers").value(80)
+                );
+
+        verify(customerService, times(1)).getCustomerStatistics();
+    }
+
+    @Test
     @DisplayName("Should require authentication for all endpoints")
     void shouldRequireAuthentication() throws Exception {
         // Test without authentication
@@ -350,10 +439,12 @@ class CustomerControllerTest {
         customer.setLastName("Болд");
         customer.setEmail("batbayar@test.com");
         customer.setPhone("99119911");
-        customer.setDateOfBirth(LocalDate.of(1990, 1, 15));
-        customer.setRegisterNumber("УБ90011500"); // Changed from setSocialSecurityNumber
-        customer.setCustomerType(Customer.CustomerType.INDIVIDUAL); // Use inner enum
-        customer.setKycStatus(Customer.KycStatus.COMPLETED); // Use inner enum
+        customer.setBirthDate(LocalDate.of(1990, 1, 15));
+        customer.setRegisterNumber("УБ90011500");
+        customer.setCustomerType(Customer.CustomerType.INDIVIDUAL);
+        customer.setKycStatus(Customer.KycStatus.COMPLETED);
+        customer.setStatus(CustomerStatus.ACTIVE);
+        customer.setIsActive(true);
         return customer;
     }
 
@@ -364,10 +455,12 @@ class CustomerControllerTest {
         customer.setLastName("Батбаяр");
         customer.setEmail("sarangerel@test.com");
         customer.setPhone("88228822");
-        customer.setDateOfBirth(LocalDate.of(1992, 3, 20));
-        customer.setRegisterNumber("УБ92032000"); // Changed from setSocialSecurityNumber
-        customer.setCustomerType(Customer.CustomerType.INDIVIDUAL); // Use inner enum
-        customer.setKycStatus(Customer.KycStatus.IN_PROGRESS); // Use inner enum
+        customer.setBirthDate(LocalDate.of(1992, 3, 20));
+        customer.setRegisterNumber("УБ92032000");
+        customer.setCustomerType(Customer.CustomerType.INDIVIDUAL);
+        customer.setKycStatus(Customer.KycStatus.IN_PROGRESS);
+        customer.setStatus(CustomerStatus.ACTIVE);
+        customer.setIsActive(true);
         return customer;
     }
 
@@ -382,6 +475,7 @@ class CustomerControllerTest {
         dto.setRegisterNumber("УБ90011500");
         dto.setCustomerType(Customer.CustomerType.INDIVIDUAL);
         dto.setKycStatus(Customer.KycStatus.COMPLETED);
+        dto.setStatus(CustomerStatus.ACTIVE);
         dto.setIsActive(true);
         return dto;
     }
@@ -397,6 +491,7 @@ class CustomerControllerTest {
         dto.setRegisterNumber("УБ92032000");
         dto.setCustomerType(Customer.CustomerType.INDIVIDUAL);
         dto.setKycStatus(Customer.KycStatus.IN_PROGRESS);
+        dto.setStatus(CustomerStatus.ACTIVE);
         dto.setIsActive(true);
         return dto;
     }
@@ -409,7 +504,7 @@ class CustomerControllerTest {
         request.setPhone("99119911");
         request.setDateOfBirth(LocalDate.of(1990, 1, 15));
         request.setSocialSecurityNumber("УБ90011500");
-        request.setCustomerType(CustomerType.INDIVIDUAL); // Use separate enum
+        request.setCustomerType(CustomerType.INDIVIDUAL);
         request.setPreferredLanguage("mn");
         return request;
     }

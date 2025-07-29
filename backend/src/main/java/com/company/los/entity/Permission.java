@@ -13,6 +13,10 @@ import java.util.UUID;
 /**
  * Эрхийн Entity (Permission for RBAC)
  * Permission Entity for Role-Based Access Control
+ * 
+ * @author LOS Development Team
+ * @version 3.0 - Complete Permission Entity with Business Logic
+ * @since 2025-07-28
  */
 @Entity
 @Table(name = "permissions", indexes = {
@@ -227,6 +231,14 @@ public class Permission {
             }
         }
         return null;
+    }
+
+    /**
+     * Fixed isResourceAction method
+     */
+    public boolean isResourceAction(String resource, String action) {
+        return this.resource != null && this.resource.equals(resource) && 
+               this.action != null && this.action.equals(action);
     }
 
     public void addRole(Role role) {

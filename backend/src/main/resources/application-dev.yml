@@ -1,5 +1,8 @@
-# Development Environment Configuration for LOS
-# This configuration is optimized for local development
+# ================================================================
+# 🏦 LOS Development Environment Configuration
+# Location: backend/src/main/resources/application-dev.yml
+# Optimized for local development with enhanced features
+# ================================================================
 
 server:
   port: 8080
@@ -10,6 +13,9 @@ server:
     include-binding-errors: always
     include-stacktrace: on_param
     include-exception: false
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/xml,text/plain
 
 spring:
   profiles:
@@ -17,14 +23,14 @@ spring:
     
   # Database Configuration - H2 for development
   datasource:
-    url: jdbc:h2:mem:losdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL
+    url: jdbc:h2:mem:losdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driverClassName: org.h2.Driver
     username: sa
     password: 
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
-      connection-timeout: 20000
+      connection-timeout: 30000
       idle-timeout: 300000
       leak-detection-threshold: 60000
       
@@ -35,11 +41,13 @@ spring:
       ddl-auto: create-drop
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+        implicit-strategy: org.springframework.boot.orm.jpa.hibernate.SpringImplicitNamingStrategy
     show-sql: true
     properties:
       hibernate:
         format_sql: true
         use_sql_comments: true
+        generate_statistics: true
         jdbc:
           batch_size: 20
         order_inserts: true
@@ -54,7 +62,13 @@ spring:
         web-allow-others: true
         trace: false
         
-  # Redis Configuration (disabled for development)
+  # SQL Initialization
+  sql:
+    init:
+      mode: always
+      continue-on-error: false
+      
+  # Redis Configuration (optional for development)
   redis:
     host: localhost
     port: 6379
@@ -65,11 +79,8 @@ spring:
         max-active: 8
         max-idle: 8
         min-idle: 0
-    # Disable Redis health check in dev
-    health:
-      redis:
-        enabled: false
-        
+    # Disable Redis health check in dev if Redis not available
+    
   # Cache Configuration
   cache:
     type: simple
@@ -78,15 +89,20 @@ spring:
       - loanProducts
       - documents
       - userPermissions
+      - applicationCache
       
   # Jackson Configuration
   jackson:
     serialization:
       write-dates-as-timestamps: false
       indent-output: true
+      fail-on-empty-beans: false
     deserialization:
       fail-on-unknown-properties: false
+      accept-empty-string-as-null-object: true
     default-property-inclusion: non_null
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Ulaanbaatar
     
   # File Upload Configuration
   servlet:
@@ -95,19 +111,12 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
       file-size-threshold: 2KB
+      location: ${java.io.tmpdir}
       
-  # Security Configuration
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          # Disable JWT in development
-          issuer-uri: 
-          
   # Mail Configuration (disabled for development)
   mail:
     host: localhost
-    port: 1025
+    port: 1025  # MailHog for testing
     username: 
     password: 
     properties:
@@ -116,19 +125,22 @@ spring:
           auth: false
           starttls:
             enable: false
+          debug: true
             
 # Application Specific Configuration
 app:
   name: "LOS Development"
-  version: "1.0.0-DEV"
+  version: "@project.version@"
   description: "Loan Origination System - Development Environment"
+  timezone: "Asia/Ulaanbaatar"
   
-  # JWT Configuration
+  # JWT Configuration (relaxed for development)
   jwt:
-    enabled: false  # Disable JWT for easier development
-    secret: dev-secret-key-for-testing-only-not-for-production
+    enabled: true
+    secret: dev-secret-key-for-testing-only-not-for-production-use-min-256-bits
     expiration: 86400 # 24 hours in seconds
     refresh-expiration: 604800 # 7 days in seconds
+    issuer: "LOS-DEV"
     
   # File Storage Configuration
   file:
@@ -143,7 +155,9 @@ app:
       - docx
       - xls
       - xlsx
-      
+      - txt
+    temp-dir: ${java.io.tmpdir}/los-dev
+    
   # Loan Configuration
   loan:
     default-interest-rate: 12.0
@@ -151,45 +165,70 @@ app:
     min-loan-amount: 500000    # 500K MNT
     max-loan-term: 360         # 30 years in months
     min-loan-term: 6           # 6 months
+    currency: "MNT"
     
   # Customer Configuration
   customer:
     auto-kyc: false
     welcome-email: false
+    default-status: "PENDING_VERIFICATION"
     
   # Notification Configuration
   notification:
     email:
-      enabled: false
+      enabled: false  # Disable for dev
+      from: "noreply@los-dev.local"
     sms:
       enabled: false
     push:
       enabled: false
       
-  # External Services Configuration
+  # External Services Configuration (all disabled for dev)
   external:
     credit-bureau:
       enabled: false
-      url: http://localhost:8082/credit-bureau
-      timeout: 30000
     payment-gateway:
       enabled: false
-      url: http://localhost:8083/payment
-      timeout: 30000
     document-verification:
       enabled: false
-      url: http://localhost:8084/verification
-      timeout: 30000
+    social-insurance:
+      enabled: false
       
   # Development Tools
   dev:
     data-loader:
       enabled: true
       load-sample-data: true
+      sample-customers: 50
+      sample-loans: 100
     debug:
       enabled: true
       log-sql: true
       log-transactions: true
+      log-security: true
+    hot-reload:
+      enabled: true
+    test-endpoints:
+      enabled: true
+      
+  # Security Configuration (relaxed for development)
+  security:
+    cors:
+      enabled: true
+      allowed-origins:
+        - "http://localhost:3000"
+        - "http://localhost:3001"
+        - "http://127.0.0.1:3000" 
+        - "http://127.0.0.1:3001"
+        - "http://localhost:8080"
+      allowed-methods: "*"
+      allowed-headers: "*"
+      allow-credentials: true
+      max-age: 3600
+    csrf:
+      enabled: false
+    rate-limiting:
+      enabled: false
       
 # Logging Configuration
 logging:
@@ -197,16 +236,18 @@ logging:
     com.company.los: DEBUG
     org.springframework.security: DEBUG
     org.springframework.web: INFO
+    org.springframework.data: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    org.springframework.cache: DEBUG
     root: INFO
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr(%5p) %clr(${PID:- }){magenta} %clr(---){faint} %clr([%15.15t]){faint} %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n%wEx"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
   file:
     name: logs/los-dev.log
     max-size: 100MB
-    max-history: 30
+    max-history: 7
     
 # Management/Actuator Configuration
 management:
@@ -215,9 +256,13 @@ management:
       exposure:
         include: "*"
       base-path: /actuator
+      cors:
+        allowed-origins: "*"
+        allowed-methods: "GET,POST"
   endpoint:
     health:
       show-details: always
+      show-components: always
       probes:
         enabled: true
     info:
@@ -231,14 +276,20 @@ management:
     env:
       enabled: true
       show-values: always
+    beans:
+      enabled: true
+    mappings:
+      enabled: true
   health:
     redis:
-      enabled: false
+      enabled: false  # Disable if Redis not available
     db:
       enabled: true
     diskspace:
       enabled: true
       threshold: 100MB
+    mail:
+      enabled: false
   info:
     env:
       enabled: true
@@ -247,21 +298,22 @@ management:
     git:
       enabled: true
       mode: full
-      
-# CORS Configuration for Development
-cors:
-  allowed-origins: 
-    - http://localhost:3000
-    - http://localhost:3001
-    - http://127.0.0.1:3000
-    - http://127.0.0.1:3001
-  allowed-methods:
-    - GET
-    - POST
-    - PUT
-    - DELETE
-    - PATCH
-    - OPTIONS
-  allowed-headers: "*"
-  allow-credentials: true
-  max-age: 3600
+  metrics:
+    export:
+      simple:
+        enabled: true
+        
+# Development specific properties
+debug: true
+trace: false
+
+# Spring Boot Dev Tools
+spring.devtools:
+  restart:
+    enabled: true
+    additional-paths: src/main/java
+  livereload:
+    enabled: true
+    port: 35729
+  remote:
+    secret: los-dev-secret

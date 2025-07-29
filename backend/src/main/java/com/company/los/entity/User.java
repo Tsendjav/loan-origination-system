@@ -9,15 +9,15 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.*;
 
 /**
  * Хэрэглэгчийн Entity
  * User Entity - implements Spring Security UserDetails
+ * 
+ * @author LOS Development Team
+ * @version 3.0 - Complete Entity with AuthService compatibility
+ * @since 2025-07-28
  */
 @Entity
 @Table(name = "users", indexes = {
@@ -103,7 +103,7 @@ public class User implements UserDetails {
     @OneToMany(mappedBy = "manager", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<User> subordinates = new ArrayList<>();
 
-    // Эрхүүд
+    // Эрхүүд - JPA relationship дээр List ашиглах нь илүү тохиромжтой
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "user_roles",
@@ -390,7 +390,8 @@ public class User implements UserDetails {
         return isLocked || (lockedUntil != null && lockedUntil.isAfter(LocalDateTime.now()));
     }
 
-    // Getters and Setters
+    // ==================== STANDARD GETTERS AND SETTERS ====================
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -494,9 +495,18 @@ public class User implements UserDetails {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public List<Role> getRoles() { return roles; }
+    /**
+     * JPA relationship дээр List<Role> буцаах метод
+     */
+    public List<Role> getRoles() { 
+        return roles; 
+    }
+
+    /**
+     * List<Role> тохируулах метод - JPA relationship
+     */
     public void setRoles(List<Role> roles) { 
-        this.roles = roles;
+        this.roles = roles != null ? roles : new ArrayList<>();
         this.updatedAt = LocalDateTime.now();
     }
 

@@ -13,13 +13,16 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Хэрэглэгчийн Repository
  * User Repository Interface for Spring Security
+ * 
+ * @author LOS Development Team
+ * @version 3.0 - Complete Repository with Authentication Support
+ * @since 2025-07-28
  */
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {

@@ -3,7 +3,6 @@ package com.company.los.dto;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -17,11 +16,10 @@ import java.io.Serializable;
  * Хэрэглэгчийн нэвтрэх мэдээллийг хүлээн авах
  * 
  * @author LOS Development Team
- * @version 1.0
- * @since 2025-07-27
+ * @version 2.1 - Builder Pattern Removed for Compatibility
+ * @since 2025-07-28
  */
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -53,7 +51,6 @@ public class LoginRequestDto implements Serializable {
      * Намайг санах сонголт
      * Удаан хугацаанд нэвтэрсэн байдалд үлдэх
      */
-    @Builder.Default
     private boolean rememberMe = false;
 
     /**
@@ -97,21 +94,6 @@ public class LoginRequestDto implements Serializable {
      * WEB, MOBILE_ANDROID, MOBILE_IOS
      */
     private String platform;
-
-    // Explicit getter методууд (Lombok @Data автоматаар үүсгэдэг ч explicit хийе)
-    public String getUsername() {
-        return username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public boolean isRememberMe() {
-        return rememberMe;
-    }
-
-    // ==================== Utility Methods ====================
 
     /**
      * Хэрэглэгчийн нэр эсвэл имэйл эсэхийг шалгах
@@ -209,26 +191,26 @@ public class LoginRequestDto implements Serializable {
      * Static factory method - энгийн хүсэлт
      */
     public static LoginRequestDto of(String username, String password) {
-        return LoginRequestDto.builder()
-            .username(username)
-            .password(password)
-            .rememberMe(false)
-            .timestamp(System.currentTimeMillis())
-            .platform("WEB")
-            .build();
+        LoginRequestDto request = new LoginRequestDto();
+        request.setUsername(username);
+        request.setPassword(password);
+        request.setRememberMe(false);
+        request.setTimestamp(System.currentTimeMillis());
+        request.setPlatform("WEB");
+        return request;
     }
 
     /**
      * Static factory method - remember me тэй
      */
     public static LoginRequestDto withRememberMe(String username, String password, boolean rememberMe) {
-        return LoginRequestDto.builder()
-            .username(username)
-            .password(password)
-            .rememberMe(rememberMe)
-            .timestamp(System.currentTimeMillis())
-            .platform("WEB")
-            .build();
+        LoginRequestDto request = new LoginRequestDto();
+        request.setUsername(username);
+        request.setPassword(password);
+        request.setRememberMe(rememberMe);
+        request.setTimestamp(System.currentTimeMillis());
+        request.setPlatform("WEB");
+        return request;
     }
 
     /**
@@ -236,15 +218,15 @@ public class LoginRequestDto implements Serializable {
      */
     public static LoginRequestDto withFullInfo(String username, String password, boolean rememberMe, 
                                              String deviceInfo, String ipAddress, String platform) {
-        return LoginRequestDto.builder()
-            .username(username)
-            .password(password)
-            .rememberMe(rememberMe)
-            .deviceInfo(deviceInfo)
-            .ipAddress(ipAddress)
-            .platform(platform)
-            .timestamp(System.currentTimeMillis())
-            .build();
+        LoginRequestDto request = new LoginRequestDto();
+        request.setUsername(username);
+        request.setPassword(password);
+        request.setRememberMe(rememberMe);
+        request.setDeviceInfo(deviceInfo);
+        request.setIpAddress(ipAddress);
+        request.setPlatform(platform);
+        request.setTimestamp(System.currentTimeMillis());
+        return request;
     }
 
     /**
@@ -252,15 +234,68 @@ public class LoginRequestDto implements Serializable {
      */
     public static LoginRequestDto forMobile(String username, String password, String platform, 
                                           String clientVersion, String deviceInfo) {
-        return LoginRequestDto.builder()
-            .username(username)
-            .password(password)
-            .rememberMe(true) // Mobile-д ихэвчлэн remember me байдаг
-            .platform(platform)
-            .clientVersion(clientVersion)
-            .deviceInfo(deviceInfo)
-            .timestamp(System.currentTimeMillis())
-            .build();
+        LoginRequestDto request = new LoginRequestDto();
+        request.setUsername(username);
+        request.setPassword(password);
+        request.setRememberMe(true); // Mobile-д ихэвчлэн remember me байдаг
+        request.setPlatform(platform);
+        request.setClientVersion(clientVersion);
+        request.setDeviceInfo(deviceInfo);
+        request.setTimestamp(System.currentTimeMillis());
+        return request;
+    }
+
+    /**
+     * Builder-style method chaining
+     */
+    public LoginRequestDto withUsername(String username) {
+        this.setUsername(username);
+        return this;
+    }
+
+    public LoginRequestDto withPassword(String password) {
+        this.setPassword(password);
+        return this;
+    }
+
+    public LoginRequestDto withRememberMe(boolean rememberMe) {
+        this.setRememberMe(rememberMe);
+        return this;
+    }
+
+    public LoginRequestDto withDeviceInfo(String deviceInfo) {
+        this.setDeviceInfo(deviceInfo);
+        return this;
+    }
+
+    public LoginRequestDto withUserAgent(String userAgent) {
+        this.setUserAgent(userAgent);
+        return this;
+    }
+
+    public LoginRequestDto withIpAddress(String ipAddress) {
+        this.setIpAddress(ipAddress);
+        return this;
+    }
+
+    public LoginRequestDto withTimestamp(Long timestamp) {
+        this.setTimestamp(timestamp);
+        return this;
+    }
+
+    public LoginRequestDto withClientVersion(String clientVersion) {
+        this.setClientVersion(clientVersion);
+        return this;
+    }
+
+    public LoginRequestDto withTimezone(String timezone) {
+        this.setTimezone(timezone);
+        return this;
+    }
+
+    public LoginRequestDto withPlatform(String platform) {
+        this.setPlatform(platform);
+        return this;
     }
 
     // ==================== toString Override ====================

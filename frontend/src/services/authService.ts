@@ -1,7 +1,17 @@
 // frontend/src/services/authService.ts
-import { apiClient } from './apiClient';
-import { ENDPOINTS } from './apiConfig';
+import axios, { AxiosResponse } from 'axios';
 
+// API Configuration
+const API_BASE_URL = 'http://localhost:8080/los/api/v1';
+const AUTH_ENDPOINTS = {
+  LOGIN: '/auth/login',
+  LOGOUT: '/auth/logout',
+  ME: '/auth/me',
+  REFRESH: '/auth/refresh',
+  TEST: '/auth/test'
+};
+
+// Types
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -12,6 +22,7 @@ export interface User {
   username: string;
   role: string;
   name: string;
+  email?: string;
 }
 
 export interface LoginResponse {
@@ -27,6 +38,50 @@ export interface AuthState {
   loading: boolean;
   error: string | null;
 }
+
+// HTTP Client Configuration
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Request interceptor - Token нэмэх
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('los_auth_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('❌ Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor - 401 алдаа шалгах
+apiClient.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} - ${response.status}`);
+    return response;
+  },
+  (error) => {
+    console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} - ${error.response?.status}`);
+    
+    if (error.response?.status === 401) {
+      // Token хүчингүй болсон - гарах
+      authService.logout();
+      window.location.href = '/login';
+    }
+    
+    return Promise.reject(error);
+  }
+);
 
 class AuthService {
   private listeners: Array<(state: AuthState) => void> = [];
@@ -46,8 +101,8 @@ class AuthService {
 
   // Get current auth state
   getAuthState(): AuthState {
-    const token = localStorage.getItem('auth_token');
-    const userStr = localStorage.getItem('user');
+    const token = localStorage.getItem('los_auth_token');
+    const userStr = localStorage.getItem('los_user_info');
     
     return {
       isAuthenticated: !!token,
@@ -57,40 +112,40 @@ class AuthService {
     };
   }
 
-  // Login method with better validation
+  // Нэвтрэх
   async login(credentials: LoginCredentials): Promise<LoginResponse> {
     console.log('🔐 Attempting login for:', credentials.username);
     
-    // Validate credentials before sending
-    if (!credentials || !credentials.username || !credentials.password) {
-      const errorMessage = 'Хэрэглэгчийн нэр болон нууц үг оруулна уу';
-      this.notifyListeners({
-        isAuthenticated: false,
-        user: null,
-        loading: false,
-        error: errorMessage,
-      });
-      throw new Error(errorMessage);
-    }
-
-    // Trim whitespace
-    const cleanCredentials = {
-      username: credentials.username.trim(),
-      password: credentials.password.trim()
-    };
-
-    if (!cleanCredentials.username || !cleanCredentials.password) {
-      const errorMessage = 'Хэрэглэгчийн нэр болон нууц үг хоосон байж болохгүй';
-      this.notifyListeners({
-        isAuthenticated: false,
-        user: null,
-        loading: false,
-        error: errorMessage,
-      });
-      throw new Error(errorMessage);
-    }
-    
     try {
+      // Validate credentials
+      if (!credentials || !credentials.username || !credentials.password) {
+        const errorMessage = 'Хэрэглэгчийн нэр болон нууц үг оруулна уу';
+        this.notifyListeners({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: errorMessage,
+        });
+        throw new Error(errorMessage);
+      }
+
+      // Trim whitespace
+      const cleanCredentials = {
+        username: credentials.username.trim(),
+        password: credentials.password.trim()
+      };
+
+      if (!cleanCredentials.username || !cleanCredentials.password) {
+        const errorMessage = 'Хэрэглэгчийн нэр болон нууц үг хоосон байж болохгүй';
+        this.notifyListeners({
+          isAuthenticated: false,
+          user: null,
+          loading: false,
+          error: errorMessage,
+        });
+        throw new Error(errorMessage);
+      }
+      
       // Notify listeners that login is in progress
       this.notifyListeners({
         isAuthenticated: false,
@@ -99,48 +154,40 @@ class AuthService {
         error: null,
       });
 
-      console.log('📤 Sending login request with credentials:', { 
-        username: cleanCredentials.username, 
-        password: '[HIDDEN]' 
-      });
+      console.log('📤 Sending login request:', { username: cleanCredentials.username, password: '[HIDDEN]' });
 
-      const response = await apiClient.post<LoginResponse>(
-        ENDPOINTS.AUTH.LOGIN,
-        cleanCredentials
-      );
+      // API дуудалт
+      const response: AxiosResponse<LoginResponse> = await apiClient.post(AUTH_ENDPOINTS.LOGIN, cleanCredentials);
 
-      console.log('✅ Login response:', { 
-        ...response, 
-        token: response.token ? '[HIDDEN]' : undefined 
-      });
+      console.log('✅ Login response:', { ...response.data, token: response.data.token ? '[HIDDEN]' : undefined });
 
-      if (response.success && response.token && response.user) {
+      if (response.data.success && response.data.token && response.data.user) {
         // Store auth data
-        localStorage.setItem('auth_token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
+        localStorage.setItem('los_auth_token', response.data.token);
+        localStorage.setItem('los_user_info', JSON.stringify(response.data.user));
 
         // Notify listeners of successful login
         this.notifyListeners({
           isAuthenticated: true,
-          user: response.user,
+          user: response.data.user,
           loading: false,
           error: null,
         });
 
-        console.log('🎉 Login successful:', response.user.username);
-        return response;
+        console.log('🎉 Login successful:', response.data.user.username);
+        return response.data;
       } else {
-        throw new Error(response.message || 'Нэвтрэхэд алдаа гарлаа');
+        throw new Error(response.data.message || 'Нэвтрэхэд алдаа гарлаа');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Login failed:', error);
       
       let errorMessage = 'Нэвтрэхэд алдаа гарлаа';
       
-      if (error instanceof Error) {
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
         errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
       }
       
       // Notify listeners of login error
@@ -155,19 +202,19 @@ class AuthService {
     }
   }
 
-  // Logout method
+  // Гарах
   async logout(): Promise<void> {
     console.log('🚪 Logging out...');
     
     try {
-      // Try to call logout endpoint
-      await apiClient.post(ENDPOINTS.AUTH.LOGOUT);
+      // Backend logout endpoint дуудах
+      await apiClient.post(AUTH_ENDPOINTS.LOGOUT);
     } catch (error) {
       console.warn('Logout endpoint failed, but continuing with local logout:', error);
     } finally {
-      // Always clear local storage
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user');
+      // Local storage цэвэрлэх
+      localStorage.removeItem('los_auth_token');
+      localStorage.removeItem('los_user_info');
 
       // Notify listeners of logout
       this.notifyListeners({
@@ -181,64 +228,68 @@ class AuthService {
     }
   }
 
-  // Get current user from server
+  // Одоогийн хэрэглэгчийн мэдээлэл авах
   async getCurrentUser(): Promise<User | null> {
     try {
       if (!this.isAuthenticated()) {
         return null;
       }
 
-      const user = await apiClient.get<User>(ENDPOINTS.AUTH.ME);
+      const response = await apiClient.get<{success: boolean; data: User}>(AUTH_ENDPOINTS.ME);
       
-      // Update stored user data
-      localStorage.setItem('user', JSON.stringify(user));
+      if (response.data.success && response.data.data) {
+        // Update stored user data
+        localStorage.setItem('los_user_info', JSON.stringify(response.data.data));
+        return response.data.data;
+      }
       
-      return user;
+      return null;
     } catch (error) {
       console.error('Failed to get current user:', error);
       
-      // If getting current user fails, probably token is invalid
+      // Token хүчингүй байх магадлалтай
       this.logout();
       return null;
     }
   }
 
-  // Check if user is authenticated
+  // Нэвтэрсэн эсэхийг шалгах
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('auth_token');
-    return !!token;
+    const token = localStorage.getItem('los_auth_token');
+    const user = localStorage.getItem('los_user_info');
+    return !!(token && user);
   }
 
-  // Get stored user data
+  // Хадгалагдсан хэрэглэгчийн мэдээлэл авах
   getStoredUser(): User | null {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem('los_user_info');
     return userStr ? JSON.parse(userStr) : null;
   }
 
-  // Get stored token
+  // Token авах
   getToken(): string | null {
-    return localStorage.getItem('auth_token');
+    return localStorage.getItem('los_auth_token');
   }
 
-  // Check if user has specific role
+  // Role шалгах
   hasRole(role: string): boolean {
     const user = this.getStoredUser();
     return user?.role === role;
   }
 
-  // Check if user has any of the specified roles
+  // Олон role шалгах
   hasAnyRole(roles: string[]): boolean {
     const user = this.getStoredUser();
     return user ? roles.includes(user.role) : false;
   }
 
-  // Initialize auth service (call this when app starts)
+  // Service эхлүүлэх
   async initialize(): Promise<void> {
     console.log('🚀 Initializing auth service...');
     
     if (this.isAuthenticated()) {
       try {
-        // Verify token is still valid by fetching current user
+        // Token-ыг баталгаажуулах
         const user = await this.getCurrentUser();
         if (user) {
           this.notifyListeners({
@@ -255,16 +306,40 @@ class AuthService {
     }
   }
 
-  // Refresh token (placeholder for future implementation)
+  // Token сэргээх
   async refreshToken(): Promise<boolean> {
-    // TODO: Implement token refresh logic
-    console.log('🔄 Token refresh not implemented yet');
-    return false;
+    try {
+      const response = await apiClient.post<{success: boolean; token: string}>(AUTH_ENDPOINTS.REFRESH, {
+        refreshToken: this.getToken()
+      });
+      
+      if (response.data.success && response.data.token) {
+        localStorage.setItem('los_auth_token', response.data.token);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      this.logout();
+      return false;
+    }
+  }
+
+  // Backend холболт тест
+  async testConnection(): Promise<boolean> {
+    try {
+      const response = await apiClient.get(AUTH_ENDPOINTS.TEST);
+      return response.status === 200;
+    } catch (error) {
+      console.error('Backend connection test failed:', error);
+      return false;
+    }
   }
 
   // Test login with default users
   async testLogin(): Promise<void> {
-    console.log('🧪 Testing login with default user...');
+    console.log('🧪 Testing login with default admin user...');
     
     try {
       await this.login({
@@ -276,14 +351,33 @@ class AuthService {
       console.error('❌ Test login failed:', error);
     }
   }
+
+  // Admin эрх шалгах
+  isAdmin(): boolean {
+    return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+  }
+
+  // Manager эрх шалгах
+  isManager(): boolean {
+    return this.hasRole('MANAGER');
+  }
+
+  // Loan Officer эрх шалгах
+  isLoanOfficer(): boolean {
+    return this.hasRole('LOAN_OFFICER');
+  }
 }
 
-// Create singleton instance
+// Singleton instance үүсгэх
 export const authService = new AuthService();
 
 // Default users for testing
-export const DEFAULT_USERS = [
-  { username: 'admin', password: 'admin123', role: 'ADMIN', name: 'Админ хэрэглэгч' },
-  { username: 'loan_officer', password: 'loan123', role: 'LOAN_OFFICER', name: 'Зээлийн ажилтан' },
-  { username: 'manager', password: 'manager123', role: 'MANAGER', name: 'Менежер' },
+export const DEFAULT_TEST_USERS = [
+  { username: 'admin', password: 'admin123', role: 'SUPER_ADMIN', name: 'Системийн админ' },
+  { username: 'manager', password: 'manager123', role: 'MANAGER', name: 'Салбарын менежер' },
+  { username: 'loan_officer', password: 'loan123', role: 'LOAN_OFFICER', name: 'Зээлийн мэргэжилтэн' },
+  { username: 'reviewer', password: 'admin123', role: 'DOCUMENT_REVIEWER', name: 'Баримт хянагч' },
+  { username: 'customer_service', password: 'admin123', role: 'CUSTOMER_SERVICE', name: 'Харилцагчийн үйлчилгээ' },
 ];
+
+export default authService;
