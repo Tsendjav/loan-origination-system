@@ -220,6 +220,12 @@ public interface CustomerService {
      */
     Map<String, Object> getTodayCustomerStats();
 
+    // ⭐ ШИНЭЭР НЭМЭГДСЭН: Харилцагчийн нийт тоо ⭐
+    /**
+     * Харилцагчийн нийт тоо авах
+     */
+    long getTotalCustomerCount();
+
     // ==================== LOAN RELATED ====================
     
     /**

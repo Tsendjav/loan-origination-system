@@ -458,6 +458,14 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         return canBeApproved(loanApplication);
     }
 
+    // ⭐ ШИНЭЭР НЭМЭГДСЭН: getTotalLoanApplicationCount() метод ⭐
+    @Override
+    @Transactional(readOnly = true)
+    public long getTotalLoanApplicationCount() {
+        logger.debug("Getting total loan application count");
+        return loanApplicationRepository.count();
+    }
+
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getLoanApplicationStatistics() {

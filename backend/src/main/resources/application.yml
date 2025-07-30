@@ -2,7 +2,7 @@
 # LOS (Loan Origination System) Main Configuration - ЭЦСИЙН ХУВИЛБАР (ЗАСВАРЛАСАН)
 # =====================================================================================
 # Created: 2025-07-26
-# Updated: БҮРЭН ЗАСВАРЛАСАН - JWT тохиргоо app секц дээр шилжүүлсэн
+# Updated: БҮРЭН ЗАСВАРЛАСАН - Redis алдаа шийдэгдсэн
 # =====================================================================================
 
 server:
@@ -24,6 +24,13 @@ spring:
   main:
     allow-bean-definition-overriding: false
     lazy-initialization: false
+
+  # ⭐ REDIS DISABLE - Redis алдааг шийдэх ⭐
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
 
   # ⭐ H2 Database Configuration (Development) - ЗАСВАРЛАСАН ⭐
   datasource:
@@ -104,20 +111,22 @@ spring:
     time-zone: UTC
     date-format: yyyy-MM-dd HH:mm:ss
 
-  # Cache Configuration
+  # ⭐ Cache Configuration - In-Memory Cache ⭐
   cache:
-    type: simple
+    type: simple  # Redis-ийн оронд in-memory cache
     cache-names: 
       - customers
       - loan-applications
       - documents
+      - userCache
+      - authCache
 
   # Transaction Configuration
   transaction:
     default-timeout: 30
     rollback-on-commit-failure: true
 
-# Management/Actuator Configuration
+# ⭐ Management/Actuator Configuration - Redis Health Disabled ⭐
 management:
   endpoints:
     web:
@@ -134,6 +143,8 @@ management:
       enabled: true
     db:
       enabled: true
+    redis:
+      enabled: false  # ⭐ Redis health check DISABLED ⭐
   metrics:
     export:
       prometheus:
@@ -149,6 +160,9 @@ logging:
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     org.springframework.transaction: DEBUG
+    # ⭐ Redis log-уудыг suppress хийх ⭐
+    org.springframework.boot.autoconfigure.data.redis: ERROR
+    org.springframework.data.redis: ERROR
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
@@ -186,15 +200,15 @@ app:
   # Security Configuration
   security:
     cors:
-      allowed-origins: "http://localhost:3001,http://localhost:3000"
+      allowed-origins: "http://localhost:3001,http://localhost:3000,http://127.0.0.1:3001,http://127.0.0.1:3000"
       allowed-methods: "GET,POST,PUT,DELETE,OPTIONS,PATCH"
       allowed-headers: "*"
       allow-credentials: true
       max-age: 3600
     
-    # Rate limiting
+    # Rate limiting (Redis-гүйгээр disabled)
     rate-limit:
-      enabled: true
+      enabled: false  # ⭐ Redis байхгүй учир rate limiting disabled ⭐
       requests-per-minute: 60
       
   # Document Configuration
@@ -374,6 +388,12 @@ spring:
   flyway:
     enabled: false
 
+  # ⭐ Test дээр ч Redis disable ⭐
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+
 # Test Logging Configuration
 logging:
   level:
@@ -395,7 +415,7 @@ app:
       enabled: false
 
 # =====================================================================================
-# ЭЦСИЙН ХУВИЛБАР - ACCESS INFORMATION
+# ⭐ ЭЦСИЙН ХУВИЛБАР - REDIS АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
 # =====================================================================================
 # 🌐 URLs:
 #    Backend:     http://localhost:8080/los
@@ -413,9 +433,10 @@ app:
 #    Username: sa
 #    Password: (хоосон)
 #
-# ⭐ JWT Тохиргоо:
-#    Secret: myVerySecretKeyThatIsAtLeast32CharactersLong
-#    Access Token: 24 цаг
-#    Refresh Token: 7 хоног
-#    Issuer: loan-origination-system
+# ⭐ ШИЙДЭГДСЭН АСУУДЛУУД:
+#    ✅ Redis connection алдаа - DISABLED
+#    ✅ In-memory cache ашиглана
+#    ✅ Redis health check disabled
+#    ✅ Rate limiting disabled (Redis dependency байхгүй учир)
+#    ✅ Logging Redis errors suppressed
 # =====================================================================================

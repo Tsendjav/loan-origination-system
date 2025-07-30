@@ -28,14 +28,16 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Харилцагчийн REST API Controller
- * Customer REST API Controller
+ * Харилцагчийн REST API Controller - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
+ * ⭐ API АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
+ * ⭐ ERROR HANDLING НЭМЭГДСЭН ⭐
+ * ⭐ HEALTH CHECK ENDPOINT НЭМЭГДСЭН ⭐
  * 
  * @author LOS Development Team
  */
 @RestController  
 @RequestMapping("/api/v1/customers")
-@CrossOrigin(origins = {"http://localhost:3001", "http://localhost:3000"})
+@CrossOrigin(origins = {"http://localhost:3001", "http://localhost:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3000"})
 @RequiredArgsConstructor
 public class CustomerController {
 
@@ -45,7 +47,7 @@ public class CustomerController {
     // ==================== CRUD OPERATIONS ====================
 
     /**
-     * Бүх харилцагч авах (pagination-тай)
+     * Бүх харилцагч авах (pagination-тай) - ⭐ ЗАСВАРЛАСАН ERROR HANDLING ⭐
      * GET /api/v1/customers
      */
     @GetMapping
@@ -64,16 +66,17 @@ public class CustomerController {
             
             Page<CustomerDto> customers = customerService.getAllCustomers(pageable);
             
+            logger.info("✅ Successfully retrieved {} customers", customers.getTotalElements());
             return ResponseEntity.ok(ApiResponse.success(customers));
         } catch (Exception e) {
             logger.error("❌ Error getting customers: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error("Харилцагчдийг авахад алдаа гарлаа"));
+                .body(ApiResponse.error("Харилцагчдийг авахад алдаа гарлаа: " + e.getMessage()));
         }
     }
 
     /**
-     * Тодорхой харилцагч авах
+     * Тодорхой харилцагч авах - ⭐ ЗАСВАРЛАСАН NULL CHECK ⭐
      * GET /api/v1/customers/{id}
      */
     @GetMapping("/{id}")
@@ -82,8 +85,23 @@ public class CustomerController {
         logger.debug("👤 Getting customer: {}", id);
         
         try {
+            // ⭐ NULL CHECK НЭМЭГДСЭН ⭐
+            if (id == null) {
+                logger.warn("⚠️ Customer ID is null");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
+            }
+
             CustomerDto customer = customerService.getCustomerById(id);
-            return ResponseEntity.ok(ApiResponse.success(customer));
+            
+            if (customer != null) {
+                logger.info("✅ Successfully retrieved customer: {}", id);
+                return ResponseEntity.ok(ApiResponse.success(customer));
+            } else {
+                logger.warn("⚠️ Customer not found: {}", id);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Харилцагч олдсонгүй"));
+            }
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Customer not found: {}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -96,7 +114,7 @@ public class CustomerController {
     }
 
     /**
-     * Шинэ харилцагч үүсгэх
+     * Шинэ харилцагч үүсгэх - ⭐ ЗАСВАРЛАСАН VALIDATION ⭐
      * POST /api/v1/customers
      */
     @PostMapping
@@ -107,10 +125,22 @@ public class CustomerController {
         
         logger.info("➕ Creating new customer");
         
+        // ⭐ VALIDATION ERROR HANDLING НЭМЭГДСЭН ⭐
         if (bindingResult.hasErrors()) {
             logger.warn("⚠️ Validation errors in customer request");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error("Мэдээлэл буруу байна", new HashMap<>(getValidationErrors(bindingResult))));
+        }
+
+        // ⭐ НЭМЭЛТ BUSINESS VALIDATION ⭐
+        if (customerRequest.getFirstName() == null || customerRequest.getFirstName().trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Харилцагчийн нэр заавал оруулна уу"));
+        }
+
+        if (customerRequest.getLastName() == null || customerRequest.getLastName().trim().isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Харилцагчийн овог заавал оруулна уу"));
         }
         
         try {
@@ -135,7 +165,7 @@ public class CustomerController {
     }
 
     /**
-     * Харилцагч шинэчлэх
+     * Харилцагч шинэчлэх - ⭐ ЗАСВАРЛАСАН ⭐
      * PUT /api/v1/customers/{id}
      */
     @PutMapping("/{id}")
@@ -146,6 +176,12 @@ public class CustomerController {
             BindingResult bindingResult) {
         
         logger.info("📝 Updating customer: {}", id);
+        
+        // ⭐ NULL CHECK ⭐
+        if (id == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
+        }
         
         if (bindingResult.hasErrors()) {
             logger.warn("⚠️ Validation errors in update request");
@@ -172,7 +208,7 @@ public class CustomerController {
     }
 
     /**
-     * Харилцагч устгах
+     * Харилцагч устгах - ⭐ ЗАСВАРЛАСАН ⭐
      * DELETE /api/v1/customers/{id}
      */
     @DeleteMapping("/{id}")
@@ -181,6 +217,12 @@ public class CustomerController {
         logger.info("🗑️ Deleting customer: {}", id);
         
         try {
+            // ⭐ NULL CHECK ⭐
+            if (id == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
+            }
+
             customerService.deleteCustomer(id);
             
             logger.info("✅ Customer deleted successfully: {}", id);
@@ -200,7 +242,7 @@ public class CustomerController {
     // ==================== SEARCH OPERATIONS ====================
 
     /**
-     * Харилцагч хайх
+     * Харилцагч хайх - ⭐ ЗАСВАРЛАСАН ⭐
      * GET /api/v1/customers/search
      */
     @GetMapping("/search")
@@ -233,7 +275,7 @@ public class CustomerController {
     // ==================== VALIDATION ====================
 
     /**
-     * Харилцагчийн мэдээлэл шалгах
+     * Харилцагчийн мэдээлэл шалгах - ⭐ ЗАСВАРЛАСАН ⭐
      * POST /api/v1/customers/validate
      */
     @PostMapping("/validate")
@@ -251,7 +293,7 @@ public class CustomerController {
                 result.put("emailUnique", customerService.isEmailUnique(email));
             }
             
-            String phone = validation.get("phone");
+            String phone = validation.get("phone");  
             if (phone != null) {
                 result.put("phoneAvailable", !customerService.existsByPhone(phone));
             }
@@ -272,7 +314,7 @@ public class CustomerController {
     // ==================== STATUS MANAGEMENT ====================
 
     /**
-     * Харилцагчийн статус шинэчлэх
+     * Харилцагчийн статус шинэчлэх - ⭐ ЗАСВАРЛАСАН ⭐
      * PUT /api/v1/customers/{id}/status
      */
     @PutMapping("/{id}/status")
@@ -284,6 +326,17 @@ public class CustomerController {
         logger.info("📊 Updating customer status: {} -> {}", id, status);
         
         try {
+            // ⭐ NULL CHECK ⭐
+            if (id == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
+            }
+
+            if (status == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Статус заавал оруулна уу"));
+            }
+
             CustomerDto updatedCustomer = customerService.updateCustomerStatus(id, status);
             
             logger.info("✅ Customer status updated: {}", id);
@@ -301,7 +354,7 @@ public class CustomerController {
     }
 
     /**
-     * KYC статус шинэчлэх
+     * KYC статус шинэчлэх - ⭐ ЗАСВАРЛАСАН ⭐
      * PUT /api/v1/customers/{id}/kyc-status
      */
     @PutMapping("/{id}/kyc-status")
@@ -313,6 +366,17 @@ public class CustomerController {
         logger.info("🔐 Updating KYC status: {} -> {}", id, kycStatus);
         
         try {
+            // ⭐ NULL CHECK ⭐
+            if (id == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
+            }
+
+            if (kycStatus == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("KYC статус заавал оруулна уу"));
+            }
+
             CustomerDto updatedCustomer = customerService.updateKYCStatus(id, kycStatus);
             
             logger.info("✅ KYC status updated: {}", id);
@@ -332,7 +396,7 @@ public class CustomerController {
     // ==================== STATISTICS ====================
 
     /**
-     * Харилцагчийн статистик
+     * Харилцагчийн статистик - ⭐ ЗАСВАРЛАСАН ⭐
      * GET /api/v1/customers/statistics
      */
     @GetMapping("/statistics")
@@ -348,6 +412,47 @@ public class CustomerController {
             logger.error("❌ Error getting customer statistics: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Статистик авахад алдаа гарлаа"));
+        }
+    }
+
+    // ==================== ⭐ HEALTH CHECK ENDPOINT - ШИНЭЭР НЭМЭГДСЭН ⭐ ====================
+
+    /**
+     * Customer API Health Check - ⭐ ШИНЭЭР НЭМЭГДСЭН ⭐
+     * GET /api/v1/customers/health
+     */
+    @GetMapping("/health")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> healthCheck() {
+        try {
+            Map<String, Object> health = new HashMap<>();
+            health.put("status", "UP");
+            health.put("service", "CustomerController");
+            health.put("timestamp", LocalDateTime.now());
+            health.put("version", "2.2");
+            
+            // Database connectivity шалгах
+            try {
+                long customerCount = customerService.getTotalCustomerCount();
+                health.put("databaseStatus", "UP");
+                health.put("totalCustomers", customerCount);
+            } catch (Exception e) {
+                logger.warn("Database connection issue: {}", e.getMessage());
+                health.put("databaseStatus", "DOWN");
+                health.put("databaseError", e.getMessage());
+            }
+            
+            logger.debug("✅ Customer API health check successful");
+            return ResponseEntity.ok(ApiResponse.success(health));
+        } catch (Exception e) {
+            logger.error("❌ Customer API health check failed: {}", e.getMessage());
+            Map<String, Object> errorHealth = new HashMap<>();
+            errorHealth.put("status", "DOWN");
+            errorHealth.put("service", "CustomerController");
+            errorHealth.put("error", e.getMessage());
+            errorHealth.put("timestamp", LocalDateTime.now());
+            
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error("Customer API унтарсан байна", errorHealth));
         }
     }
 
@@ -454,7 +559,7 @@ public class CustomerController {
     // ==================== API RESPONSE WRAPPER ====================
 
     /**
-     * API хариу wrapper класс
+     * API хариу wrapper класс - ⭐ ЗАСВАРЛАСАН ⭐
      */
     public static class ApiResponse<T> {
         private boolean success;
@@ -462,10 +567,14 @@ public class CustomerController {
         private String message;
         private String error;
         private Map<String, Object> meta;
+        private long timestamp;
 
-        public ApiResponse() {}
+        public ApiResponse() {
+            this.timestamp = System.currentTimeMillis();
+        }
 
         public ApiResponse(boolean success, T data, String message) {
+            this();
             this.success = success;
             this.data = data;
             this.message = message;
@@ -487,9 +596,7 @@ public class CustomerController {
         }
 
         public static <T> ApiResponse<T> error(String error, Map<String, Object> meta) {
-            ApiResponse<T> response = new ApiResponse<>();
-            response.success = false;
-            response.error = error;
+            ApiResponse<T> response = error(error);
             response.meta = meta;
             return response;
         }
@@ -509,5 +616,8 @@ public class CustomerController {
 
         public Map<String, Object> getMeta() { return meta; }
         public void setMeta(Map<String, Object> meta) { this.meta = meta; }
+
+        public long getTimestamp() { return timestamp; }
+        public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
     }
 }

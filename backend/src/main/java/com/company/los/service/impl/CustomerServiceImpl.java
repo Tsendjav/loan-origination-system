@@ -603,6 +603,14 @@ public class CustomerServiceImpl implements CustomerService {
         }
     }
 
+    // ⭐ ШИНЭЭР НЭМЭГДСЭН: getTotalCustomerCount() метод ⭐
+    @Override
+    @Transactional(readOnly = true)
+    public long getTotalCustomerCount() {
+        logger.debug("Getting total customer count");
+        return customerRepository.count();
+    }
+
     // Helper methods
     private void updateCustomerFields(Customer existingCustomer, CustomerDto customerDto) {
         existingCustomer.setCustomerType(customerDto.getCustomerType());

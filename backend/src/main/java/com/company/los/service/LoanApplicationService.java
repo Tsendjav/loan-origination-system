@@ -27,7 +27,7 @@ public interface LoanApplicationService {
     LoanApplicationDto createLoanApplication(CreateLoanRequestDto createRequest);
 
     /**
-     * Зээлийн хүсэлтийн м mэдээлэл авах
+     * Зээлийн хүсэлтийн мэдээлэл авах
      */
     LoanApplicationDto getLoanApplicationById(UUID id);
 
@@ -261,6 +261,12 @@ public interface LoanApplicationService {
      * Зөвшөөрөл хувь тооцоолох
      */
     Map<String, Object> getApprovalRates(LocalDateTime startDate);
+
+    // ⭐ ШИНЭЭР НЭМЭГДСЭН: Зээлийн хүсэлтийн нийт тоо ⭐
+    /**
+     * Зээлийн хүсэлтийн нийт тоо авах
+     */
+    long getTotalLoanApplicationCount();
 
     // Performance хяналт
     /**

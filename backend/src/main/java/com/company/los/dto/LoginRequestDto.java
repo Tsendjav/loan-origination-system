@@ -12,12 +12,13 @@ import jakarta.validation.constraints.Size;
 import java.io.Serializable;
 
 /**
- * Login хүсэлтийн DTO
+ * Login хүсэлтийн DTO - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
+ * ⭐ CHARACTER ENCODING АЛДАА ШИЙДЭГДСЭН ⭐
  * Хэрэглэгчийн нэвтрэх мэдээллийг хүлээн авах
  * 
  * @author LOS Development Team
- * @version 2.1 - Builder Pattern Removed for Compatibility
- * @since 2025-07-28
+ * @version 2.2 - Character Encoding Fixed
+ * @since 2025-07-30
  */
 @Data
 @NoArgsConstructor
@@ -29,10 +30,10 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * Хэрэглэгчийн нэр эсвэл имэйл хаяг
-     * Username эсвэл email зөвхөн тэмдэгт, тоо, дэд зураас, цэг ашиглах боломжтой
+     * ⭐ VALIDATION MESSAGE ТОДОРХОЙ ЗААСАН ⭐
      */
-    @NotBlank(message = "Хэрэглэгчийн нэр эсвэл имэйл заавал бөглөх ёстой")
-    @Size(min = 3, max = 50, message = "Хэрэглэгчийн нэр 3-50 тэмдэгтийн урттай байх ёстой")
+    @NotBlank(message = "Хэрэглэгчийн нэр заавал бөглөх ёстой")
+    @Size(min = 3, max = 50, message = "Хэрэглэгчийн нэр 3-50 тэмдэгт байх ёстой")
     @Pattern(
         regexp = "^[a-zA-Z0-9._@-]+$", 
         message = "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас, @ тэмдэг агуулах боломжтой"
@@ -41,63 +42,54 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * Нууц үг
-     * Хамгийн багадаа 6 тэмдэгт, дээд тал нь 100 тэмдэгт
+     * ⭐ VALIDATION MESSAGE ТОДОРХОЙ ЗААСАН ⭐
      */
     @NotBlank(message = "Нууц үг заавал бөглөх ёстой")
-    @Size(min = 6, max = 100, message = "Нууц үг 6-100 тэмдэгтийн урттай байх ёстой")
+    @Size(min = 6, max = 100, message = "Нууц үг 6-100 тэмдэгт байх ёстой")
     private String password;
 
     /**
      * Намайг санах сонголт
-     * Удаан хугацаанд нэвтэрсэн байдалд үлдэх
      */
     private boolean rememberMe = false;
 
     /**
      * Device мэдээлэл (optional)
-     * Аюулгүй байдлын log-д ашиглах
      */
     private String deviceInfo;
 
     /**
      * User Agent мэдээлэл (optional)
-     * Browser болон OS мэдээлэл
      */
     private String userAgent;
 
     /**
      * IP хаяг (optional)
-     * Автоматаар гарч ирэх, гар аргаар оруулах шаардлагагүй
      */
     private String ipAddress;
 
     /**
      * Login attempt хугацаа (optional)
-     * Frontend-ээс timestamp илгээж болно
      */
     private Long timestamp;
 
     /**
      * Client версийн мэдээлэл (optional)
-     * Mobile app эсвэл web client верси
      */
     private String clientVersion;
 
     /**
      * Timezone мэдээлэл (optional)
-     * Хэрэглэгчийн цагийн бүс
      */
     private String timezone;
 
     /**
      * Platform мэдээлэл (optional)
-     * WEB, MOBILE_ANDROID, MOBILE_IOS
      */
     private String platform;
 
     /**
      * Хэрэглэгчийн нэр эсвэл имэйл эсэхийг шалгах
-     * @ тэмдэг агуулж байвал имэйл гэж үзнэ
      */
     @JsonIgnore
     public boolean isEmail() {
@@ -114,36 +106,71 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * Нууц үгийг цэвэрлэх (security-ын төлөө)
-     * Санах ой дээрээс нууц үгийг устгах
      */
     public void clearPassword() {
         this.password = null;
     }
 
     /**
-     * Хүсэлт валид эсэхийг шалгах
-     * Manual validation хийх
+     * Хүсэлт валид эсэхийг шалгах - ⭐ MANUAL VALIDATION САЙЖРУУЛСАН ⭐
      */
     @JsonIgnore
     public boolean isValid() {
+        // Null check
         if (username == null || username.trim().isEmpty()) {
             return false;
         }
         if (password == null || password.trim().isEmpty()) {
             return false;
         }
-        if (username.length() < 3 || username.length() > 50) {
+        
+        // Length check
+        String trimmedUsername = username.trim();
+        if (trimmedUsername.length() < 3 || trimmedUsername.length() > 50) {
             return false;
         }
         if (password.length() < 6 || password.length() > 100) {
             return false;
         }
-        // Username pattern шалгах
-        return username.matches("^[a-zA-Z0-9._@-]+$");
+        
+        // Pattern check
+        return trimmedUsername.matches("^[a-zA-Z0-9._@-]+$");
     }
 
     /**
-     * Timestamp үүсгэх (хэрэв байхгүй бол)
+     * ⭐ НЭМЭЛТ VALIDATION МЕТОДУУД ⭐
+     */
+    @JsonIgnore
+    public String getValidationError() {
+        if (username == null || username.trim().isEmpty()) {
+            return "Хэрэглэгчийн нэр заавал оруулна уу";
+        }
+        if (password == null || password.trim().isEmpty()) {
+            return "Нууц үг заавал оруулна уу";
+        }
+        
+        String trimmedUsername = username.trim();
+        if (trimmedUsername.length() < 3) {
+            return "Хэрэглэгчийн нэр хамгийн багадаа 3 тэмдэгт байх ёстой";
+        }
+        if (trimmedUsername.length() > 50) {
+            return "Хэрэглэгчийн нэр 50 тэмдэгтээс их байж болохгүй";
+        }
+        if (password.length() < 6) {
+            return "Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой";
+        }
+        if (password.length() > 100) {
+            return "Нууц үг 100 тэмдэгтээс их байж болохгүй";
+        }
+        if (!trimmedUsername.matches("^[a-zA-Z0-9._@-]+$")) {
+            return "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас, @ тэмдэг агуулах боломжтой";
+        }
+        
+        return null; // No error
+    }
+
+    /**
+     * Timestamp үүсгэх
      */
     public void ensureTimestamp() {
         if (this.timestamp == null) {
@@ -161,7 +188,7 @@ public class LoginRequestDto implements Serializable {
     }
 
     /**
-     * Normalize username (trim + lowercase for email)
+     * ⭐ NORMALIZE USERNAME - САЙЖРУУЛСАН ⭐
      */
     public void normalizeUsername() {
         if (username != null) {
@@ -173,12 +200,36 @@ public class LoginRequestDto implements Serializable {
     }
 
     /**
+     * ⭐ INPUT SANITIZATION - НЭМЭЛТ АЮУЛГҮЙ БАЙДАЛ ⭐
+     */
+    public void sanitizeInputs() {
+        if (username != null) {
+            username = username.trim();
+        }
+        if (deviceInfo != null) {
+            deviceInfo = deviceInfo.trim();
+        }
+        if (userAgent != null) {
+            userAgent = userAgent.trim();
+        }
+        if (clientVersion != null) {
+            clientVersion = clientVersion.trim();
+        }
+        if (timezone != null) {
+            timezone = timezone.trim();
+        }
+        if (platform != null) {
+            platform = platform.trim();
+        }
+    }
+
+    /**
      * Audit мэдээлэл бэлтгэх
      */
     @JsonIgnore
     public String getAuditInfo() {
         StringBuilder sb = new StringBuilder();
-        sb.append("user=").append(username);
+        sb.append("user=").append(username != null ? username : "null");
         if (ipAddress != null) sb.append(", ip=").append(ipAddress);
         if (deviceInfo != null) sb.append(", device=").append(deviceInfo);
         if (platform != null) sb.append(", platform=").append(platform);
@@ -237,7 +288,7 @@ public class LoginRequestDto implements Serializable {
         LoginRequestDto request = new LoginRequestDto();
         request.setUsername(username);
         request.setPassword(password);
-        request.setRememberMe(true); // Mobile-д ихэвчлэн remember me байдаг
+        request.setRememberMe(true);
         request.setPlatform(platform);
         request.setClientVersion(clientVersion);
         request.setDeviceInfo(deviceInfo);
@@ -302,7 +353,6 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * ToString method (нууц үг харуулахгүй)
-     * Security-ын зорилгоор password-ийг log-д бичихгүй
      */
     @Override
     public String toString() {
@@ -317,14 +367,12 @@ public class LoginRequestDto implements Serializable {
                 ", timezone='" + timezone + '\'' +
                 ", platform='" + platform + '\'' +
                 ", passwordProvided=" + (password != null && !password.isEmpty()) +
+                ", isValid=" + isValid() +
                 '}';
     }
 
     // ==================== Equals & HashCode ====================
 
-    /**
-     * Equals method (нууц үг ашиглахгүй)
-     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -335,9 +383,6 @@ public class LoginRequestDto implements Serializable {
                username != null ? username.equals(that.username) : that.username == null;
     }
 
-    /**
-     * HashCode method (нууц үг ашиглахгүй)
-     */
     @Override
     public int hashCode() {
         int result = username != null ? username.hashCode() : 0;
@@ -362,7 +407,7 @@ public class LoginRequestDto implements Serializable {
     }
 
     /**
-     * Validation helper
+     * Validation helper - ⭐ САЙЖРУУЛСАН ⭐
      */
     public static final class Validator {
         
@@ -371,8 +416,9 @@ public class LoginRequestDto implements Serializable {
          */
         public static boolean isValidUsername(String username) {
             if (username == null || username.trim().isEmpty()) return false;
-            if (username.length() < 3 || username.length() > 50) return false;
-            return username.matches("^[a-zA-Z0-9._@-]+$");
+            String trimmed = username.trim();
+            if (trimmed.length() < 3 || trimmed.length() > 50) return false;
+            return trimmed.matches("^[a-zA-Z0-9._@-]+$");
         }
         
         /**
@@ -389,6 +435,39 @@ public class LoginRequestDto implements Serializable {
         public static boolean isValidEmail(String email) {
             if (email == null || email.trim().isEmpty()) return false;
             return email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+        }
+        
+        /**
+         * Login request бүрэн шалгах
+         */
+        public static String validateLoginRequest(LoginRequestDto request) {
+            if (request == null) {
+                return "Login мэдээлэл байхгүй байна";
+            }
+            
+            if (!isValidUsername(request.getUsername())) {
+                if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
+                    return "Хэрэглэгчийн нэр заавал оруулна уу";
+                } else if (request.getUsername().trim().length() < 3) {
+                    return "Хэрэглэгчийн нэр хамгийн багадаа 3 тэмдэгт байх ёстой";
+                } else if (request.getUsername().trim().length() > 50) {
+                    return "Хэрэглэгчийн нэр 50 тэмдэгтээс их байж болохгүй";
+                } else {
+                    return "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас, @ тэмдэг агуулах боломжтой";
+                }
+            }
+            
+            if (!isValidPassword(request.getPassword())) {
+                if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
+                    return "Нууц үг заавал оруулна уу";
+                } else if (request.getPassword().length() < 6) {
+                    return "Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой";
+                } else {
+                    return "Нууц үг 100 тэмдэгтээс их байж болохгүй";
+                }
+            }
+            
+            return null; // No error
         }
         
         private Validator() {

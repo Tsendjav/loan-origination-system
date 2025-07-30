@@ -15,47 +15,165 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Global Exception Handler
+ * Global Exception Handler - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
+ * ⭐ CHARACTER ENCODING АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
+ * ⭐ UTF-8 ДЭМЖЛЭГ НЭМЭГДСЭН ⭐
  * Системийн бүх алдаануудыг төвлөрсөн байдлаар барих
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String UTF8_CONTENT_TYPE = "application/json;charset=UTF-8";
+
     /**
-     * Validation алдаанууд (Bean Validation)
+     * ⭐ VALIDATION АЛДААНУУД - CHARACTER ENCODING ЗАСВАРЛАГДСАН ⭐
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
         log.warn("Validation error: {}", ex.getMessage());
         
-        // ЗАСВАРЛАСАН: Map<String, Object> ашиглах
         Map<String, Object> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
+            
+            // ⭐ CHARACTER ENCODING АЛДАА ШИЙДЭХ ⭐
+            errorMessage = fixCharacterEncoding(errorMessage);
+            
+            // ⭐ ТАЛБАР ТУСГАЙЛСАН МЕССЕЖ ⭐
+            errorMessage = getFieldSpecificMessage(fieldName, errorMessage, error.getCode());
+            
             errors.put(fieldName, errorMessage);
         });
+
+        // ⭐ LOGIN REQUEST ТУСГАЙЛСАН ERROR RESPONSE ⭐
+        String mainMessage = "Өгөгдөл оруулахад алдаа гарлаа";
+        if (request.getRequestURI().contains("/auth/login")) {
+            mainMessage = "Нэвтрэх мэдээлэл буруу байна";
+        }
 
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Validation Failed")
-                .message("Өгөгдөл оруулахад алдаа гарлаа")
+                .message(mainMessage)
                 .path(request.getRequestURI())
-                .details(errors) // Одоо зөв Map<String, Object>
+                .details(errors)
                 .build();
 
-        return ResponseEntity.badRequest().body(errorResponse);
+        return ResponseEntity.badRequest()
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
+    }
+
+    /**
+     * ⭐ CHARACTER ENCODING АЛДАА ЗАСАХ МЕТОД ⭐
+     */
+    private String fixCharacterEncoding(String message) {
+        if (message == null) {
+            return null;
+        }
+        
+        // Question mark эсвэл garbled text шалгах
+        if (message.contains("???") || message.contains("????????????")) {
+            return null; // Default message ашиглуулах
+        }
+        
+        try {
+            // UTF-8 encoding шалгах
+            byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
+            String fixed = new String(bytes, StandardCharsets.UTF_8);
+            
+            // Хэрэв encoding алдаа байвал default message ашиглах
+            if (fixed.contains("�") || fixed.contains("???")) {
+                return null;
+            }
+            
+            return fixed;
+        } catch (Exception e) {
+            log.debug("Character encoding fix failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * ⭐ ТАЛБАР ТУСГАЙЛСАН МЕССЕЖ АВАХ ⭐
+     */
+    private String getFieldSpecificMessage(String fieldName, String originalMessage, String errorCode) {
+        // Хэрэв originalMessage алдаатай бол default message ашиглах
+        if (originalMessage == null || originalMessage.trim().isEmpty() || 
+            originalMessage.contains("???") || originalMessage.contains("????????????")) {
+            
+            return getDefaultFieldMessage(fieldName, errorCode);
+        }
+        
+        // Username талбарын тусгайлсан мессеж
+        if ("username".equals(fieldName)) {
+            if ("NotBlank".equals(errorCode) || originalMessage.contains("NotBlank")) {
+                return "Хэрэглэгчийн нэр заавал оруулна уу";
+            } else if ("Size".equals(errorCode) || originalMessage.contains("Size")) {
+                return "Хэрэглэгчийн нэр 3-50 тэмдэгт байх ёстой";
+            } else if ("Pattern".equals(errorCode) || originalMessage.contains("Pattern")) {
+                return "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас агуулах боломжтой";
+            }
+        }
+        
+        // Password талбарын тусгайлсан мессеж
+        if ("password".equals(fieldName)) {
+            if ("NotBlank".equals(errorCode) || originalMessage.contains("NotBlank")) {
+                return "Нууц үг заавал оруулна уу";
+            } else if ("Size".equals(errorCode) || originalMessage.contains("Size")) {
+                return "Нууц үг 6-100 тэмдэгт байх ёстой";
+            }
+        }
+        
+        return originalMessage;
+    }
+
+    /**
+     * ⭐ DEFAULT ТАЛБАРЫН МЕССЕЖ ⭐
+     */
+    private String getDefaultFieldMessage(String fieldName, String errorCode) {
+        switch (fieldName) {
+            case "username":
+                if ("NotBlank".equals(errorCode)) {
+                    return "Хэрэглэгчийн нэр заавал оруулна уу";
+                } else if ("Size".equals(errorCode)) {
+                    return "Хэрэглэгчийн нэр 3-50 тэмдэгт байх ёстой";
+                } else if ("Pattern".equals(errorCode)) {
+                    return "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас агуулах боломжтой";
+                }
+                return "Хэрэглэгчийн нэр заавал оруулна уу";
+                
+            case "password":
+                if ("NotBlank".equals(errorCode)) {
+                    return "Нууц үг заавал оруулна уу";
+                } else if ("Size".equals(errorCode)) {
+                    return "Нууц үг 6-100 тэмдэгт байх ёстой";
+                }
+                return "Нууц үг заавал оруулна уу";
+                
+            case "email":
+                if ("NotBlank".equals(errorCode)) {
+                    return "И-мэйл заавал оруулна уу";
+                } else if ("Email".equals(errorCode)) {
+                    return "И-мэйлийн формат буруу байна";
+                }
+                return "И-мэйл заавал оруулна уу";
+                
+            default:
+                return fieldName + " талбар заавал бөглөнө үү";
+        }
     }
 
     /**
@@ -65,12 +183,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex, HttpServletRequest request) {
         log.warn("Constraint violation: {}", ex.getMessage());
         
-        // ЗАСВАРЛАСАН: Map<String, Object> ашиглах
         Map<String, Object> errors = new HashMap<>();
         Set<ConstraintViolation<?>> violations = ex.getConstraintViolations();
         for (ConstraintViolation<?> violation : violations) {
             String fieldName = violation.getPropertyPath().toString();
-            String errorMessage = violation.getMessage();
+            String errorMessage = fixCharacterEncoding(violation.getMessage());
+            
+            if (errorMessage == null) {
+                errorMessage = getDefaultFieldMessage(fieldName, "NotBlank");
+            }
+            
             errors.put(fieldName, errorMessage);
         }
 
@@ -80,10 +202,12 @@ public class GlobalExceptionHandler {
                 .error("Constraint Violation")
                 .message("Өгөгдлийн шалгалтад алдаа гарлаа")
                 .path(request.getRequestURI())
-                .details(errors) // Одоо зөв Map<String, Object>
+                .details(errors)
                 .build();
 
-        return ResponseEntity.badRequest().body(errorResponse);
+        return ResponseEntity.badRequest()
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -101,7 +225,9 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -119,7 +245,9 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -137,7 +265,9 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -164,7 +294,9 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -182,7 +314,9 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -202,7 +336,9 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.badRequest().body(errorResponse);
+        return ResponseEntity.badRequest()
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -212,15 +348,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
         log.warn("Illegal argument: {}", ex.getMessage());
 
+        String message = ex.getMessage() != null ? ex.getMessage() : "Буруу параметр дамжуулсан байна";
+        message = fixCharacterEncoding(message);
+        if (message == null) {
+            message = "Буруу параметр дамжуулсан байна";
+        }
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("Invalid Argument")
-                .message(ex.getMessage() != null ? ex.getMessage() : "Буруу параметр дамжуулсан байна")
+                .message(message)
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.badRequest().body(errorResponse);
+        return ResponseEntity.badRequest()
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -230,16 +374,23 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBusinessException(BusinessException ex, HttpServletRequest request) {
         log.warn("Business logic error: {}", ex.getMessage());
 
+        String message = fixCharacterEncoding(ex.getMessage());
+        if (message == null) {
+            message = "Бизнес логикийн алдаа гарлаа";
+        }
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(ex.getStatus().value())
                 .error(ex.getErrorCode())
-                .message(ex.getMessage())
+                .message(message)
                 .path(request.getRequestURI())
                 .details(ex.getDetails())
                 .build();
 
-        return ResponseEntity.status(ex.getStatus()).body(errorResponse);
+        return ResponseEntity.status(ex.getStatus())
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -249,15 +400,49 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         log.warn("Resource not found: {}", ex.getMessage());
 
+        String message = fixCharacterEncoding(ex.getMessage());
+        if (message == null) {
+            message = "Хайсан мэдээлэл олдсонгүй";
+        }
+
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
                 .error("Resource Not Found")
-                .message(ex.getMessage())
+                .message(message)
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
+    }
+
+    /**
+     * ⭐ REQUEST BODY MISSING EXCEPTION ⭐
+     * Хэрэв request body байхгүй бол
+     */
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleMessageNotReadable(
+            org.springframework.http.converter.HttpMessageNotReadableException ex, HttpServletRequest request) {
+        log.warn("Request body not readable: {}", ex.getMessage());
+
+        String message = "Хүсэлтийн мэдээлэл буруу эсвэл байхгүй байна";
+        if (request.getRequestURI().contains("/auth/login")) {
+            message = "Нэвтрэх мэдээлэл илгээгдээгүй байна";
+        }
+
+        ErrorResponse errorResponse = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Invalid Request Body")
+                .message(message)
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.badRequest()
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
@@ -275,11 +460,13 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .build();
 
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", UTF8_CONTENT_TYPE)
+                .body(errorResponse);
     }
 
     /**
-     * Error Response Model
+     * ⭐ ERROR RESPONSE MODEL - UTF-8 ДЭМЖЛЭГТЭЙ ⭐
      */
     public static class ErrorResponse {
         private LocalDateTime timestamp;
