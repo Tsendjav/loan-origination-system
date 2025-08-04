@@ -3,7 +3,7 @@ package com.company.los.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,8 +22,30 @@ import java.util.UUID;
         @Index(name = "idx_document_type_name", columnList = "name", unique = true)
 })
 @SQLDelete(sql = "UPDATE document_types SET is_deleted = true WHERE id = ?")
-@Where(clause = "is_deleted = false")
+@SQLRestriction("is_deleted = false")
 public class DocumentType extends BaseEntity {
+
+    // STATIC CONSTANTS FOR TEST COMPATIBILITY - these act like enum values
+    public static final DocumentType IDENTITY_CARD = new DocumentType("IDENTITY_CARD", "Иргэний үнэмлэх", true);
+    public static final DocumentType PASSPORT = new DocumentType("PASSPORT", "Гадаад паспорт", false);
+    public static final DocumentType DRIVER_LICENSE = new DocumentType("DRIVER_LICENSE", "Жолооны үнэмлэх", false);
+    public static final DocumentType INCOME_STATEMENT = new DocumentType("INCOME_STATEMENT", "Орлогын справка", true);
+    public static final DocumentType SALARY_CERTIFICATE = new DocumentType("SALARY_CERTIFICATE", "Цалингийн справка", true);
+    public static final DocumentType BANK_STATEMENT = new DocumentType("BANK_STATEMENT", "Банкны хуулга", true);
+    public static final DocumentType EMPLOYMENT_CERTIFICATE = new DocumentType("EMPLOYMENT_CERTIFICATE", "Ажил олгогчийн справка", true);
+    public static final DocumentType WORK_CONTRACT = new DocumentType("WORK_CONTRACT", "Хөдөлмөрийн гэрээ", false);
+    public static final DocumentType BUSINESS_LICENSE = new DocumentType("BUSINESS_LICENSE", "Бизнесийн үйл ажиллагааны гэрчилгээ", false);
+    public static final DocumentType TAX_CERTIFICATE = new DocumentType("TAX_CERTIFICATE", "Татварын гэрчилгээ", true);
+    public static final DocumentType FINANCIAL_STATEMENT = new DocumentType("FINANCIAL_STATEMENT", "Санхүүгийн тайлан", true);
+    public static final DocumentType PROPERTY_CERTIFICATE = new DocumentType("PROPERTY_CERTIFICATE", "Өмчийн гэрчилгээ", false);
+    public static final DocumentType COLLATERAL_DOCUMENT = new DocumentType("COLLATERAL_DOCUMENT", "Барьцааны баримт", false);
+    public static final DocumentType VEHICLE_REGISTRATION = new DocumentType("VEHICLE_REGISTRATION", "Тээврийн хэрэгслийн улсын дугаар", false);
+    public static final DocumentType UTILITY_BILL = new DocumentType("UTILITY_BILL", "Коммунальные услуги", false);
+    public static final DocumentType MARRIAGE_CERTIFICATE = new DocumentType("MARRIAGE_CERTIFICATE", "Гэрлэлтийн гэрчилгээ", false);
+    public static final DocumentType DIVORCE_CERTIFICATE = new DocumentType("DIVORCE_CERTIFICATE", "Гэр бүл цуцлуулсан гэрчилгээ", false);
+    public static final DocumentType CREDIT_HISTORY = new DocumentType("CREDIT_HISTORY", "Зээлийн түүх", false);
+    public static final DocumentType EXISTING_LOAN_AGREEMENT = new DocumentType("EXISTING_LOAN_AGREEMENT", "Одоо байгаа зээлийн гэрээ", false);
+    public static final DocumentType OTHER = new DocumentType("OTHER", "Бусад", false);
 
     @Column(name = "name", nullable = false, length = 50, unique = true)
     @NotBlank(message = "Баримтын төрлийн нэр заавал байх ёстой")

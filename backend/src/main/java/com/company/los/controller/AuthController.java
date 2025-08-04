@@ -7,7 +7,8 @@ import com.company.los.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,18 +20,20 @@ import java.util.Optional;
 /**
  * Authentication Controller - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
  * ⭐ LOGIN VALIDATION & CHARACTER ENCODING АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
+ * ⭐ LOG VARIABLE АЛДАА ШИЙДЭГДСЭН ⭐
  * @author LOS Development Team
- * @version 2.3 - Complete Login Validation Fix
+ * @version 2.4 - Log variable алдаа засварлагдсан
  * @since 2025-07-30
  */
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@Slf4j
 @Tag(name = "Authentication", description = "Нэвтрэлтийн API")
 @CrossOrigin(origins = {"http://localhost:3001", "http://localhost:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3000"})
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+    
     private final AuthService authService;
 
     /**
@@ -355,7 +358,7 @@ public class AuthController {
             health.put("status", "UP");
             health.put("service", "AuthController");
             health.put("timestamp", System.currentTimeMillis());
-            health.put("version", "2.3");
+            health.put("version", "2.4");
             health.put("success", true);
             health.put("charset", "UTF-8");
             

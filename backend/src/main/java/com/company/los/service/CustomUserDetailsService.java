@@ -3,7 +3,8 @@ package com.company.los.service;
 import com.company.los.entity.User;
 import com.company.los.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -12,11 +13,14 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Нэмэлт User Details Service
  * UserServiceImpl-тэй давхцахгүйн тулд UserDetailsService implement хийхгүй
+ * ⭐ ЗАСВАРЛАСАН - LOGGER АЛДАА ШИЙДЭГДСЭН ⭐
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService {
+
+    // ⭐ ЗАСВАР: @Slf4j annotation-ийн оронд шууд Logger ашиглах ⭐
+    private static final Logger log = LoggerFactory.getLogger(CustomUserDetailsService.class);
 
     private final UserRepository userRepository;
 

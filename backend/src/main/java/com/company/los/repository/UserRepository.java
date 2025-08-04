@@ -2,7 +2,7 @@ package com.company.los.repository;
 
 import com.company.los.entity.Role;
 import com.company.los.entity.User;
-import com.company.los.entity.Permission;
+import com.company.los.entity.Permission; // Permission-ийг импортлох шаардлагатай
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,10 +19,9 @@ import java.util.UUID;
 /**
  * Хэрэглэгчийн Repository
  * User Repository Interface for Spring Security
- * 
- * @author LOS Development Team
- * @version 3.0 - Complete Repository with Authentication Support
- * @since 2025-07-28
+ * * @author LOS Development Team
+ * @version 3.1 - Updated with UserStatus enum and additional queries
+ * @since 2025-08-04
  */
 @Repository
 public interface UserRepository extends JpaRepository<User, UUID> {

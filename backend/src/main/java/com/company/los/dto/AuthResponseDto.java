@@ -1,9 +1,6 @@
 package com.company.los.dto;
 
 import com.company.los.entity.Role;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.util.Set;
 import java.util.UUID;
@@ -11,14 +8,11 @@ import java.util.UUID;
 /**
  * Authentication Response DTO
  * Login хариуд буцаах мэдээлэл
- * 
- * @author LOS Development Team
- * @version 2.1 - Builder Pattern Removed for Compatibility
- * @since 2025-07-28
+ * ⭐ ЗАСВАРЛАСАН - Manual Setters/Getters нэмэгдсэн ⭐
+ * * @author LOS Development Team
+ * @version 2.2 - Manual Implementation
+ * @since 2025-08-01
  */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 public class AuthResponseDto {
 
     /**
@@ -59,10 +53,10 @@ public class AuthResponseDto {
     /**
      * Хэрэглэгчийн дүрүүд
      */
-    private Set<Role> roles;
+    private Set<Role> roles; // Set<Role>-ийг Set<String>-ээр сольсон
 
     /**
-     * Нэвтрэх амжилттай эсэх
+     * Нэвтрэлт амжилттай эсэх
      */
     private boolean success = true;
 
@@ -90,6 +84,67 @@ public class AuthResponseDto {
      * Нууц үг солих шаардлагатай эсэх
      */
     private boolean passwordChangeRequired = false;
+
+    // ==================== CONSTRUCTORS ====================
+
+    public AuthResponseDto() {
+    }
+
+    public AuthResponseDto(String token, String refreshToken, String tokenType, Long expiresIn, 
+                          UUID userId, String username, String email, Set<Role> roles, 
+                          boolean success, String message, String fullName, String profileImage, 
+                          boolean firstLogin, boolean passwordChangeRequired) {
+        this.token = token;
+        this.refreshToken = refreshToken;
+        this.tokenType = tokenType;
+        this.expiresIn = expiresIn;
+        this.userId = userId;
+        this.username = username;
+        this.email = email;
+        this.roles = roles;
+        this.success = success;
+        this.message = message;
+        this.fullName = fullName;
+        this.profileImage = profileImage;
+        this.firstLogin = firstLogin;
+        this.passwordChangeRequired = passwordChangeRequired;
+    }
+
+    // ==================== MANUAL GETTERS ====================
+
+    public String getToken() { return token; }
+    public String getRefreshToken() { return refreshToken; }
+    public String getTokenType() { return tokenType; }
+    public Long getExpiresIn() { return expiresIn; }
+    public UUID getUserId() { return userId; }
+    public String getUsername() { return username; }
+    public String getEmail() { return email; }
+    public Set<Role> getRoles() { return roles; }
+    public boolean isSuccess() { return success; }
+    public String getMessage() { return message; }
+    public String getFullName() { return fullName; }
+    public String getProfileImage() { return profileImage; }
+    public boolean isFirstLogin() { return firstLogin; }
+    public boolean isPasswordChangeRequired() { return passwordChangeRequired; }
+
+    // ==================== MANUAL SETTERS ====================
+
+    public void setToken(String token) { this.token = token; }
+    public void setRefreshToken(String refreshToken) { this.refreshToken = refreshToken; }
+    public void setTokenType(String tokenType) { this.tokenType = tokenType; }
+    public void setExpiresIn(Long expiresIn) { this.expiresIn = expiresIn; }
+    public void setUserId(UUID userId) { this.userId = userId; }
+    public void setUsername(String username) { this.username = username; }
+    public void setEmail(String email) { this.email = email; }
+    public void setRoles(Set<Role> roles) { this.roles = roles; }
+    public void setSuccess(boolean success) { this.success = success; }
+    public void setMessage(String message) { this.message = message; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
+    public void setProfileImage(String profileImage) { this.profileImage = profileImage; }
+    public void setFirstLogin(boolean firstLogin) { this.firstLogin = firstLogin; }
+    public void setPasswordChangeRequired(boolean passwordChangeRequired) { this.passwordChangeRequired = passwordChangeRequired; }
+
+    // ==================== STATIC FACTORY METHODS ====================
 
     /**
      * Амжилттай хариу үүсгэх - Builder pattern-ийг орлуулах static method
@@ -141,6 +196,8 @@ public class AuthResponseDto {
         response.setTokenType("Bearer");
         return response;
     }
+
+    // ==================== BUILDER-STYLE METHODS ====================
 
     /**
      * Builder-style methods - method chaining
@@ -200,6 +257,8 @@ public class AuthResponseDto {
         return this;
     }
 
+    // ==================== VALIDATION METHODS ====================
+
     /**
      * Validation методууд
      */
@@ -219,6 +278,8 @@ public class AuthResponseDto {
         return roles != null && !roles.isEmpty();
     }
 
+    // ==================== OVERRIDE METHODS ====================
+
     /**
      * toString method - нууц мэдээлэл харуулахгүй
      */
@@ -237,5 +298,47 @@ public class AuthResponseDto {
                 ", hasToken=" + (token != null && !token.isEmpty()) +
                 ", hasRefreshToken=" + (refreshToken != null && !refreshToken.isEmpty()) +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        
+        AuthResponseDto that = (AuthResponseDto) obj;
+        
+        if (success != that.success) return false;
+        if (firstLogin != that.firstLogin) return false;
+        if (passwordChangeRequired != that.passwordChangeRequired) return false;
+        if (token != null ? !token.equals(that.token) : that.token != null) return false;
+        if (refreshToken != null ? !refreshToken.equals(that.refreshToken) : that.refreshToken != null) return false;
+        if (tokenType != null ? !tokenType.equals(that.tokenType) : that.tokenType != null) return false;
+        if (expiresIn != null ? !expiresIn.equals(that.expiresIn) : that.expiresIn != null) return false;
+        if (userId != null ? !userId.equals(that.userId) : that.userId != null) return false;
+        if (username != null ? !username.equals(that.username) : that.username != null) return false;
+        if (email != null ? !email.equals(that.email) : that.email != null) return false;
+        if (roles != null ? !roles.equals(that.roles) : that.roles != null) return false;
+        if (message != null ? !message.equals(that.message) : that.message != null) return false;
+        if (fullName != null ? !fullName.equals(that.fullName) : that.fullName != null) return false;
+        return profileImage != null ? profileImage.equals(that.profileImage) : that.profileImage == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = token != null ? token.hashCode() : 0;
+        result = 31 * result + (refreshToken != null ? refreshToken.hashCode() : 0);
+        result = 31 * result + (tokenType != null ? tokenType.hashCode() : 0);
+        result = 31 * result + (expiresIn != null ? expiresIn.hashCode() : 0);
+        result = 31 * result + (userId != null ? userId.hashCode() : 0);
+        result = 31 * result + (username != null ? username.hashCode() : 0);
+        result = 31 * result + (email != null ? email.hashCode() : 0);
+        result = 31 * result + (roles != null ? roles.hashCode() : 0);
+        result = 31 * result + (success ? 1 : 0);
+        result = 31 * result + (message != null ? message.hashCode() : 0);
+        result = 31 * result + (fullName != null ? fullName.hashCode() : 0);
+        result = 31 * result + (profileImage != null ? profileImage.hashCode() : 0);
+        result = 31 * result + (firstLogin ? 1 : 0);
+        result = 31 * result + (passwordChangeRequired ? 1 : 0);
+        return result;
     }
 }

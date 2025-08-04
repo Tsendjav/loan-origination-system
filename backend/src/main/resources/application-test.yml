@@ -1,0 +1,163 @@
+# =====================================================================================
+# TEST PROFILE CONFIGURATION - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР v5.0
+# =====================================================================================
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+    lazy-initialization: false
+    web-application-type: servlet
+
+  # H2 Test Database
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=VALUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 10000
+      idle-timeout: 300000
+
+  # H2 Console (disabled for tests)
+  h2:
+    console:
+      enabled: false
+
+  # ⭐ JPA Configuration ⭐
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+    defer-datasource-initialization: true
+
+  # ⭐ SQL Initialization ⭐
+  sql:
+    init:
+      mode: embedded
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:test-data.sql
+      continue-on-error: false
+      encoding: UTF-8
+
+  # ⭐ ЗАСВАРЛАСАН: Security auto-configuration disable ⭐
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # Cache Configuration
+  cache:
+    type: simple
+    cache-names: [customers, loan-applications, documents, userCache, authCache]
+
+  # ⭐ JSON Configuration ⭐
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: NON_NULL
+
+  # ⭐ FILE UPLOAD Configuration ⭐
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Management Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    redis:
+      enabled: false
+    diskspace:
+      enabled: false
+
+# ⭐ ЗАСВАРЛАСАН: Logging Configuration ⭐
+logging:
+  level:
+    root: WARN
+    com.company.los: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    org.hibernate.orm.deprecation: ERROR
+    org.mockito: WARN
+    org.springframework.test: WARN
+    org.springframework.boot.autoconfigure.data.redis: ERROR
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  charset:
+    console: UTF-8
+
+# ⭐ ЗАСВАРЛАСАН: Application Test Configuration ⭐
+app:
+  jwt:
+    secret: testSecretKeyThatIsAtLeast32CharactersLong123456789
+    expiration: 3600000
+    refresh-expiration: 7200000
+    
+  document:
+    storage:
+      path: "${java.io.tmpdir}/test-uploads"
+    max-size: 10485760
+    allowed-types: ["application/pdf", "image/jpeg", "image/png"]
+    
+  file:
+    max-size: 10485760
+    upload-path: "${java.io.tmpdir}/test-uploads"
+    
+  security:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "*"
+      allowed-headers: "*"
+    csrf:
+      enabled: false # ⭐ TEST-Д CSRF DISABLE ⭐
+      
+  notification:
+    email:
+      enabled: false
+    sms:
+      enabled: false
+
+# ⭐ Server Configuration ⭐
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# ⭐ НЭМЭГДСЭН: Test specific properties ⭐
+test:
+  database:
+    reset-after-each-test: true
+  security:
+    disable-authentication: true # ⭐ AUTHENTICATION БҮРЭН DISABLE ⭐
+  performance:
+    parallel-execution: false
+
+# =====================================================================================
+# ⭐ ЭЦСИЙН ТЕСТ ТОХИРГОО - SECURITY БҮРЭН ЗАСВАРЛАСАН ⭐
+# 
+# ЗАСВАРЛАСАН ЗҮЙЛС:
+# ✅ SecurityAutoConfiguration exclude нэмсэн
+# ✅ UserDetailsServiceAutoConfiguration exclude нэмсэн  
+# ✅ CSRF disabled
+# ✅ Security logging warn level
+# ✅ test.security.disable-authentication = true
+# ✅ File upload configuration засварласан
+# ✅ Logging levels optimized
+# =====================================================================================

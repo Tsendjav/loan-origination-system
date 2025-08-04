@@ -3,21 +3,22 @@ package com.company.los.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
 import java.util.*;
+//import java.util.stream.Collectors;
 
 /**
  * Хэрэглэгчийн Entity
  * User Entity - implements Spring Security UserDetails
- * 
+ *
  * @author LOS Development Team
- * @version 3.0 - Complete Entity with AuthService compatibility
- * @since 2025-07-28
+ * @version 3.2 - Fixed password field name, roles handling, and UserStatus enum
+ * @since 2025-08-04
  */
 @Entity
 @Table(name = "users", indexes = {
@@ -26,7 +27,7 @@ import java.util.*;
         @Index(name = "idx_user_employee_id", columnList = "employee_id")
 })
 @SQLDelete(sql = "UPDATE users SET is_deleted = true WHERE id = ?")
-@Where(clause = "is_deleted = false")
+@SQLRestriction("is_deleted = false")
 public class User implements UserDetails {
 
     @Id
@@ -45,10 +46,10 @@ public class User implements UserDetails {
     @Size(max = 255, message = "И-мэйл 255 тэмдэгтээс ихгүй байх ёстой")
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(name = "password_hash", nullable = false, length = 255) // password_hash болгож өөрчилсөн
     @NotBlank(message = "Нууц үг заавал байх ёстой")
     @Size(max = 255, message = "Нууц үг 255 тэмдэгтээс ихгүй байх ёстой")
-    private String password;
+    private String passwordHash; // Талбарын нэрийг passwordHash болгож өөрчилсөн
 
     // Хувийн мэдээлэл
     @Column(name = "first_name", nullable = false, length = 100)
@@ -104,7 +105,7 @@ public class User implements UserDetails {
     private List<User> subordinates = new ArrayList<>();
 
     // Эрхүүд - JPA relationship дээр List ашиглах нь илүү тохиромжтой
-    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE}) // EAGER loading хийсэн
     @JoinTable(
             name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
@@ -154,27 +155,6 @@ public class User implements UserDetails {
     private LocalDateTime lockedUntil;
 
     // Status enum as String for H2 compatibility
-    public enum UserStatus {
-        ACTIVE("ACTIVE", "Идэвхтэй"),
-        INACTIVE("INACTIVE", "Идэвхгүй"),
-        SUSPENDED("SUSPENDED", "Түр хориглосон"),
-        LOCKED("LOCKED", "Түгжээсэн"),
-        EXPIRED("EXPIRED", "Хугацаа дууссан"),
-        PENDING_APPROVAL("PENDING_APPROVAL", "Зөвшөөрөл хүлээгдэж байна"),
-        PENDING_ACTIVATION("PENDING_ACTIVATION", "Идэвхжүүлэлт хүлээгдэж байна");
-
-        private final String code;
-        private final String mongolianName;
-
-        UserStatus(String code, String mongolianName) {
-            this.code = code;
-            this.mongolianName = mongolianName;
-        }
-
-        public String getCode() { return code; }
-        public String getMongolianName() { return mongolianName; }
-    }
-
     @Column(name = "status", nullable = false, length = 30)
     @Enumerated(EnumType.STRING)
     @NotNull(message = "Хэрэглэгчийн статус заавал байх ёстой")
@@ -186,11 +166,11 @@ public class User implements UserDetails {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public User(String username, String email, String password, String firstName, String lastName) {
+    public User(String username, String email, String passwordHash, String firstName, String lastName) {
         this();
         this.username = username;
         this.email = email;
-        this.password = password;
+        this.passwordHash = passwordHash;
         this.firstName = firstName;
         this.lastName = lastName;
     }
@@ -206,6 +186,7 @@ public class User implements UserDetails {
                 authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
                 
                 // Add permission-based authorities (if role has permissions)
+                // Assuming Role entity has a getPermissions() method that returns List<Permission>
                 if (role.getPermissions() != null) {
                     for (Permission permission : role.getPermissions()) {
                         authorities.add(new SimpleGrantedAuthority(permission.getName()));
@@ -219,7 +200,7 @@ public class User implements UserDetails {
 
     @Override
     public String getPassword() {
-        return password;
+        return passwordHash; // password-ийн оронд passwordHash-ийг буцаана
     }
 
     @Override
@@ -249,7 +230,7 @@ public class User implements UserDetails {
 
     // Business methods
     public String getFullName() {
-        return lastName + " " + firstName;
+        return (lastName != null ? lastName : "") + " " + (firstName != null ? firstName : "");
     }
 
     public String getDisplayName() {
@@ -319,7 +300,7 @@ public class User implements UserDetails {
     }
 
     public void changePassword(String newEncodedPassword) {
-        this.password = newEncodedPassword;
+        this.passwordHash = newEncodedPassword; // password-ийн оронд passwordHash-ийг ашиглана
         this.passwordChangedAt = LocalDateTime.now();
         this.passwordExpiresAt = LocalDateTime.now().plusDays(90); // 90 days default
         this.updatedAt = LocalDateTime.now();
@@ -406,8 +387,9 @@ public class User implements UserDetails {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void setPassword(String password) { 
-        this.password = password;
+    public String getPasswordHash() { return passwordHash; } // passwordHash-ийн getter
+    public void setPasswordHash(String passwordHash) { // passwordHash-ийн setter
+        this.passwordHash = passwordHash;
         this.updatedAt = LocalDateTime.now();
     }
 
@@ -663,5 +645,27 @@ public class User implements UserDetails {
     @Override
     public int hashCode() {
         return getClass().hashCode();
+    }
+
+    // UserStatus Enum-ийг User классын дотор оруулсан
+    public enum UserStatus {
+        ACTIVE("ACTIVE", "Идэвхтэй"),
+        INACTIVE("INACTIVE", "Идэвхгүй"),
+        SUSPENDED("SUSPENDED", "Түр хориглосон"),
+        LOCKED("LOCKED", "Түгжээсэн"),
+        EXPIRED("EXPIRED", "Хугацаа дууссан"),
+        PENDING_APPROVAL("PENDING_APPROVAL", "Зөвшөөрөл хүлээгдэж байна"),
+        PENDING_ACTIVATION("PENDING_ACTIVATION", "Идэвхжүүлэлт хүлээгдэж байна");
+
+        private final String code;
+        private final String mongolianName;
+
+        UserStatus(String code, String mongolianName) {
+            this.code = code;
+            this.mongolianName = mongolianName;
+        }
+
+        public String getCode() { return code; }
+        public String getMongolianName() { return mongolianName; }
     }
 }

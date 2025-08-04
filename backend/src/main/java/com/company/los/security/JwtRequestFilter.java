@@ -4,7 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger; // ⭐ НЭМСЭН: Logger импортлох ⭐
+import org.slf4j.LoggerFactory; // ⭐ НЭМСЭН: LoggerFactory импортлох ⭐
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,9 +22,12 @@ import java.io.IOException;
  * JWT Request Filter - Circular Dependency Засварласан
  * HTTP хүсэлт бүрт JWT token шалгах (одоогоор placeholder, JWT ашиглахгүй)
  */
-@Slf4j
+// @Slf4j // ⭐ УСТГАСАН: Гараар Logger зарласан тул шаардлагагүй ⭐
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
+
+    // ⭐ НЭМСЭН: Logger зарлах ⭐
+    private static final Logger log = LoggerFactory.getLogger(JwtRequestFilter.class);
 
     @Autowired
     @Lazy  // Circular dependency-ийг шийдэх
@@ -31,20 +35,20 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     // JWT functionality-ийг одоогоор идэвхгүй болгож байна
     // Учир нь SecurityConfig-д form-based authentication ашиглаж байна
-    private final boolean jwtEnabled = false;
+    private final boolean jwtEnabled = true;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                   HttpServletResponse response, 
+    protected void doFilterInternal(HttpServletRequest request,
+                                   HttpServletResponse response,
                                    FilterChain chain) throws ServletException, IOException {
-        
+
         // JWT функционал одоогоор идэвхгүй
         if (!jwtEnabled) {
             log.debug("JWT functionality disabled, skipping JWT processing");
             chain.doFilter(request, response);
             return;
         }
-        
+
         // JWT token processing (placeholder for future use)
         final String requestTokenHeader = request.getHeader("Authorization");
 
@@ -67,23 +71,23 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         // Token хүчинтэй бөгөөд SecurityContext дээр authentication байхгүй бол
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            
+
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
 
             // TODO: Implement JWT token validation when JWT is enabled
             // if (jwtUtil.isTokenValid(jwtToken)) {
             if (false) { // Placeholder condition
-                UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = 
+                UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
                     new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());
-                        
+
                 usernamePasswordAuthenticationToken
                     .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    
+
                 SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
             }
         }
-        
+
         chain.doFilter(request, response);
     }
 
@@ -93,7 +97,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
-        
+
         // Skip JWT processing for public endpoints
         return path.startsWith("/h2-console") ||
                path.startsWith("/los/h2-console") ||
@@ -115,21 +119,17 @@ public class JwtRequestFilter extends OncePerRequestFilter {
  * =====================================================================================
  * ⭐ CIRCULAR DEPENDENCY ШИЙДЭЛ ⭐
  * =====================================================================================
- * 
- * ✅ Хийсэн засварууд:
+ * * ✅ Хийсэн засварууд:
  * 1. @Lazy annotation нэмэгдсэн UserDetailsService-д
  * 2. JWT functionality одоогоор идэвхгүй (jwtEnabled = false)
  * 3. shouldNotFilter() method нэмэгдсэн - public endpoints skip хийх
  * 4. JwtUtil dependency хасагдсан (circular dependency-ийн шалтгаан)
  * 5. Placeholder code JWT implementation-д зориулагдсан
- * 
- * 🔧 Circular dependency chain засварласан:
+ * * 🔧 Circular dependency chain засварласан:
  * JwtRequestFilter → @Lazy UserDetailsService (циклийг таслана)
- * 
- * 🚀 Одоо JWT-гүй form-based authentication ажиллана
+ * * 🚀 Одоо JWT-гүй form-based authentication ажиллана
  * Ирээдүйд JWT ашиглах бол jwtEnabled = true болгож, JwtUtil нэмнэ
- * 
- * 📁 Файлын байршил:
+ * * 📁 Файлын байршил:
  * src/main/java/com/company/los/security/JwtRequestFilter.java
  * =====================================================================================
  */

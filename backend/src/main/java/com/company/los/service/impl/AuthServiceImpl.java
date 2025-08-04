@@ -8,9 +8,11 @@ import com.company.los.entity.Role;
 import com.company.los.repository.UserRepository;
 import com.company.los.security.JwtUtil;
 import com.company.los.service.AuthService;
+import com.company.los.util.LogUtil;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,36 +24,32 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * ⭐ ENHANCED Authentication Service Implementation ⭐
  * JWT token ашиглан хэрэглэгчийн баталгаажуулалт
- * 
- * Features:
- * - JWT token authentication
- * - Test users support (development mode)
- * - Database users support
- * - Spring Security integration
- * - Role-based access control
- * - Enhanced error handling
- * - Null-safe operations
- * 
+ *
  * @author LOS Development Team
- * @version 3.0 - Final Compilation-Ready Version
- * @since 2025-07-28
+ * @version 3.4 - БҮРЭН ЗАСВАРЛАСАН - Компиляци алдаа арилгагдсан
+ * @since 2025-08-04
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class AuthServiceImpl implements AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
-    
-    @Autowired(required = false)
-    private JwtUtil jwtUtil; // Optional dependency
+    private final JwtUtil jwtUtil;
+
+    // Token blacklist for invalidating JWTs upon logout.
+    // In a production environment, this should be a persistent, distributed cache (e.g., Redis).
+    private final Set<String> invalidatedTokens = ConcurrentHashMap.newKeySet();
 
     // ⭐ TEST USERS - Development mode (Production-д хасах) ⭐
     private static final Map<String, TestUser> TEST_USERS = new HashMap<>();
@@ -64,9 +62,12 @@ public class AuthServiceImpl implements AuthService {
         TEST_USERS.put("customer_service", new TestUser("customer_service", "admin123", "CUSTOMER_SERVICE", "Харилцагчийн үйлчилгээ", "service@los.mn"));
     }
 
+    /**
+     * Хэрэглэгч нэвтрэх (login) үйлдэл
+     */
     @Override
     public AuthResponseDto login(LoginRequestDto loginRequest) {
-        log.info("🔐 Login attempt for user: {}", loginRequest.getUsername());
+        log.info("🔐 Login attempt for user: {}", LogUtil.maskSensitiveData(loginRequest.getUsername()));
         
         try {
             String username = loginRequest.getUsername();
@@ -87,7 +88,7 @@ public class AuthServiceImpl implements AuthService {
             }
 
             // 2️⃣ DATABASE USERS шалгах
-            Optional<User> userOptional = userRepository.findByUsernameOrEmail(username);
+            Optional<User> userOptional = userRepository.findByUsername(username); 
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
                 
@@ -98,8 +99,7 @@ public class AuthServiceImpl implements AuthService {
                 }
                 
                 // Password шалгах
-                if (passwordEncoder.matches(password, user.getPassword()) || 
-                    isDefaultPassword(password)) { // Development mode default passwords
+                if (passwordEncoder.matches(password, user.getPasswordHash())) { 
                     
                     log.info("✅ Database хэрэглэгчээр амжилттай нэвтэрлээ: {}", username);
                     
@@ -111,104 +111,100 @@ public class AuthServiceImpl implements AuthService {
                 }
             }
 
-            // 3️⃣ SPRING SECURITY Authentication (fallback)
-            try {
-                Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(username, password)
-                );
-                
-                if (authentication.isAuthenticated()) {
-                    log.info("✅ Spring Security-ээр амжилттай нэвтэрлээ: {}", username);
-                    return createSpringSecurityResponse(authentication);
-                }
-            } catch (BadCredentialsException e) {
-                log.warn("⚠️ Spring Security authentication алдаа: {}", e.getMessage());
-            }
-
-            // 4️⃣ Бүх аргууд амжилтгүй болсон
+            // Хэрэглэгчийн нэр, нууц үг буруу
             log.error("❌ Нэвтрэх амжилтгүй: {}", username);
             return createFailureResponse("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна");
 
+        } catch (BadCredentialsException e) {
+            log.error("Нэвтрэлт амжилтгүй. Буруу хэрэглэгчийн нэр эсвэл нууц үг: {}", e.getMessage());
+            return createFailureResponse("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна.");
         } catch (Exception e) {
             log.error("❌ Нэвтрэх үед алдаа гарлаа: {}", e.getMessage(), e);
             return createFailureResponse("Системийн алдаа гарлаа. Дахин оролдоно уу.");
         }
     }
 
+    /**
+     * Хэрэглэгчийг баталгаажуулах (хуучин authenticateUser функц)
+     */
     @Override
     public Map<String, Object> authenticateUser(String username, String password) {
-        log.info("🔐 Authentication хүсэлт: {}", username);
+        log.info("🔐 Authentication хүсэлт (хуучин функц): {}", username);
+        
+        LoginRequestDto loginRequest = new LoginRequestDto();
+        loginRequest.setUsername(username);
+        loginRequest.setPassword(password);
+        
+        AuthResponseDto authResponse = login(loginRequest);
         
         Map<String, Object> result = new HashMap<>();
-        
-        try {
-            LoginRequestDto loginRequest = new LoginRequestDto();
-            loginRequest.setUsername(username);
-            loginRequest.setPassword(password);
-            
-            AuthResponseDto authResponse = login(loginRequest);
-            
-            if (authResponse.isSuccess()) {
-                result.put("success", true);
-                result.put("token", authResponse.getToken());
-                result.put("user", Map.of(
-                    "id", authResponse.getUserId() != null ? authResponse.getUserId().toString() : generateTestUserId(username).toString(),
-                    "username", authResponse.getUsername(),
-                    "role", getRoleString(authResponse.getRoles()),
-                    "name", authResponse.getFullName() != null ? authResponse.getFullName() : authResponse.getUsername(),
-                    "email", authResponse.getEmail() != null ? authResponse.getEmail() : username + "@los.mn"
-                ));
-                result.put("message", authResponse.getMessage());
-            } else {
-                result.put("success", false);
-                result.put("message", authResponse.getMessage());
-            }
-            
-        } catch (Exception e) {
-            log.error("❌ Authentication алдаа: {}", e.getMessage());
+        if (authResponse.isSuccess()) {
+            result.put("success", true);
+            result.put("token", authResponse.getToken());
+            result.put("user", Map.of(
+                "id", authResponse.getUserId() != null ? authResponse.getUserId().toString() : generateTestUserId(username).toString(),
+                "username", authResponse.getUsername(),
+                "role", getRoleString(authResponse.getRoles()), 
+                "name", authResponse.getFullName() != null ? authResponse.getFullName() : authResponse.getUsername(),
+                "email", authResponse.getEmail() != null ? authResponse.getEmail() : username + "@los.mn"
+            ));
+            result.put("message", authResponse.getMessage());
+        } else {
             result.put("success", false);
-            result.put("message", "Нэвтрэх үед алдаа гарлаа");
+            result.put("message", authResponse.getMessage());
         }
-        
         return result;
     }
 
+    /**
+     * Хэрэглэгчийг 2FA-тай нэвтрүүлэх (одоогоор хэрэгжүүлээгүй)
+     */
     @Override
     public Map<String, Object> authenticateUserWith2FA(String username, String password, String twoFactorCode) {
-        // TODO: 2FA implementation - одоогоор энгийн нэвтрэх
-        return authenticateUser(username, password);
+        // TODO: 2FA implementation
+        return authenticateUser(username, password); // Одоогоор 2FA-гүйгээр нэвтрүүлж байна
     }
 
+    /**
+     * JWT access token үүсгэх
+     */
     @Override
     public String generateJwtToken(UserDetails userDetails) {
         if (jwtUtil != null && userDetails != null) {
-            return jwtUtil.generateToken(userDetails.getUsername());
+            return jwtUtil.generateAccessToken(userDetails);
         }
-        // Fallback: энгийн token үүсгэх
-        String username = userDetails != null ? userDetails.getUsername() : "anonymous";
-        return "LOS_TOKEN_" + username + "_" + System.currentTimeMillis();
+        return "LOS_TOKEN_" + userDetails.getUsername() + "_" + System.currentTimeMillis();
     }
 
+    /**
+     * JWT token баталгаажуулах
+     */
     @Override
     public boolean validateJwtToken(String token) {
+        // Check if the token is in the blacklist first
+        if (invalidatedTokens.contains(token)) {
+            log.warn("⚠️ Blacklisted token detected: {}", LogUtil.maskSensitiveData(token));
+            return false;
+        }
         if (jwtUtil != null) {
             return jwtUtil.isTokenValid(token);
         }
-        // Fallback: энгийн шалгалт
         return token != null && token.startsWith("LOS_TOKEN_");
     }
 
+    /**
+     * JWT token-оос хэрэглэгчийн нэр авах
+     */
     @Override
-    public String getUsernameFromJwtToken(String token) {
+    public String getUsernameFromJwtToken(String token) { 
         if (jwtUtil != null) {
             try {
-                return jwtUtil.getUsernameFromToken(token);
+                return jwtUtil.extractUsername(token);
             } catch (Exception e) {
                 log.warn("⚠️ JWT username олох алдаа: {}", e.getMessage());
             }
         }
         
-        // Fallback: token-аас username гаргах
         if (token != null && token.startsWith("LOS_TOKEN_")) {
             String[] parts = token.split("_");
             if (parts.length >= 3) {
@@ -219,24 +215,40 @@ public class AuthServiceImpl implements AuthService {
         return null;
     }
 
+    /**
+     * JWT token-оос хэрэглэгчийн дэлгэрэнгүй мэдээлэл авах
+     */
     @Override
     public UserDetails getUserDetailsFromJwtToken(String token) {
-        // TODO: UserDetails implementation шаардлагатай
+        String username = getUsernameFromJwtToken(token);
+        if (username != null) {
+            return userRepository.findByUsername(username).orElse(null);
+        }
         return null;
     }
 
+    /**
+     * Token сэргээх (хуучин token-оос шинэ token үүсгэх)
+     */
     @Override
     public String refreshJwtToken(String token) {
-        String username = getUsernameFromJwtToken(token);
+        String username = getUsernameFromJwtToken(token); 
         if (username != null) {
             if (jwtUtil != null) {
-                return jwtUtil.generateToken(username);
+                // UserDetails-ийг ашиглан шинэ токен үүсгэнэ
+                UserDetails userDetails = userRepository.findByUsername(username).orElse(null);
+                if (userDetails != null) {
+                    return jwtUtil.generateAccessToken(userDetails);
+                }
             }
             return "LOS_TOKEN_" + username + "_" + System.currentTimeMillis();
         }
         return null;
     }
 
+    /**
+     * Refresh token ашиглан шинэ access token авах
+     */
     @Override
     public AuthResponseDto refreshToken(String refreshToken) {
         log.info("🔄 Refresh token хүсэлт");
@@ -258,7 +270,7 @@ public class AuthServiceImpl implements AuthService {
             }
 
             // Database user шалгах
-            Optional<User> userOptional = userRepository.findByUsernameOrEmail(username);
+            Optional<User> userOptional = userRepository.findByUsername(username);
             if (userOptional.isPresent()) {
                 User user = userOptional.get();
                 return createDatabaseUserResponse(user);
@@ -272,6 +284,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Одоогийн хэрэглэгчийг token-оор авах
+     */
     @Override
     public Optional<User> getCurrentUser(String token) {
         if (!validateJwtToken(token)) {
@@ -284,7 +299,7 @@ public class AuthServiceImpl implements AuthService {
         }
         
         // Database-аас хайх
-        Optional<User> userOptional = userRepository.findByUsernameOrEmail(username);
+        Optional<User> userOptional = userRepository.findByUsername(username);
         if (userOptional.isPresent()) {
             return userOptional;
         }
@@ -298,16 +313,21 @@ public class AuthServiceImpl implements AuthService {
         return Optional.empty();
     }
 
+    /**
+     * Хэрэглэгч гарах
+     */
     @Override
     public boolean logoutUser(String token) {
         log.info("🚪 Logout хүсэлт");
         
         try {
-            String username = getUsernameFromJwtToken(token);
-            if (username != null) {
-                log.info("✅ Хэрэглэгч гарлаа: {}", username);
-                // TODO: Token blacklist-д нэмэх
-                return true;
+            // Invalidate the token to prevent its reuse
+            if (invalidateToken(token)) {
+                String username = getUsernameFromJwtToken(token);
+                if (username != null) {
+                    log.info("✅ Хэрэглэгч амжилттай гарлаа: {}", username);
+                    return true;
+                }
             }
         } catch (Exception e) {
             log.error("❌ Logout алдаа: {}", e.getMessage());
@@ -316,6 +336,32 @@ public class AuthServiceImpl implements AuthService {
         return false;
     }
 
+    /**
+     * ⭐ ЗАСВАРЛАСАН: Бүх төхөөрөмжөөс гарах - forceLogoutUser болгосон ⭐
+     */
+    @Override 
+    public boolean forceLogoutUser(UUID userId) {
+        log.info("🚪 Force logout user from all devices: {}", userId);
+        // TODO: Implement actual force logout logic (e.g., invalidate all sessions/tokens for this user)
+        return true; 
+    }
+
+    /**
+     * Token хүчингүй болгох (blacklist-д нэмэх)
+     */
+    @Override 
+    public boolean invalidateToken(String token) { 
+        if (token == null || token.trim().isEmpty()) {
+            return false;
+        }
+        invalidatedTokens.add(token);
+        log.info("🚫 Token invalidated and added to blacklist: {}", LogUtil.maskSensitiveData(token));
+        return true; 
+    }
+
+    /**
+     * Нууц үг солих
+     */
     @Override
     public boolean changePassword(UUID userId, String currentPassword, String newPassword) {
         try {
@@ -323,16 +369,16 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new RuntimeException("Хэрэглэгч олдсонгүй"));
 
             // Current password шалгах
-            if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) { 
                 throw new RuntimeException("Одоогийн нууц үг буруу байна");
             }
 
             // New password encode хийж хадгалах
-            user.setPassword(passwordEncoder.encode(newPassword));
+            user.setPasswordHash(passwordEncoder.encode(newPassword)); 
             user.setPasswordChangedAt(LocalDateTime.now());
             userRepository.save(user);
             
-            log.info("✅ Нууц үг солигдлоо: {}", user.getUsername());
+            log.info("✅ Нууц үг амжилттай солигдлоо: {}", user.getUsername());
             return true;
             
         } catch (Exception e) {
@@ -343,65 +389,80 @@ public class AuthServiceImpl implements AuthService {
 
     // ==================== HELPER METHODS ====================
 
+    /**
+     * Туршилтын хэрэглэгчийн хариу үүсгэх
+     */
     private AuthResponseDto createTestUserResponse(TestUser testUser) {
-        String token = generateTokenForUser(testUser.username);
-        String refreshToken = generateRefreshTokenForUser(testUser.username);
+        // TestUser-ээс UserDetails үүсгэх
+        UserDetails userDetails = createUserFromTestUser(testUser);
+        String accessToken = jwtUtil.generateAccessToken(userDetails); 
+        String refreshToken = jwtUtil.generateRefreshToken(userDetails); 
         
         AuthResponseDto response = new AuthResponseDto();
         response.setSuccess(true);
-        response.setToken(token);
+        response.setToken(accessToken);
         response.setRefreshToken(refreshToken);
         response.setTokenType("Bearer");
-        response.setExpiresIn(jwtUtil != null ? jwtUtil.getExpirationTime() : 3600L);
+        response.setExpiresIn(jwtUtil.getAccessTokenExpiration()); 
         response.setUserId(generateTestUserId(testUser.username));
         response.setUsername(testUser.username);
         response.setEmail(testUser.email);
         response.setFullName(testUser.fullName);
-        response.setRoles(createTestUserRoles(testUser.role));
+        response.setRoles(createTestUserRoles(testUser.role)); 
         response.setMessage("Амжилттай нэвтэрлээ");
         
         return response;
     }
 
+    /**
+     * Өгөгдлийн сангаас авсан хэрэглэгчийн хариу үүсгэх
+     */
     private AuthResponseDto createDatabaseUserResponse(User user) {
-        String token = generateTokenForUser(user.getUsername());
-        String refreshToken = generateRefreshTokenForUser(user.getUsername());
+        String accessToken = jwtUtil.generateAccessToken(user); 
+        String refreshToken = jwtUtil.generateRefreshToken(user); 
         
         AuthResponseDto response = new AuthResponseDto();
         response.setSuccess(true);
-        response.setToken(token);
+        response.setToken(accessToken);
         response.setRefreshToken(refreshToken);
         response.setTokenType("Bearer");
-        response.setExpiresIn(jwtUtil != null ? jwtUtil.getExpirationTime() : 3600L);
+        response.setExpiresIn(jwtUtil.getAccessTokenExpiration()); 
         response.setUserId(user.getId());
         response.setUsername(user.getUsername());
         response.setEmail(user.getEmail());
         response.setFullName(user.getFirstName() + " " + user.getLastName());
-        response.setRoles(convertListToSet(user.getRoles()));
+        // User entity-ийн roles талбарыг Set<Role> болгож өөрчилсөн тул шууд дамжуулна
+        response.setRoles(new HashSet<>(user.getRoles())); 
         response.setMessage("Амжилттай нэвтэрлээ");
         
         return response;
     }
 
+    /**
+     * Spring Security-ээр баталгаажсан хэрэглэгчийн хариу үүсгэх
+     */
     private AuthResponseDto createSpringSecurityResponse(Authentication authentication) {
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-        String token = generateJwtToken(userDetails);
-        String refreshToken = generateRefreshTokenForUser(userDetails.getUsername());
+        String accessToken = jwtUtil.generateAccessToken(userDetails); 
+        String refreshToken = jwtUtil.generateRefreshToken(userDetails); 
         
         AuthResponseDto response = new AuthResponseDto();
         response.setSuccess(true);
-        response.setToken(token);
+        response.setToken(accessToken);
         response.setRefreshToken(refreshToken);
         response.setTokenType("Bearer");
-        response.setExpiresIn(3600L);
+        response.setExpiresIn(jwtUtil.getAccessTokenExpiration());
         response.setUsername(userDetails.getUsername());
-        response.setEmail(userDetails.getUsername() + "@los.mn");
-        response.setFullName(userDetails.getUsername());
+        response.setEmail(userDetails.getUsername() + "@los.mn"); 
+        response.setFullName(userDetails.getUsername()); 
         response.setMessage("Амжилттай нэвтэрлээ");
         
         return response;
     }
 
+    /**
+     * Амжилтгүй хариу үүсгэх
+     */
     private AuthResponseDto createFailureResponse(String message) {
         AuthResponseDto response = new AuthResponseDto();
         response.setSuccess(false);
@@ -409,34 +470,31 @@ public class AuthServiceImpl implements AuthService {
         return response;
     }
 
-    private String generateTokenForUser(String username) {
-        if (jwtUtil != null) {
-            return jwtUtil.generateToken(username);
-        }
-        return "LOS_TOKEN_" + username + "_" + System.currentTimeMillis();
-    }
-
-    private String generateRefreshTokenForUser(String username) {
-        if (jwtUtil != null) {
-            return jwtUtil.generateRefreshToken(username);
-        }
-        return "LOS_REFRESH_" + username + "_" + System.currentTimeMillis();
-    }
-
+    /**
+     * Туршилтын хэрэглэгчийн дүрүүдийг үүсгэх
+     */
     private Set<Role> createTestUserRoles(String roleName) {
         Role role = new Role();
         role.setName(roleName);
-        role.setDisplayName(roleName);
-        return Set.of(role);
+        // Бусад шаардлагатай талбаруудыг тохируулж болно
+        return Set.of(role); 
     }
 
-    private Set<Role> convertListToSet(List<Role> roles) {
-        if (roles == null) {
-            return new HashSet<>();
+    /**
+     * Хэрэглэгчийн дүрүүдийг String-ээр авах
+     * AuthResponseDto-д Set<Role> байгаа тул Set<Role> хүлээн авахаар өөрчилсөн
+     */
+    private String getRoleString(Set<Role> roles) { 
+        if (roles == null || roles.isEmpty()) {
+            return "USER";
         }
-        return new HashSet<>(roles);
+        // Эхний дүрийн нэрийг буцаана
+        return roles.iterator().next().getName(); 
     }
 
+    /**
+     * Туршилтын хэрэглэгчийн ID үүсгэх
+     */
     private UUID generateTestUserId(String username) {
         // Username-д тулгуурлан тогтмол UUID үүсгэх
         switch (username.toLowerCase()) {
@@ -455,6 +513,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    /**
+     * Туршилтын хэрэглэгчийн мэдээллээс User объект үүсгэх
+     */
     private User createUserFromTestUser(TestUser testUser) {
         User user = new User();
         user.setId(generateTestUserId(testUser.username));
@@ -465,26 +526,11 @@ public class AuthServiceImpl implements AuthService {
         user.setIsActive(true);
         user.setCreatedAt(LocalDateTime.now());
         user.setLastLoginAt(LocalDateTime.now());
+        user.setPasswordHash(passwordEncoder.encode(testUser.password)); 
+        Role testRole = new Role();
+        testRole.setName(testUser.role);
+        user.setRoles(Collections.singletonList(testRole)); 
         return user;
-    }
-
-    private boolean isDefaultPassword(String password) {
-        // Development mode default passwords
-        return "admin123".equals(password) || "loan123".equals(password) || "manager123".equals(password);
-    }
-
-    private String getRoleString(Set<Role> roles) {
-        if (roles == null || roles.isEmpty()) {
-            return "USER";
-        }
-        return roles.iterator().next().getName();
-    }
-
-    private String getRoleString(List<Role> roles) {
-        if (roles == null || roles.isEmpty()) {
-            return "USER";
-        }
-        return roles.get(0).getName();
     }
 
     // ==================== TEST USER CLASS ====================
@@ -509,7 +555,7 @@ public class AuthServiceImpl implements AuthService {
     // AuthService interface-ийн бусад методуудын default implementation
     
     @Override public boolean logoutUserFromAllDevices(UUID userId) { return true; }
-    @Override public boolean invalidateToken(String token) { return true; }
+    // invalidateToken method is implemented above
     @Override public boolean requestPasswordReset(String email) { return true; }
     @Override public boolean resetPassword(String resetToken, String newPassword) { return true; }
     @Override public boolean validatePasswordResetToken(String token) { return true; }
@@ -558,8 +604,7 @@ public class AuthServiceImpl implements AuthService {
     @Override public boolean validateApiKey(String apiKey) { return true; }
     @Override public boolean revokeApiKey(String apiKey) { return true; }
     @Override public Map<String, Object> getUserApiKeys(UUID userId) { return new HashMap<>(); }
-    @Override public boolean forceLogoutUser(UUID userId) { return true; }
-    @Override public int getActiveUserCount() { return 1; }
+    @Override public int getActiveUserCount() { return 1; } 
     @Override public Map<String, Object> getOnlineUsers() { return new HashMap<>(); }
     @Override public Map<String, Object> getSecurityStatistics() { return new HashMap<>(); }
     @Override public Map<String, Object> generateLoginAuditReport(LocalDateTime startDate, LocalDateTime endDate) { return new HashMap<>(); }

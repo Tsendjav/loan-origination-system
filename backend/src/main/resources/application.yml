@@ -1,14 +1,18 @@
 # =====================================================================================
-# LOS (Loan Origination System) Main Configuration - ЭЦСИЙН ХУВИЛБАР (ЗАСВАРЛАСАН)
+# LOS (Loan Origination System) Main Configuration - ЭЦСИЙН ХУВИЛБАР v5.0 (ЗАСВАРЛАСАН)
 # =====================================================================================
 # Created: 2025-07-26
-# Updated: БҮРЭН ЗАСВАРЛАСАН - Redis алдаа шийдэгдсэн
+# Updated: БҮРЭН ЗАСВАРЛАСАН - Redis алдаа шийдэгдсэн, maxFileSize null алдаа засварласан
 # =====================================================================================
 
 server:
   port: 8080
   servlet:
     context-path: /los
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
   compression:
     enabled: true
     mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
@@ -54,32 +58,6 @@ spring:
         web-allow-others: true
         trace: false
 
-  # ⭐ JPA/Hibernate Configuration - ЗАСВАРЛАСАН ⭐
-  jpa:
-    hibernate:
-      ddl-auto: none  # Schema.sql-г ашигласан, Hibernate create хийхгүй
-      naming:
-        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
-        implicit-strategy: org.hibernate.boot.model.naming.ImplicitNamingStrategyLegacyJpaImpl
-    show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
-        format_sql: true
-        use_sql_comments: true
-        jdbc:
-          time_zone: UTC
-          batch_size: 20
-          order_inserts: true
-          order_updates: true
-        connection:
-          provider_disables_autocommit: true
-        query:
-          fail_on_pagination_over_collection_fetch: true
-          in_clause_parameter_padding: true
-    open-in-view: false
-    defer-datasource-initialization: true
-
   # ⭐ SQL Initialization - ЗАСВАРЛАСАН ⭐
   sql:
     init:
@@ -93,11 +71,11 @@ spring:
   flyway:
     enabled: false
 
-  # File Upload Configuration
+  # ⭐ ЗАСВАРЛАСАН File Upload Configuration - maxFileSize null алдааг засварлах ⭐
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 50MB
+      max-request-size: 50MB
       enabled: true
 
   # JSON Configuration
@@ -167,9 +145,13 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
   file:
-    name: logs/los-application.log
+    # ⭐ FIXED: Лог файлыг шууд C:\Projects\loan-origination-system\logs зам дээр бичихээр тохируулсан ⭐
+    name: C:/Projects/loan-origination-system/logs/los-application.log
     max-size: 10MB
     max-history: 30
+  charset:
+    console: UTF-8
+    file: UTF-8
 
 # Springdoc OpenAPI Configuration
 springdoc:
@@ -211,11 +193,11 @@ app:
       enabled: false  # ⭐ Redis байхгүй учир rate limiting disabled ⭐
       requests-per-minute: 60
       
-  # Document Configuration
+  # ⭐ ЗАСВАРЛАСАН Document Configuration - maxFileSize null алдааг засварлах ⭐
   document:
     storage:
       path: "./uploads/documents"
-    max-size: 52428800  # 50MB
+    max-size: 52428800  # 50MB (null-ийг зайлуулахын тулд тодорхой утга)
     allowed-types:
       - "application/pdf"
       - "image/jpeg" 
@@ -229,6 +211,12 @@ app:
     ocr:
       enabled: false
       confidence-threshold: 0.8
+
+  # ⭐ НЭМЭГДСЭН File Configuration - maxFileSize null алдааг бүрэн засварлах ⭐
+  file:
+    max-size: 52428800  # 50MB
+    upload-path: "./uploads"
+    allowed-extensions: ["pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx"]
       
   # Loan Business Rules
   loan:
@@ -288,6 +276,7 @@ spring:
       max-lifetime: 600000
       connection-timeout: 30000
       leak-detection-threshold: 60000
+      connection-test-query: SELECT 1
       
   # Disable H2 Console in Production
   h2:
@@ -301,11 +290,15 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         jdbc:
           batch_size: 25
         connection:
           provider_disables_autocommit: true
+        cache:
+          use_second_level_cache: true
+          use_query_cache: true
+          region:
+            factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
         
   # Production SQL Configuration
   sql:
@@ -353,6 +346,11 @@ app:
         password: ${SMTP_PASSWORD}
         auth: true
         starttls: true
+  # ⭐ НЭМЭГДСЭН Production Document Configuration ⭐
+  document:
+    max-size: ${DOCUMENT_MAX_SIZE:52428800}  # 50MB
+  file:
+    max-size: ${FILE_MAX_SIZE:52428800}  # 50MB
 
 ---
 # Test Profile Configuration
@@ -394,6 +392,12 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
 
+  # ⭐ ЗАСВАРЛАСАН Test File Upload Configuration ⭐
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 # Test Logging Configuration
 logging:
   level:
@@ -413,9 +417,17 @@ app:
       enabled: false
     sms:
       enabled: false
+  # ⭐ НЭМЭГДСЭН Test Document Configuration ⭐
+  document:
+    max-size: 10485760  # 10MB for tests
+    storage:
+      path: "${java.io.tmpdir}/test-uploads"
+  file:
+    max-size: 10485760  # 10MB for tests
+    upload-path: "${java.io.tmpdir}/test-uploads"
 
 # =====================================================================================
-# ⭐ ЭЦСИЙН ХУВИЛБАР - REDIS АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
+# ⭐ ЭЦСИЙН ХУВИЛБАР - REDIS АЛДАА БОЛОН MAXFILESIZE NULL АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
 # =====================================================================================
 # 🌐 URLs:
 #    Backend:     http://localhost:8080/los
@@ -439,4 +451,8 @@ app:
 #    ✅ Redis health check disabled
 #    ✅ Rate limiting disabled (Redis dependency байхгүй учир)
 #    ✅ Logging Redis errors suppressed
+#    ✅ maxFileSize null алдаа - app.document.max-size болон app.file.max-size нэмэгдсэн
+#    ✅ File upload configuration бүх profile-д нэмэгдсэн
+#    ✅ Character encoding UTF-8 тохируулсан
+#    ✅ Production болон Test profile-уудад document configuration нэмэгдсэн
 # =====================================================================================

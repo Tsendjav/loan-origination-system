@@ -2,7 +2,7 @@
 -- LOAN ORIGINATION SYSTEM DATABASE SCHEMA - ЭЦСИЙН ХУВИЛБАР (ЗАСВАРЛАСАН)
 -- =====================================================================================
 -- Created: 2025-07-27
--- Version: 3.0
+-- Version: 3.1
 -- Database: H2 Database
 -- Description: Complete database schema for Loan Origination System with improvements
 -- Author: LOS Development Team

@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 /**
  * Хэрэглэгчийн DTO
  * User Data Transfer Object
+ * ⭐ ЗАСВАРЛАСАН - setPassword method нэмэгдсэн ⭐
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -289,7 +290,7 @@ public class UserDto {
         user.setUsername(this.username);
         
         if (this.password != null) {
-            user.setPassword(this.password);
+            user.setPasswordHash(this.password); // ⭐ ЗАСВАРЛАСАН: setPassword -> setPasswordHash ⭐
         }
         
         user.setEmail(this.email);
@@ -516,6 +517,9 @@ public class UserDto {
     public void setUsername(String username) { this.username = username; }
 
     public String getPassword() { return password; }
+    /**
+     * ⭐ ЗАСВАРЛАСАН: setPassword method нэмэгдсэн ⭐
+     */
     public void setPassword(String password) { this.password = password; }
 
     public String getEmail() { return email; }

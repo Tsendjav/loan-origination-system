@@ -208,7 +208,7 @@ public interface LoanApplicationService {
     /**
      * Эрсдэлийн үнэлгээ хийх
      */
-    Map<String, Object> performRiskAssessment(UUID id);
+    LoanApplicationDto performRiskAssessment(UUID id); // CHANGED RETURN TYPE TO LoanApplicationDto
 
     /**
      * Зээлийн оноо тооцоолох
@@ -262,7 +262,6 @@ public interface LoanApplicationService {
      */
     Map<String, Object> getApprovalRates(LocalDateTime startDate);
 
-    // ⭐ ШИНЭЭР НЭМЭГДСЭН: Зээлийн хүсэлтийн нийт тоо ⭐
     /**
      * Зээлийн хүсэлтийн нийт тоо авах
      */
@@ -367,11 +366,6 @@ public interface LoanApplicationService {
      * Зээлийн хүсэлт дахин шалгах
      */
     Map<String, Object> reviewLoanApplication(UUID id);
-
-    /**
-     * Өгөгдлийн бүрэн бус байдлыг шалгах
-     */
-    Map<String, Object> validateDataIntegrity();
 
     // Audit & History
     /**

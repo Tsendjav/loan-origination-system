@@ -1,10 +1,11 @@
 package com.company.los.repository;
 
-import com.company.los.entity.Customer;
 import com.company.los.entity.LoanApplication;
+import com.company.los.entity.Customer;
 import com.company.los.entity.LoanProduct;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -35,16 +36,41 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      */
     boolean existsByApplicationNumber(String applicationNumber);
 
-    // Харилцагчаар хайх
+    /**
+     * ApplicationNumber-ийн хэсэгчилсэн хайлт (case-insensitive)
+     */
+    Page<LoanApplication> findByApplicationNumberContainingIgnoreCase(String applicationNumber, Pageable pageable);
+
+    // Харилцагчаар хайх - ⭐ ЗАСВАРЛАСАН ⭐
     /**
      * Харилцагчийн зээлийн хүсэлтүүд
      */
     Page<LoanApplication> findByCustomer(Customer customer, Pageable pageable);
 
     /**
-     * Харилцагчийн ID-гаар хайх
+     * ⭐ ЗАСВАРЛАСАН: Харилцагчийн ID-гаар хайх (List буцаадаг) - TEST-д шаардлагатай ⭐
      */
-    Page<LoanApplication> findByCustomerId(UUID customerId, Pageable pageable);
+    List<LoanApplication> findByCustomer_Id(UUID customerId);
+
+    /**
+     * Харилцагчийн ID-гаар хайх (Page буцаадаг)
+     */
+    Page<LoanApplication> findByCustomer_Id(UUID customerId, Pageable pageable);
+
+    /**
+     * Харилцагчийн ID-гаар хайх (PageRequest-тай хувилбар)
+     */
+    Page<LoanApplication> findByCustomer_Id(UUID customerId, PageRequest pageRequest);
+
+    /**
+     * Харилцагчийн ID-гаар хайх (эрэмбэлсэн) - АЛДААГ ЗАСВАРЛАСАН
+     */
+    List<LoanApplication> findByCustomer_IdOrderByCreatedAtDesc(UUID customerId);
+
+    /**
+     * Харилцагчтай зээлийн хүсэлт байгаа эсэхийг шалгах
+     */
+    boolean existsByCustomer_Id(UUID customerId);
 
     /**
      * Харилцагчийн идэвхтэй хүсэлтүүд
@@ -66,6 +92,11 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     List<LoanApplication> findActiveByCustomerId(@Param("customerId") UUID customerId,
                                                @Param("activeStatuses") List<LoanApplication.ApplicationStatus> activeStatuses);
 
+    /**
+     * findByCustomer_IdAndStatusIn method
+     */
+    List<LoanApplication> findByCustomer_IdAndStatusIn(UUID customerId, List<LoanApplication.ApplicationStatus> statuses);
+
     // Бүтээгдэхүүнээр хайх
     /**
      * Зээлийн бүтээгдэхүүний хүсэлтүүд
@@ -85,19 +116,29 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
 
     // Статусаар хайх
     /**
-     * Статусаар хайх (String)
-     */
-    Page<LoanApplication> findByStatus(String status, Pageable pageable);
-
-    /**
      * Статусаар хайх (Enum)
      */
     Page<LoanApplication> findByStatus(LoanApplication.ApplicationStatus status, Pageable pageable);
 
     /**
+     * Статусаар тоолох
+     */
+    Long countByStatus(LoanApplication.ApplicationStatus status);
+
+    /**
      * Зээлийн төрлөөр хайх
      */
     Page<LoanApplication> findByLoanType(LoanApplication.LoanType loanType, Pageable pageable);
+
+    /**
+     * Зээлийн төрлөөр хайх (эрэмбэлсэн) - Pageable параметргүй
+     */
+    List<LoanApplication> findByLoanTypeOrderByCreatedAtDesc(LoanApplication.LoanType loanType);
+
+    /**
+     * Зээлийн төрлөөр хайх (эрэмбэлсэн) - Pageable параметртай
+     */
+    Page<LoanApplication> findByLoanTypeOrderByCreatedAtDesc(LoanApplication.LoanType loanType, Pageable pageable);
 
     /**
      * Хариуцагчаар хайх
@@ -107,32 +148,32 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     /**
      * Хүлээгдэж байгаа хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'PENDING' ORDER BY la.createdAt ASC")
-    Page<LoanApplication> findPendingApplications(Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = :status ORDER BY la.createdAt ASC")
+    Page<LoanApplication> findPendingApplications(@Param("status") LoanApplication.ApplicationStatus status, Pageable pageable);
 
     /**
      * Шалгагдаж байгаа хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'UNDER_REVIEW' ORDER BY la.createdAt ASC")
-    Page<LoanApplication> findUnderReviewApplications(Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = :status ORDER BY la.createdAt ASC")
+    Page<LoanApplication> findUnderReviewApplications(@Param("status") LoanApplication.ApplicationStatus status, Pageable pageable);
 
     /**
      * Батлагдсан хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'APPROVED' ORDER BY la.approvedDate DESC")
-    Page<LoanApplication> findApprovedApplications(Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = :status ORDER BY la.approvedDate DESC")
+    Page<LoanApplication> findApprovedApplications(@Param("status") LoanApplication.ApplicationStatus status, Pageable pageable);
 
     /**
      * Цуцлагдсан хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'REJECTED' ORDER BY la.rejectedDate DESC")
-    Page<LoanApplication> findRejectedApplications(Pageable pageable);
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = :status ORDER BY la.rejectedDate DESC")
+    Page<LoanApplication> findRejectedApplications(@Param("status") LoanApplication.ApplicationStatus status, Pageable pageable);
 
     /**
      * Олон статустай хүсэлтүүд
      */
     @Query("SELECT la FROM LoanApplication la WHERE la.status IN :statuses")
-    Page<LoanApplication> findByStatusIn(@Param("statuses") List<String> statuses, Pageable pageable);
+    Page<LoanApplication> findByStatusIn(@Param("statuses") List<LoanApplication.ApplicationStatus> statuses, Pageable pageable);
 
     /**
      * Идэвхтэй хүсэлтүүд
@@ -170,6 +211,16 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
            "ORDER BY la.requestedAmount ASC")
     Page<LoanApplication> findSmallAmountApplications(@Param("smallAmountThreshold") BigDecimal smallAmountThreshold,
                                                     Pageable pageable);
+
+    /**
+     * Дүнгээр эрэмбэлэн авах
+     */
+    Page<LoanApplication> findAllByOrderByRequestedAmountDesc(Pageable pageable);
+
+    /**
+     * Дүнгээр эрэмбэлэн авах (өсөх)
+     */
+    Page<LoanApplication> findAllByOrderByRequestedAmountAsc(Pageable pageable);
 
     // Хугацаагаар хайх
     /**
@@ -252,15 +303,28 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      * Хүчингүй болсон хүсэлтүүд
      */
     @Query("SELECT la FROM LoanApplication la WHERE la.dueDate < CURRENT_TIMESTAMP AND " +
-           "la.status IN ('PENDING', 'UNDER_REVIEW')")
-    List<LoanApplication> findExpiredApplications();
+           "la.status IN (:pendingStatus, :reviewStatus)")
+    List<LoanApplication> findExpiredApplications(@Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                                                @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus);
 
     /**
      * Удахгүй хүчингүй болох хүсэлтүүд
      */
     @Query("SELECT la FROM LoanApplication la WHERE la.dueDate BETWEEN CURRENT_TIMESTAMP AND :futureDate AND " +
-           "la.status IN ('PENDING', 'UNDER_REVIEW')")
-    List<LoanApplication> findExpiringSoonApplications(@Param("futureDate") LocalDateTime futureDate);
+           "la.status IN (:pendingStatus, :reviewStatus)")
+    List<LoanApplication> findExpiringSoonApplications(@Param("futureDate") LocalDateTime futureDate,
+                                                     @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                                                     @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus);
+
+    /**
+     * Статус болон огноогоор хайх - List буцаана
+     */
+    List<LoanApplication> findByStatusAndCreatedAtBefore(LoanApplication.ApplicationStatus status, LocalDateTime date);
+
+    /**
+     * Статус болон огноогоор хайх - Page буцаах хувилбар
+     */
+    Page<LoanApplication> findByStatusAndCreatedAtBefore(LoanApplication.ApplicationStatus status, LocalDateTime date, Pageable pageable);
 
     // Баримттай холбоотой
     /**
@@ -285,8 +349,10 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      * Дутуу баримттай хүсэлтүүд
      */
     @Query("SELECT la FROM LoanApplication la WHERE SIZE(la.documents) < :requiredDocuments AND " +
-           "la.status IN ('PENDING', 'UNDER_REVIEW')")
-    List<LoanApplication> findApplicationsWithIncompleteDocuments(@Param("requiredDocuments") int requiredDocuments);
+           "la.status IN (:pendingStatus, :reviewStatus)")
+    List<LoanApplication> findApplicationsWithIncompleteDocuments(@Param("requiredDocuments") int requiredDocuments,
+                                                                @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                                                                @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus);
 
     // Дэвшилтэт хайлт
     /**
@@ -307,7 +373,7 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     Page<LoanApplication> findByAdvancedFilters(
             @Param("customerId") UUID customerId,
             @Param("loanProductId") UUID loanProductId,
-            @Param("status") String status,
+            @Param("status") LoanApplication.ApplicationStatus status,
             @Param("minAmount") BigDecimal minAmount,
             @Param("maxAmount") BigDecimal maxAmount,
             @Param("minTerm") Integer minTerm,
@@ -318,20 +384,41 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
             @Param("isExpired") Boolean isExpired,
             Pageable pageable);
 
+    /**
+     * Customer type-аар хайх
+     */
+    Page<LoanApplication> findByCustomer_CustomerTypeAndLoanTypeAndStatusAndRequestedAmountBetweenAndCreatedAtBetween(
+            Customer.CustomerType customerType,
+            LoanApplication.LoanType loanType,
+            LoanApplication.ApplicationStatus status,
+            BigDecimal minAmount,
+            BigDecimal maxAmount,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable);
+
+    /**
+     * Чухал байдлаар хайх
+     */
+    Page<LoanApplication> findByPriority(Integer priority, Pageable pageable);
+
     // Статистик
     /**
      * Хүсэлтийн үндсэн статистик
      */
     @Query("SELECT " +
            "COUNT(la) as totalApplications, " +
-           "COUNT(CASE WHEN la.status = 'PENDING' THEN 1 END) as pendingCount, " +
-           "COUNT(CASE WHEN la.status = 'UNDER_REVIEW' THEN 1 END) as reviewCount, " +
-           "COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) as approvedCount, " +
-           "COUNT(CASE WHEN la.status = 'REJECTED' THEN 1 END) as rejectedCount, " +
+           "COUNT(CASE WHEN la.status = :pendingStatus THEN 1 END) as pendingCount, " +
+           "COUNT(CASE WHEN la.status = :reviewStatus THEN 1 END) as reviewCount, " +
+           "COUNT(CASE WHEN la.status = :approvedStatus THEN 1 END) as approvedCount, " +
+           "COUNT(CASE WHEN la.status = :rejectedStatus THEN 1 END) as rejectedCount, " +
            "AVG(la.requestedAmount) as avgAmount, " +
            "SUM(la.requestedAmount) as totalAmount " +
            "FROM LoanApplication la")
-    Object[] getApplicationStats();
+    Object[] getApplicationStats(@Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                               @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus,
+                               @Param("approvedStatus") LoanApplication.ApplicationStatus approvedStatus,
+                               @Param("rejectedStatus") LoanApplication.ApplicationStatus rejectedStatus);
 
     /**
      * Статусаар тоолох
@@ -345,13 +432,6 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      */
     @Query("SELECT la.loanType, COUNT(la) FROM LoanApplication la GROUP BY la.loanType")
     List<Object[]> countByLoanType();
-
-    /**
-     * Бүтээгдэхүүнээр тоолох
-     */
-    @Query("SELECT lp.name, COUNT(la) FROM LoanApplication la JOIN la.loanProduct lp " +
-           "GROUP BY lp.name ORDER BY COUNT(la) DESC")
-    List<Object[]> countByLoanProduct();
 
     /**
      * Сарын хүсэлтийн статистик
@@ -390,10 +470,22 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      * Батлалтын хувь
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN la.status = 'APPROVED' THEN 1 END) * 100.0 / COUNT(la) as approvalRate, " +
-           "COUNT(CASE WHEN la.status = 'REJECTED' THEN 1 END) * 100.0 / COUNT(la) as rejectionRate " +
-           "FROM LoanApplication la WHERE la.status IN ('APPROVED', 'REJECTED')")
-    Object[] getApprovalStats();
+           "COUNT(CASE WHEN la.status = :approvedStatus THEN 1 END) * 100.0 / COUNT(la) as approvalRate, " +
+           "COUNT(CASE WHEN la.status = :rejectedStatus THEN 1 END) * 100.0 / COUNT(la) as rejectionRate " +
+           "FROM LoanApplication la WHERE la.status IN (:approvedStatus, :rejectedStatus)")
+    Object[] getApprovalStats(@Param("approvedStatus") LoanApplication.ApplicationStatus approvedStatus,
+                            @Param("rejectedStatus") LoanApplication.ApplicationStatus rejectedStatus);
+
+    /**
+     * Статусын дүнгийн нийлбэр
+     */
+    @Query("SELECT SUM(la.requestedAmount) FROM LoanApplication la WHERE la.status = :status")
+    BigDecimal sumRequestedAmountByStatus(@Param("status") LoanApplication.ApplicationStatus status);
+
+    /**
+     * Хүсэлтийн дугаараар тоолох
+     */
+    Long countByApplicationNumberStartingWith(String prefix);
 
     // Bulk операциуд
     /**
@@ -403,15 +495,17 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     @Query("UPDATE LoanApplication la SET la.status = :newStatus " +
            "WHERE la.id IN :applicationIds")
     int updateStatusForApplications(@Param("applicationIds") List<UUID> applicationIds,
-                                  @Param("newStatus") String newStatus);
+                                  @Param("newStatus") LoanApplication.ApplicationStatus newStatus);
 
     /**
      * Хүчингүй болсон хүсэлтүүдийг цуцлах
      */
     @Modifying
-    @Query("UPDATE LoanApplication la SET la.status = 'CANCELLED' " +
-           "WHERE la.dueDate < CURRENT_TIMESTAMP AND la.status IN ('PENDING', 'UNDER_REVIEW')")
-    int expireOverdueApplications();
+    @Query("UPDATE LoanApplication la SET la.status = :cancelledStatus " +
+           "WHERE la.dueDate < CURRENT_TIMESTAMP AND la.status IN (:pendingStatus, :reviewStatus)")
+    int expireOverdueApplications(@Param("cancelledStatus") LoanApplication.ApplicationStatus cancelledStatus,
+                                @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                                @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus);
 
     /**
      * Батлалтын огноо тохируулах
@@ -442,18 +536,23 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      * Харилцагчийн идэвхтэй хүсэлт байгаа эсэхийг шалгах
      */
     @Query("SELECT COUNT(la) > 0 FROM LoanApplication la WHERE " +
-           "la.customer.id = :customerId AND la.status IN ('PENDING', 'UNDER_REVIEW', 'APPROVED')")
-    boolean hasActiveApplications(@Param("customerId") UUID customerId);
+           "la.customer.id = :customerId AND la.status IN (:pendingStatus, :reviewStatus, :approvedStatus)")
+    boolean hasActiveApplications(@Param("customerId") UUID customerId,
+                                @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                                @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus,
+                                @Param("approvedStatus") LoanApplication.ApplicationStatus approvedStatus);
 
     // Business logic
     /**
      * Шаардагатай анхаарал хүсэлтүүд (урт хугацаанд шалгагдаагүй)
      */
     @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.status IN ('PENDING', 'UNDER_REVIEW') AND " +
+           "la.status IN (:pendingStatus, :reviewStatus) AND " +
            "la.createdAt < :attentionThreshold " +
            "ORDER BY la.createdAt ASC")
-    List<LoanApplication> findApplicationsNeedingAttention(@Param("attentionThreshold") LocalDateTime attentionThreshold);
+    List<LoanApplication> findApplicationsNeedingAttention(@Param("attentionThreshold") LocalDateTime attentionThreshold,
+                                                         @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                                                         @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus);
 
     /**
      * Эрсдэлтэй хүсэлтүүд (том дүн, урт хугацаа)
@@ -471,12 +570,13 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     @Query("SELECT la FROM LoanApplication la WHERE " +
            "la.requestedAmount <= :fastApprovalAmount AND " +
            "la.requestedTermMonths <= :fastApprovalTerm AND " +
-           "la.status = 'PENDING' AND " +
+           "la.status = :pendingStatus AND " +
            "SIZE(la.documents) >= :minDocuments " +
            "ORDER BY la.createdAt ASC")
     List<LoanApplication> findFastApprovalCandidates(@Param("fastApprovalAmount") BigDecimal fastApprovalAmount,
                                                    @Param("fastApprovalTerm") Integer fastApprovalTerm,
-                                                   @Param("minDocuments") int minDocuments);
+                                                   @Param("minDocuments") int minDocuments,
+                                                   @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus);
 
     // Dashboard статистик
     /**
@@ -485,20 +585,22 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     @Query("SELECT " +
            "COUNT(CASE WHEN CAST(la.createdAt AS date) = CURRENT_DATE THEN 1 END) as newToday, " +
            "COUNT(CASE WHEN CAST(la.approvedDate AS date) = CURRENT_DATE THEN 1 END) as approvedToday, " +
-           "COUNT(CASE WHEN CAST(la.rejectedDate AS date) = CURRENT_DATE THEN 1 END) as rejectedToday, " +
-           "COUNT(CASE WHEN la.status = 'PENDING' THEN 1 END) as pendingTotal " +
+           "COUNT(CASE WHEN la.rejectedDate IS NOT NULL AND CAST(la.rejectedDate AS date) = CURRENT_DATE THEN 1 END) as rejectedToday, " +
+           "COUNT(CASE WHEN la.status = :pendingStatus THEN 1 END) as pendingTotal " +
            "FROM LoanApplication la")
-    Object[] getTodayApplicationStats();
+    Object[] getTodayApplicationStats(@Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus);
 
     /**
      * Ажлын ачаалалын статистик
      */
     @Query("SELECT " +
-           "COUNT(CASE WHEN la.status = 'PENDING' THEN 1 END) as pendingWorkload, " +
-           "COUNT(CASE WHEN la.status = 'UNDER_REVIEW' THEN 1 END) as reviewWorkload, " +
-           "COUNT(CASE WHEN la.dueDate < :nearExpiry AND la.status IN ('PENDING', 'UNDER_REVIEW') THEN 1 END) as nearExpiryCount " +
+           "COUNT(CASE WHEN la.status = :pendingStatus THEN 1 END) as pendingWorkload, " +
+           "COUNT(CASE WHEN la.status = :reviewStatus THEN 1 END) as reviewWorkload, " +
+           "COUNT(CASE WHEN la.dueDate < :nearExpiry AND la.status IN (:pendingStatus, :reviewStatus) THEN 1 END) as nearExpiryCount " +
            "FROM LoanApplication la")
-    Object[] getWorkloadStats(@Param("nearExpiry") LocalDateTime nearExpiry);
+    Object[] getWorkloadStats(@Param("nearExpiry") LocalDateTime nearExpiry,
+                            @Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus,
+                            @Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus);
 
     // Performance monitoring
     /**
@@ -513,8 +615,7 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
     /**
      * Хамгийн их ашиглагддаг бүтээгдэхүүн
      */
-    @Query("SELECT lp.name, COUNT(la) as applicationCount FROM LoanApplication la " +
-           "JOIN la.loanProduct lp " +
+    @Query("SELECT lp.name, COUNT(la) as applicationCount FROM LoanApplication la JOIN la.loanProduct lp " +
            "GROUP BY lp.id, lp.name " +
            "ORDER BY applicationCount DESC")
     Page<Object[]> findMostPopularProducts(Pageable pageable);
@@ -548,22 +649,24 @@ public interface LoanApplicationRepository extends JpaRepository<LoanApplication
      * Хуучин цуцлагдсан хүсэлтүүд
      */
     @Query("SELECT la FROM LoanApplication la WHERE " +
-           "la.status IN ('REJECTED', 'CANCELLED') AND " +
+           "la.status IN (:rejectedStatus, :cancelledStatus) AND " +
            "la.createdAt < :oldDate")
-    List<LoanApplication> findOldClosedApplications(@Param("oldDate") LocalDateTime oldDate);
+    List<LoanApplication> findOldClosedApplications(@Param("oldDate") LocalDateTime oldDate,
+                                                   @Param("rejectedStatus") LoanApplication.ApplicationStatus rejectedStatus,
+                                                   @Param("cancelledStatus") LoanApplication.ApplicationStatus cancelledStatus);
 
     // Processing queue
     /**
      * Дараагийн боловсруулах хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'PENDING' " +
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = :pendingStatus " +
            "ORDER BY la.createdAt ASC")
-    Page<LoanApplication> findNextToProcess(Pageable pageable);
+    Page<LoanApplication> findNextToProcess(@Param("pendingStatus") LoanApplication.ApplicationStatus pendingStatus, Pageable pageable);
 
     /**
-     * Шалгалт хийх ээлжиндхүсэлтүүд
+     * Шалгалт хийх ээлжиндх хүсэлтүүд
      */
-    @Query("SELECT la FROM LoanApplication la WHERE la.status = 'UNDER_REVIEW' " +
+    @Query("SELECT la FROM LoanApplication la WHERE la.status = :reviewStatus " +
            "ORDER BY la.createdAt ASC")
-    Page<LoanApplication> findForReview(Pageable pageable);
+    Page<LoanApplication> findForReview(@Param("reviewStatus") LoanApplication.ApplicationStatus reviewStatus, Pageable pageable);
 }

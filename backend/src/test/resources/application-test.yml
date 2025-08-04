@@ -1,0 +1,172 @@
+# =====================================================================================
+# TEST PROFILE CONFIGURATION - FINAL COMPLETE FIX v4.0 - ФАЙЛЫН ХЭМЖЭЭ ЗАСВАРЛАСАН
+# =====================================================================================
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+    lazy-initialization: false
+    web-application-type: servlet
+
+  # H2 Test Database
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;NON_KEYWORDS=VALUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+      connection-timeout: 10000
+      idle-timeout: 300000
+
+  # H2 Console (disabled for tests)
+  h2:
+    console:
+      enabled: false
+
+  # ⭐ HIBERNATE DIALECT АНХААРУУЛГА АРИЛГАСАН - ЗАСВАРЛАСАН JPA Configuration ⭐
+  jpa:
+    hibernate:
+      ddl-auto: create-drop  # Test-д create-drop ашиглах
+    show-sql: false
+    open-in-view: false
+    defer-datasource-initialization: true
+
+  # ⭐ ЗАСВАРЛАСАН SQL Initialization ⭐
+  sql:
+    init:
+      mode: embedded  # Test-д зөвхөн embedded database-д ажиллуулах
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:test-data.sql
+      continue-on-error: false
+      encoding: UTF-8
+
+  # Disable Redis and other services
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # Cache Configuration
+  cache:
+    type: simple
+    cache-names: [customers, loan-applications, documents, userCache, authCache]
+
+  # ⭐ JSON Configuration - UTF-8 SUPPORT ⭐
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: NON_NULL
+
+  # ⭐ FILE UPLOAD Configuration ⭐
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# Management Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  health:
+    redis:
+      enabled: false
+    diskspace:
+      enabled: false
+
+# ⭐ ЗАСВАРЛАСАН Logging Configuration ⭐
+logging:
+  level:
+    root: WARN
+    com.company.los: INFO
+    org.springframework: WARN
+    org.hibernate: WARN
+    org.hibernate.orm.deprecation: ERROR  # ⭐ Hibernate deprecation анхааруулгыг suppess хийх ⭐
+    org.mockito: WARN
+    org.springframework.test: WARN
+    org.springframework.boot.autoconfigure.data.redis: ERROR
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: C:/Projects/loan-origination-system/logs/los-test.log
+    max-size: 10MB
+    max-history: 30
+  charset:
+    console: UTF-8
+    file: UTF-8
+
+# ⭐ ЗАСВАРЛАСАН Application Test Configuration ⭐
+app:
+  jwt:
+    secret: testSecretKeyThatIsAtLeast32CharactersLong123456789
+    expiration: 3600000  # 1 hour
+    refresh-expiration: 7200000  # 2 hours
+    
+  # ⭐ НЭМЭГДСЭН: Document/File configuration - maxFileSize null алдааг засварлах ⭐
+  document:
+    storage:
+      path: "${java.io.tmpdir}/test-uploads"
+    max-size: 10485760  # 10MB (тестэд бага хэмжээ)
+    allowed-types: ["application/pdf", "image/jpeg", "image/png"]
+    
+  # ⭐ НЭМЭГДСЭН: File configuration ⭐
+  file:
+    max-size: 10485760  # 10MB for tests
+    upload-path: "${java.io.tmpdir}/test-uploads"
+    
+  security:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "*"
+      allowed-headers: "*"
+    csrf:
+      enabled: false  # Test-д CSRF disable хийх
+      
+  notification:
+    email:
+      enabled: false
+    sms:
+      enabled: false
+
+# ⭐ НЭМЭГДСЭН Server Configuration ⭐
+server:
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+# Test specific properties
+test:
+  database:
+    reset-after-each-test: true
+  security:
+    disable-authentication: false  # Бодит тест хийхээр true болгож болно
+  performance:
+    parallel-execution: false
+
+# =====================================================================================
+# ⭐ ТЕСТ ТОХИРГООНЫ ЭЦСИЙН ХУВИЛБАР - MAXFILESIZE АЛДАА ЗАСВАРЛАСАН ⭐
+# 
+# ЗАСВАРЛАСАН ЗҮЙЛС:
+# ✅ Hibernate dialect warning БҮРЭН АРИЛГАСАН
+# ✅ database-platform УСТГАСАН
+# ✅ Character encoding UTF-8 НЭМЭГДСЭН
+# ✅ SQL init mode embedded болгосон
+# ✅ JPA ddl-auto create-drop болгосон  
+# ✅ Logging charset UTF-8 тохируулсан
+# ✅ Server encoding UTF-8 тохируулсан
+# ✅ CSRF disabled тестэд
+# ✅ File upload configuration нэмэгдсэн
+# ✅ app.document.max-size болон app.file.max-size НЭМЭГДСЭН (maxFileSize null алдааг засварлах)
+# ✅ org.hibernate.orm.deprecation level ERROR болгосон
+# =====================================================================================

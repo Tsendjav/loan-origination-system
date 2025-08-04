@@ -3,12 +3,12 @@ package com.company.los.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "loan_products", indexes = {
@@ -16,7 +16,7 @@ import java.util.UUID;
         @Index(name = "idx_loan_product_type", columnList = "loan_type")
 })
 @SQLDelete(sql = "UPDATE loan_products SET is_deleted = true WHERE id = ?")
-@Where(clause = "is_deleted = false")
+@SQLRestriction("is_deleted = false")
 public class LoanProduct extends BaseEntity {
 
     @Column(name = "name", nullable = false, length = 200)
@@ -36,12 +36,12 @@ public class LoanProduct extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "min_amount", nullable = false, precision = 15, scale = 2)
+    @Column(name = "min_amount", nullable = false, precision = 18, scale = 2)
     @NotNull(message = "Хамгийн бага дүн заавал байх ёстой")
     @DecimalMin(value = "1000.0", message = "Хамгийн бага дүн 1,000-аас их байх ёстой")
     private BigDecimal minAmount;
 
-    @Column(name = "max_amount", nullable = false, precision = 15, scale = 2)
+    @Column(name = "max_amount", nullable = false, precision = 18, scale = 2)
     @NotNull(message = "Хамгийн их дүн заавал байх ёстой")
     @DecimalMin(value = "1000.0", message = "Хамгийн их дүн 1,000-аас их байх ёстой")
     private BigDecimal maxAmount;
@@ -61,26 +61,22 @@ public class LoanProduct extends BaseEntity {
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal baseRate;
 
-    @Column(name = "min_interest_rate", precision = 5, scale = 4)
+    @Column(name = "min_interest_rate", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal minInterestRate;
 
-    @Column(name = "max_interest_rate", precision = 5, scale = 4)
+    @Column(name = "max_interest_rate", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal maxInterestRate;
 
-    @Column(name = "default_interest_rate", precision = 5, scale = 4)
+    @Column(name = "default_interest_rate", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Хүү сөрөг байж болохгүй")
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal defaultInterestRate;
 
-    @Column(name = "loan_types", length = 500)
-    @Size(max = 500, message = "Зээлийн төрлүүд 500 тэмдэгтээс ихгүй байх ёстой")
-    private String loanTypes;
-
-    @Column(name = "auto_approval_limit", precision = 15, scale = 2)
+    @Column(name = "auto_approval_limit", precision = 18, scale = 2)
     @DecimalMin(value = "0.0", message = "Автомат зөвшөөрөлийн хязгаар сөрөг байж болохгүй")
     private BigDecimal autoApprovalLimit;
 
@@ -98,7 +94,7 @@ public class LoanProduct extends BaseEntity {
     @Max(value = 850, message = "Хамгийн бага кредит скор 850-аас их байж болохгүй")
     private Integer minCreditScore;
 
-    @Column(name = "max_debt_ratio", precision = 5, scale = 4)
+    @Column(name = "max_debt_ratio", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Хамгийн их өрийн харьцаа сөрөг байж болохгүй")
     @DecimalMax(value = "1.0", message = "Хамгийн их өрийн харьцаа 100%-аас их байж болохгүй")
     private BigDecimal maxDebtRatio;
@@ -111,7 +107,7 @@ public class LoanProduct extends BaseEntity {
     @DecimalMin(value = "0.0", message = "Боловсруулалтын шимтгэл сөрөг байж болохгүй")
     private BigDecimal processingFee;
 
-    @Column(name = "processing_fee_rate", precision = 5, scale = 4)
+    @Column(name = "processing_fee_rate", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Боловсруулалтын шимтгэлийн хувь сөрөг байж болохгүй")
     private BigDecimal processingFeeRate;
 
@@ -119,7 +115,7 @@ public class LoanProduct extends BaseEntity {
     @DecimalMin(value = "0.0", message = "Урьдчилан төлөлтийн торгууль сөрөг байж болохгүй")
     private BigDecimal earlyPaymentPenalty;
 
-    @Column(name = "early_payment_penalty_rate", precision = 5, scale = 4)
+    @Column(name = "early_payment_penalty_rate", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Торгууль сөрөг байж болохгүй")
     private BigDecimal earlyPaymentPenaltyRate;
 
@@ -127,7 +123,7 @@ public class LoanProduct extends BaseEntity {
     @DecimalMin(value = "0.0", message = "Хожуу төлөлтийн торгууль сөрөг байж болохгүй")
     private BigDecimal latePaymentPenalty;
 
-    @Column(name = "late_payment_penalty_rate", precision = 5, scale = 4)
+    @Column(name = "late_payment_penalty_rate", precision = 7, scale = 4)
     @DecimalMin(value = "0.0", message = "Хоцрогдлын торгууль сөрөг байж болохгүй")
     private BigDecimal latePaymentPenaltyRate;
 
@@ -163,7 +159,8 @@ public class LoanProduct extends BaseEntity {
         MORTGAGE("MORTGAGE", "Орон сууцны зээл"),
         CAR("CAR", "Автомашины зээл"),
         EDUCATION("EDUCATION", "Боловсролын зээл"),
-        MEDICAL("MEDICAL", "Эрүүл мэндийн зээл");
+        MEDICAL("MEDICAL", "Эрүүл мэндийн зээл"),
+        CONSUMER("CONSUMER", "Хэрэглээний зээл");
 
         private final String code;
         private final String mongolianName;
@@ -225,17 +222,17 @@ public class LoanProduct extends BaseEntity {
 
         BigDecimal rate = interestRate != null ? interestRate : defaultInterestRate != null ? defaultInterestRate : baseRate;
         if (rate == null || rate.compareTo(BigDecimal.ZERO) == 0) {
-            return loanAmount.divide(BigDecimal.valueOf(termMonths), 2, BigDecimal.ROUND_HALF_UP);
+            return loanAmount.divide(BigDecimal.valueOf(termMonths), 2, RoundingMode.HALF_UP);
         }
 
-        BigDecimal monthlyRate = rate.divide(BigDecimal.valueOf(12), 6, BigDecimal.ROUND_HALF_UP);
+        BigDecimal monthlyRate = rate.divide(BigDecimal.valueOf(12), 6, RoundingMode.HALF_UP);
         BigDecimal onePlusRate = BigDecimal.ONE.add(monthlyRate);
         BigDecimal numerator = loanAmount.multiply(monthlyRate);
         BigDecimal denominator = BigDecimal.ONE.subtract(
-            BigDecimal.ONE.divide(onePlusRate.pow(termMonths), 6, BigDecimal.ROUND_HALF_UP)
+            BigDecimal.ONE.divide(onePlusRate.pow(termMonths), 6, RoundingMode.HALF_UP)
         );
         
-        return numerator.divide(denominator, 2, BigDecimal.ROUND_HALF_UP);
+        return numerator.divide(denominator, 2, RoundingMode.HALF_UP);
     }
 
     public void enable() {
@@ -366,9 +363,6 @@ public class LoanProduct extends BaseEntity {
 
     public BigDecimal getDefaultInterestRate() { return defaultInterestRate; }
     public void setDefaultInterestRate(BigDecimal defaultInterestRate) { this.defaultInterestRate = defaultInterestRate; }
-
-    public String getLoanTypes() { return loanTypes; }
-    public void setLoanTypes(String loanTypes) { this.loanTypes = loanTypes; }
 
     public BigDecimal getAutoApprovalLimit() { return autoApprovalLimit; }
     public void setAutoApprovalLimit(BigDecimal autoApprovalLimit) { this.autoApprovalLimit = autoApprovalLimit; }

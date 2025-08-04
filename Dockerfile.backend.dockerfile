@@ -1,6 +1,5 @@
 # ================================================================
 # 🏦 LOS Backend Dockerfile - Production Ready
-# Location: C:\Projects\loan-origination-system\Dockerfile.backend
 # ================================================================
 
 # Multi-stage build for optimization

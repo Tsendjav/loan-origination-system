@@ -2,9 +2,6 @@ package com.company.los.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -13,16 +10,14 @@ import java.io.Serializable;
 
 /**
  * Login хүсэлтийн DTO - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
+ * ⭐ MANUAL SETTERS/GETTERS НЭМЭГДСЭН - ЗАСВАРЛАСАН ⭐
  * ⭐ CHARACTER ENCODING АЛДАА ШИЙДЭГДСЭН ⭐
  * Хэрэглэгчийн нэвтрэх мэдээллийг хүлээн авах
  * 
  * @author LOS Development Team
- * @version 2.2 - Character Encoding Fixed
- * @since 2025-07-30
+ * @version 2.3 - Manual Implementation
+ * @since 2025-08-01
  */
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class LoginRequestDto implements Serializable {
 
@@ -87,6 +82,54 @@ public class LoginRequestDto implements Serializable {
      * Platform мэдээлэл (optional)
      */
     private String platform;
+
+    // ==================== CONSTRUCTORS ====================
+
+    public LoginRequestDto() {
+    }
+
+    public LoginRequestDto(String username, String password, boolean rememberMe, String deviceInfo, 
+                          String userAgent, String ipAddress, Long timestamp, String clientVersion, 
+                          String timezone, String platform) {
+        this.username = username;
+        this.password = password;
+        this.rememberMe = rememberMe;
+        this.deviceInfo = deviceInfo;
+        this.userAgent = userAgent;
+        this.ipAddress = ipAddress;
+        this.timestamp = timestamp;
+        this.clientVersion = clientVersion;
+        this.timezone = timezone;
+        this.platform = platform;
+    }
+
+    // ==================== MANUAL GETTERS ====================
+
+    public String getUsername() { return username; }
+    public String getPassword() { return password; }
+    public boolean isRememberMe() { return rememberMe; }
+    public String getDeviceInfo() { return deviceInfo; }
+    public String getUserAgent() { return userAgent; }
+    public String getIpAddress() { return ipAddress; }
+    public Long getTimestamp() { return timestamp; }
+    public String getClientVersion() { return clientVersion; }
+    public String getTimezone() { return timezone; }
+    public String getPlatform() { return platform; }
+
+    // ==================== MANUAL SETTERS ====================
+
+    public void setUsername(String username) { this.username = username; }
+    public void setPassword(String password) { this.password = password; }
+    public void setRememberMe(boolean rememberMe) { this.rememberMe = rememberMe; }
+    public void setDeviceInfo(String deviceInfo) { this.deviceInfo = deviceInfo; }
+    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
+    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
+    public void setTimestamp(Long timestamp) { this.timestamp = timestamp; }
+    public void setClientVersion(String clientVersion) { this.clientVersion = clientVersion; }
+    public void setTimezone(String timezone) { this.timezone = timezone; }
+    public void setPlatform(String platform) { this.platform = platform; }
+
+    // ==================== BUSINESS LOGIC METHODS ====================
 
     /**
      * Хэрэглэгчийн нэр эсвэл имэйл эсэхийг шалгах
@@ -236,7 +279,7 @@ public class LoginRequestDto implements Serializable {
         return sb.toString();
     }
 
-    // ==================== Static Factory Methods ====================
+    // ==================== STATIC FACTORY METHODS ====================
 
     /**
      * Static factory method - энгийн хүсэлт
@@ -349,10 +392,10 @@ public class LoginRequestDto implements Serializable {
         return this;
     }
 
-    // ==================== toString Override ====================
+    // ==================== OVERRIDE METHODS ====================
 
     /**
-     * ToString method (нууц үг харуулахгүй)
+     * toString method (нууц үг харуулахгүй)
      */
     @Override
     public String toString() {
@@ -371,8 +414,6 @@ public class LoginRequestDto implements Serializable {
                 '}';
     }
 
-    // ==================== Equals & HashCode ====================
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -390,7 +431,7 @@ public class LoginRequestDto implements Serializable {
         return result;
     }
 
-    // ==================== Nested Classes ====================
+    // ==================== NESTED CLASSES ====================
 
     /**
      * Platform constants

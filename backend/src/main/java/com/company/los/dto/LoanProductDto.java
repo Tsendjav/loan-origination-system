@@ -68,8 +68,9 @@ public class LoanProductDto {
     @DecimalMax(value = "1.0", message = "Хүү 100%-аас их байж болохгүй")
     private BigDecimal defaultInterestRate;
 
-    @Size(max = 500, message = "Зээлийн төрлүүд 500 тэмдэгтээс ихгүй байх ёстой")
-    private String loanTypes;
+    // Removed the 'loanTypes' field as it does not exist in the LoanProduct entity.
+    // @Size(max = 500, message = "Зээлийн төрлүүд 500 тэмдэгтээс ихгүй байх ёстой")
+    // private String loanTypes;
 
     @DecimalMin(value = "0.0", message = "Автомат зөвшөөрөлийн хязгаар сөрөг байж болохгүй")
     private BigDecimal autoApprovalLimit;
@@ -193,7 +194,7 @@ public class LoanProductDto {
         dto.setMinInterestRate(loanProduct.getMinInterestRate());
         dto.setMaxInterestRate(loanProduct.getMaxInterestRate());
         dto.setDefaultInterestRate(loanProduct.getDefaultInterestRate());
-        dto.setLoanTypes(loanProduct.getLoanTypes());
+        // Removed: dto.setLoanTypes(loanProduct.getLoanTypes());
         dto.setAutoApprovalLimit(loanProduct.getAutoApprovalLimit());
         dto.setApprovalRequired(loanProduct.getApprovalRequired());
         dto.setRequiresCollateral(loanProduct.getRequiresCollateral());
@@ -356,7 +357,7 @@ public class LoanProductDto {
         loanProduct.setMinInterestRate(this.minInterestRate);
         loanProduct.setMaxInterestRate(this.maxInterestRate);
         loanProduct.setDefaultInterestRate(this.defaultInterestRate);
-        loanProduct.setLoanTypes(this.loanTypes);
+        // Removed: loanProduct.setLoanTypes(this.loanTypes);
         loanProduct.setAutoApprovalLimit(this.autoApprovalLimit);
         loanProduct.setApprovalRequired(this.approvalRequired);
         loanProduct.setRequiresCollateral(this.requiresCollateral);
@@ -535,8 +536,9 @@ public class LoanProductDto {
     public BigDecimal getDefaultInterestRate() { return defaultInterestRate; }
     public void setDefaultInterestRate(BigDecimal defaultInterestRate) { this.defaultInterestRate = defaultInterestRate; }
 
-    public String getLoanTypes() { return loanTypes; }
-    public void setLoanTypes(String loanTypes) { this.loanTypes = loanTypes; }
+    // Removed the getter/setter for 'loanTypes'
+    // public String getLoanTypes() { return loanTypes; }
+    // public void setLoanTypes(String loanTypes) { this.loanTypes = loanTypes; }
 
     public BigDecimal getAutoApprovalLimit() { return autoApprovalLimit; }
     public void setAutoApprovalLimit(BigDecimal autoApprovalLimit) { this.autoApprovalLimit = autoApprovalLimit; }

@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -188,14 +189,14 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
      * Итгэлцлийн оноо бүхий баримтууд
      */
     @Query("SELECT d FROM Document d WHERE d.aiConfidenceScore IS NOT NULL AND d.aiConfidenceScore >= :minScore")
-    Page<Document> findDocumentsWithMinConfidence(@Param("minScore") java.math.BigDecimal minScore,
+    Page<Document> findDocumentsWithMinConfidence(@Param("minScore") BigDecimal minScore,
                                                  Pageable pageable);
 
     /**
      * Бага итгэлцлийн баримтууд
      */
     @Query("SELECT d FROM Document d WHERE d.aiConfidenceScore IS NOT NULL AND d.aiConfidenceScore < :threshold")
-    List<Document> findLowConfidenceDocuments(@Param("threshold") java.math.BigDecimal threshold);
+    List<Document> findLowConfidenceDocuments(@Param("threshold") BigDecimal threshold);
 
     // Дэвшилтэт хайлт
     /**
@@ -265,7 +266,7 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
      */
     @Query("SELECT d FROM Document d WHERE " +
            "(d.originalFilename = :filename OR d.checksum = :checksum OR d.fileSize = :fileSize) " +
-           "AND d.customer.id != :excludeCustomerId")
+           "AND (:excludeCustomerId IS NULL OR d.customer.id != :excludeCustomerId)")
     List<Document> findPotentialDuplicates(@Param("filename") String filename,
                                           @Param("checksum") String checksum,
                                           @Param("fileSize") Long fileSize,
@@ -295,6 +296,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
      */
     @Query("SELECT COUNT(d) FROM Document d WHERE d.loanApplication.id = :loanApplicationId")
     long countByLoanApplicationId(@Param("loanApplicationId") UUID loanApplicationId);
+
+    /**
+     * Зээлийн хүсэлтийн файлын хэмжээний нийлбэр
+     */
+    @Query("SELECT COALESCE(SUM(d.fileSize), 0) FROM Document d WHERE d.loanApplication.id = :loanApplicationId")
+    Long sumFileSizeByLoanApplication(@Param("loanApplicationId") UUID loanApplicationId);
 
     /**
      * Баримтын төрлөөр тооцох

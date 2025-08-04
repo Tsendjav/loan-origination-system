@@ -3,7 +3,7 @@ package com.company.los.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -24,7 +24,7 @@ import java.util.UUID;
         @Index(name = "idx_loan_applications_created_at", columnList = "created_at")
 })
 @SQLDelete(sql = "UPDATE loan_applications SET is_deleted = true WHERE id = ?")
-@Where(clause = "is_deleted = false")
+@SQLRestriction("is_deleted = false")
 public class LoanApplication extends BaseEntity {
 
     // Enum definitions
@@ -76,16 +76,16 @@ public class LoanApplication extends BaseEntity {
         }
     }
 
+    // ⭐ ЗӨВӨӨР ТОДОРХОЙЛОГДСОН: Customer entity-тэй холбосон ⭐
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, columnDefinition = "VARCHAR(36)", 
+    @JoinColumn(name = "customer_id", nullable = false, columnDefinition = "VARCHAR(36)",
                 foreignKey = @ForeignKey(name = "fk_loan_app_customer"))
     @NotNull(message = "Харилцагч заавал байх ёстой")
     private Customer customer;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "loan_product_id", nullable = false, columnDefinition = "VARCHAR(36)", 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "loan_product_id", columnDefinition = "VARCHAR(36)",
                 foreignKey = @ForeignKey(name = "fk_loan_app_product"))
-    @NotNull(message = "Зээлийн бүтээгдэхүүн заавал сонгох ёстой")
     private LoanProduct loanProduct;
 
     @Column(name = "application_number", unique = true, nullable = false, length = 50)
@@ -163,6 +163,22 @@ public class LoanApplication extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @NotNull(message = "Статус заавал байх ёстой")
     private ApplicationStatus status = ApplicationStatus.DRAFT;
+
+    @Column(name = "status_note", length = 1000)
+    @Size(max = 1000, message = "Статусын тэмдэглэл 1000 тэмдэгтээс ихгүй байх ёстой")
+    private String statusNote;
+
+    @Column(name = "assessment_result", length = 255)
+    private String assessmentResult;
+
+    @Column(name = "assessment_score")
+    private Integer assessmentScore;
+
+    @Column(name = "assessment_notes", columnDefinition = "TEXT")
+    private String assessmentNotes;
+
+    @Column(name = "assessed_at")
+    private LocalDateTime assessedAt;
 
     @Column(name = "current_step", length = 100)
     @Size(max = 100, message = "Одоогийн алхам 100 тэмдэгтээс ихгүй байх ёстой")
@@ -302,6 +318,7 @@ public class LoanApplication extends BaseEntity {
     public void submit() {
         this.status = ApplicationStatus.SUBMITTED;
         this.submittedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void approve(String approvedBy, BigDecimal approvedAmount, Integer approvedTermMonths, BigDecimal approvedRate) {
@@ -312,6 +329,7 @@ public class LoanApplication extends BaseEntity {
         this.approvedAmount = approvedAmount;
         this.approvedTermMonths = approvedTermMonths;
         this.approvedRate = approvedRate;
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void reject(String rejectedBy, String reason) {
@@ -320,6 +338,7 @@ public class LoanApplication extends BaseEntity {
         this.rejectedDate = LocalDateTime.now();
         this.decisionDate = LocalDateTime.now();
         this.decisionReason = reason;
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void disburse(String disbursedBy, BigDecimal disbursedAmount) {
@@ -327,6 +346,7 @@ public class LoanApplication extends BaseEntity {
         this.disbursedBy = disbursedBy;
         this.disbursedDate = LocalDateTime.now();
         this.disbursedAmount = disbursedAmount;
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public boolean isSubmitted() {
@@ -351,6 +371,50 @@ public class LoanApplication extends BaseEntity {
 
     public String getLoanTypeDisplay() {
         return loanType != null ? loanType.getMongolianName() : "Тодорхойгүй";
+    }
+
+    public int getDocumentCount() {
+        return documents != null ? documents.size() : 0;
+    }
+
+    public boolean hasRequiredDocuments() {
+        if (loanProduct == null || loanProduct.getRequiredDocuments() == null) {
+            return false;
+        }
+        String[] requiredDocs = loanProduct.getRequiredDocuments().split(",");
+        return documents != null && documents.size() >= requiredDocs.length;
+    }
+
+    public void addDocument(Document document) {
+        if (document != null && !documents.contains(document)) {
+            documents.add(document);
+            document.setLoanApplication(this);
+            this.setUpdatedAt(LocalDateTime.now());
+        }
+    }
+
+    public void removeDocument(Document document) {
+        if (document != null && documents.contains(document)) {
+            documents.remove(document);
+            document.setLoanApplication(null);
+            this.setUpdatedAt(LocalDateTime.now());
+        }
+    }
+
+    public void updateStatus(ApplicationStatus newStatus, String note) {
+        this.status = newStatus;
+        this.statusNote = note;
+        this.setUpdatedAt(LocalDateTime.now());
+    }
+
+    // ⭐ ЗӨВӨӨР ХЭРЭГЖҮҮЛСЭН: customerId-г Customer объектээс авах ⭐
+    public UUID getCustomerId() {
+        return customer != null ? customer.getId() : null;
+    }
+
+    // GETTER FOR LOAN PRODUCT ID - needed for tests
+    public UUID getLoanProductId() {
+        return loanProduct != null ? loanProduct.getId() : null;
     }
 
     // Getters and Setters
@@ -407,6 +471,21 @@ public class LoanApplication extends BaseEntity {
 
     public ApplicationStatus getStatus() { return status; }
     public void setStatus(ApplicationStatus status) { this.status = status; }
+
+    public String getStatusNote() { return statusNote; }
+    public void setStatusNote(String statusNote) { this.statusNote = statusNote; }
+
+    public String getAssessmentResult() { return assessmentResult; }
+    public void setAssessmentResult(String assessmentResult) { this.assessmentResult = assessmentResult; }
+
+    public Integer getAssessmentScore() { return assessmentScore; }
+    public void setAssessmentScore(Integer assessmentScore) { this.assessmentScore = assessmentScore; }
+
+    public String getAssessmentNotes() { return assessmentNotes; }
+    public void setAssessmentNotes(String assessmentNotes) { this.assessmentNotes = assessmentNotes; }
+
+    public LocalDateTime getAssessedAt() { return assessedAt; }
+    public void setAssessedAt(LocalDateTime assessedAt) { this.assessedAt = assessedAt; }
 
     public String getCurrentStep() { return currentStep; }
     public void setCurrentStep(String currentStep) { this.currentStep = currentStep; }
@@ -504,16 +583,30 @@ public class LoanApplication extends BaseEntity {
     public List<Document> getDocuments() { return documents; }
     public void setDocuments(List<Document> documents) { this.documents = documents; }
 
-    // toString
     @Override
     public String toString() {
         return "LoanApplication{" +
                 "id=" + getId() +
                 ", applicationNumber='" + applicationNumber + '\'' +
+                ", customerId=" + getCustomerId() +
+                ", loanProductId=" + getLoanProductId() +
                 ", loanType=" + loanType +
                 ", requestedAmount=" + requestedAmount +
                 ", status=" + status +
-                ", customer=" + (customer != null ? customer.getDisplayName() : "null") +
+                ", isActive=" + isActive +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof LoanApplication)) return false;
+        LoanApplication that = (LoanApplication) o;
+        return getId() != null && getId().equals(that.getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 }

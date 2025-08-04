@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 /**
  * Хэрэглэгчийн Service Implementation
  * User Service Implementation with Spring Security UserDetailsService
+ * ⭐ ЗАСВАРЛАСАН - setPassword алдаа засварлагдсан ⭐
  */
 @Service
 @Transactional
@@ -88,10 +89,12 @@ public class UserServiceImpl implements UserService {
         user.setTimezone(createRequest.getTimezone());
 
         if (createRequest.getPassword() != null) {
-            user.setPassword(passwordEncoder.encode(createRequest.getPassword()));
+            // ⭐ ЗАСВАРЛАСАН: setPassword -> setPasswordHash ⭐
+            user.setPasswordHash(passwordEncoder.encode(createRequest.getPassword()));
         } else {
             String tempPassword = generateTemporaryPassword();
-            user.setPassword(passwordEncoder.encode(tempPassword));
+            // ⭐ ЗАСВАРЛАСАН: setPassword -> setPasswordHash ⭐
+            user.setPasswordHash(passwordEncoder.encode(tempPassword));
             user.setCredentialsNonExpired(false);
         }
         
@@ -519,7 +522,8 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Хэрэглэгч олдсонгүй: " + id));
         
-        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+        // ⭐ ЗАСВАРЛАСАН: getPassword() -> getPasswordHash() ⭐
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new IllegalArgumentException("Одоогийн нууц үг буруу байна");
         }
         

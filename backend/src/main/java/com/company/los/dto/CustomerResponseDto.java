@@ -7,13 +7,14 @@ import lombok.Data;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * CustomerResponseDto нь хэрэглэгчийн мэдээллийг буцаахад хэрэглэгдэх өгөгдлийг агуулна.
  */
 @Data
 public class CustomerResponseDto {
-    private Long id;
+    private UUID id; // FIXED: Long-аас UUID болгов
     private String firstName;
     private String lastName;
     private String email;

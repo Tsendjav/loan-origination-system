@@ -63,6 +63,12 @@ public interface DocumentService {
      */
     DocumentDto replaceDocument(UUID oldDocumentId, MultipartFile newFile, String reason) throws IOException;
 
+    /**
+     * Зээлийн хүсэлттэй холбоотой баримтуудыг устгах
+     * Delete documents by loan application
+     */
+    void deleteByLoanApplicationId(UUID loanApplicationId);
+
     // =============================================================================
     // ХУВИЛБАР УДИРДЛАГА / VERSION MANAGEMENT
     // =============================================================================
@@ -148,14 +154,20 @@ public interface DocumentService {
     Page<DocumentDto> getDocumentsByCustomer(UUID customerId, Pageable pageable);
 
     /**
-     * Зээлийн хүсэлтийн баримтууд
-     * Get documents by loan application
+     * Зээлийн хүсэлтийн баримтууд (DocumentDto буцаах)
+     * Get documents by loan application (returning DocumentDto)
      */
     Page<DocumentDto> getDocumentsByLoanApplication(UUID loanApplicationId, Pageable pageable);
 
     /**
-     * Төрлөөр баримт хайх
-     * Get documents by type
+     * Зээлийн хүсэлтийн баримтууд (Document entity буцаах - тестийн хувьд)
+     * Get documents by loan application (returning Document entity for tests)
+     */
+    Page<Document> findByLoanApplicationId(UUID loanApplicationId, Pageable pageable);
+
+    /**
+     * ⭐ ЗАСВАРЛАСАН: Төрлөөр баримт хайх (DocumentDto буцаах) - ДАВХАРДАЛЫГ АРИЛГАВ ⭐
+     * Get documents by type (returning DocumentDto)
      */
     Page<DocumentDto> getDocumentsByType(DocumentType documentType, Pageable pageable);
 
@@ -435,6 +447,28 @@ public interface DocumentService {
      * Can delete document
      */
     boolean canDeleteDocument(UUID id);
+
+    // =============================================================================
+    // ТЕСТ БОЛОН НЭМЭЛТ МЕТОДУУД / TEST AND ADDITIONAL METHODS
+    // =============================================================================
+
+    /**
+     * Зөвшөөрөгдсөн файлын төрлүүдийг авах
+     * Get supported file types
+     */
+    List<String> getSupportedFileTypes();
+
+    /**
+     * Зээлийн хүсэлттэй холбоотой баримтын тоо
+     * Count documents by loan application
+     */
+    long countByLoanApplicationId(UUID loanApplicationId);
+
+    /**
+     * Зээлийн хүсэлттэй холбоотой баримтуудын файлын хэмжээний нийлбэр
+     * Sum file sizes by loan application
+     */
+    long sumFileSizeByLoanApplication(UUID loanApplicationId);
 
     // =============================================================================
     // СТАТИСТИК БОЛОН ТАЙЛАН / STATISTICS AND REPORTING

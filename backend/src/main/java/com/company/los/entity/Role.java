@@ -3,7 +3,7 @@ package com.company.los.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -13,10 +13,11 @@ import java.util.UUID;
 /**
  * Дүрийн Entity
  * Role Entity for authorization
+ * ⭐ DEPRECATED API ЗАСВАРЛАСАН ⭐
  * 
  * @author LOS Development Team
- * @version 3.0 - Complete Role Entity with Hierarchy and Business Logic
- * @since 2025-07-28
+ * @version 3.1 - Fixed Deprecated API Usage
+ * @since 2025-08-01
  */
 @Entity
 @Table(name = "roles", indexes = {
@@ -28,13 +29,8 @@ import java.util.UUID;
         @Index(name = "idx_role_active", columnList = "is_active")
 })
 @SQLDelete(sql = "UPDATE roles SET is_deleted = true WHERE id = ?")
-@Where(clause = "is_deleted = false")
-public class Role {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", columnDefinition = "BINARY(16)")
-    private UUID id;
+@SQLRestriction("is_deleted = false")
+public class Role extends BaseEntity {
 
     @Column(name = "name", unique = true, nullable = false, length = 100)
     @NotBlank(message = "Дүрийн нэр заавал бөглөх ёстой")
@@ -49,7 +45,6 @@ public class Role {
     @Size(max = 50, message = "Дүрийн код 50 тэмдэгтээс ихгүй байх ёстой")
     private String code;
 
-    // Role status enum
     public enum RoleStatus {
         ACTIVE("ACTIVE", "Идэвхтэй"),
         INACTIVE("INACTIVE", "Идэвхгүй"),
@@ -73,7 +68,6 @@ public class Role {
     @NotNull(message = "Дүрийн статус заавал байх ёстой")
     private RoleStatus status = RoleStatus.ACTIVE;
 
-    // Role type enum
     public enum RoleType {
         SYSTEM("SYSTEM", "Системийн"),
         BUSINESS("BUSINESS", "Бизнесийн"),
@@ -97,27 +91,22 @@ public class Role {
     @NotNull(message = "Дүрийн төрөл заавал байх ёстой")
     private RoleType type = RoleType.BUSINESS;
 
-    // Priority for role hierarchy (1-100, higher number = higher priority)
     @Column(name = "priority")
     @Min(value = 1, message = "Эрэмбэ 1-ээс бага байж болохгүй")
     @Max(value = 100, message = "Эрэмбэ 100-аас их байж болохгүй")
     private Integer priority = 50;
 
-    // System role flag (derived from type)
     @Transient
     public boolean isSystemRole() {
         return RoleType.SYSTEM.equals(this.type);
     }
 
-    // Default role flag - for commonly assigned roles
     @Column(name = "is_default")
     private Boolean isDefault = false;
 
-    // Display name for UI
     @Column(name = "display_name", length = 150)
     private String displayName;
 
-    // Role hierarchy
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_role_id", foreignKey = @ForeignKey(name = "fk_role_parent"))
     private Role parentRole;
@@ -125,11 +114,9 @@ public class Role {
     @OneToMany(mappedBy = "parentRole", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Role> childRoles = new ArrayList<>();
 
-    // Many-to-many relationship with Users
     @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
     private List<User> users = new ArrayList<>();
 
-    // Many-to-many relationship with Permissions
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "role_permissions",
@@ -138,29 +125,18 @@ public class Role {
     )
     private List<Permission> permissions = new ArrayList<>();
 
-    // Audit fields
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
     @Column(name = "created_by", length = 100)
     private String createdBy;
 
     @Column(name = "updated_by", length = 100)
     private String updatedBy;
 
-    @Column(name = "is_deleted", nullable = false)
-    private Boolean isDeleted = false;
-
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
     // Constructors
     public Role() {
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        super();
     }
 
     public Role(String name, String description) {
@@ -195,7 +171,7 @@ public class Role {
     }
 
     public boolean hasPermission(String permissionName) {
-        return permissions.stream()
+        return permissions != null && permissions.stream()
                 .anyMatch(permission -> permission.getName().equals(permissionName));
     }
 
@@ -212,7 +188,7 @@ public class Role {
         if (permission != null && !permissions.contains(permission)) {
             permissions.add(permission);
             permission.getRoles().add(this);
-            this.updatedAt = LocalDateTime.now();
+            this.setUpdatedAt(LocalDateTime.now());
         }
     }
 
@@ -220,7 +196,7 @@ public class Role {
         if (permission != null && permissions.contains(permission)) {
             permissions.remove(permission);
             permission.getRoles().remove(this);
-            this.updatedAt = LocalDateTime.now();
+            this.setUpdatedAt(LocalDateTime.now());
         }
     }
 
@@ -228,7 +204,7 @@ public class Role {
         if (user != null && !users.contains(user)) {
             users.add(user);
             user.getRoles().add(this);
-            this.updatedAt = LocalDateTime.now();
+            this.setUpdatedAt(LocalDateTime.now());
         }
     }
 
@@ -236,7 +212,7 @@ public class Role {
         if (user != null && users.contains(user)) {
             users.remove(user);
             user.getRoles().remove(this);
-            this.updatedAt = LocalDateTime.now();
+            this.setUpdatedAt(LocalDateTime.now());
         }
     }
 
@@ -244,7 +220,7 @@ public class Role {
         if (childRole != null && !childRoles.contains(childRole)) {
             childRoles.add(childRole);
             childRole.setParentRole(this);
-            this.updatedAt = LocalDateTime.now();
+            this.setUpdatedAt(LocalDateTime.now());
         }
     }
 
@@ -252,7 +228,7 @@ public class Role {
         if (childRole != null && childRoles.contains(childRole)) {
             childRoles.remove(childRole);
             childRole.setParentRole(null);
-            this.updatedAt = LocalDateTime.now();
+            this.setUpdatedAt(LocalDateTime.now());
         }
     }
 
@@ -305,122 +281,113 @@ public class Role {
     public void enable() {
         this.isActive = true;
         this.status = RoleStatus.ACTIVE;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void disable() {
         this.isActive = false;
         this.status = RoleStatus.INACTIVE;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void suspend() {
         this.status = RoleStatus.SUSPENDED;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void deprecate() {
         this.status = RoleStatus.DEPRECATED;
         this.isActive = false;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void markAsDeleted() {
-        this.isDeleted = true;
+        this.setIsDeleted(true);
         this.isActive = false;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void restore() {
-        this.isDeleted = false;
+        this.setIsDeleted(false);
         this.isActive = true;
         this.status = RoleStatus.ACTIVE;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     // Getters and Setters
-    public UUID getId() { return id; }
-    public void setId(UUID id) { this.id = id; }
-
     public String getName() { return name; }
     public void setName(String name) { 
         this.name = name;
         if (this.displayName == null || this.displayName.isEmpty()) {
             this.displayName = name;
         }
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { 
         this.description = description;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public String getCode() { return code; }
     public void setCode(String code) { 
         this.code = code;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public RoleStatus getStatus() { return status; }
     public void setStatus(RoleStatus status) { 
         this.status = status;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public RoleType getType() { return type; }
     public void setType(RoleType type) { 
         this.type = type;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public Integer getPriority() { return priority; }
     public void setPriority(Integer priority) { 
         this.priority = priority;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public Boolean getIsDefault() { return isDefault; }
     public void setIsDefault(Boolean isDefault) { 
         this.isDefault = isDefault;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public void setDisplayName(String displayName) { 
         this.displayName = displayName;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public Role getParentRole() { return parentRole; }
     public void setParentRole(Role parentRole) { 
         this.parentRole = parentRole;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public List<Role> getChildRoles() { return childRoles; }
     public void setChildRoles(List<Role> childRoles) { 
-        this.childRoles = childRoles;
-        this.updatedAt = LocalDateTime.now();
+        this.childRoles = childRoles != null ? childRoles : new ArrayList<>();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public List<User> getUsers() { return users; }
     public void setUsers(List<User> users) { 
-        this.users = users;
-        this.updatedAt = LocalDateTime.now();
+        this.users = users != null ? users : new ArrayList<>();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
     public List<Permission> getPermissions() { return permissions; }
     public void setPermissions(List<Permission> permissions) { 
-        this.permissions = permissions;
-        this.updatedAt = LocalDateTime.now();
+        this.permissions = permissions != null ? permissions : new ArrayList<>();
+        this.setUpdatedAt(LocalDateTime.now());
     }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     public String getCreatedBy() { return createdBy; }
     public void setCreatedBy(String createdBy) { this.createdBy = createdBy; }
@@ -428,37 +395,29 @@ public class Role {
     public String getUpdatedBy() { return updatedBy; }
     public void setUpdatedBy(String updatedBy) { this.updatedBy = updatedBy; }
 
-    public Boolean getIsDeleted() { return isDeleted; }
-    public void setIsDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; }
-
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { 
         this.isActive = isActive;
-        this.updatedAt = LocalDateTime.now();
+        this.setUpdatedAt(LocalDateTime.now());
     }
 
-    @PreUpdate
-    protected void onUpdate() {
-        this.updatedAt = LocalDateTime.now();
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Role)) return false;
+        Role role = (Role) o;
+        return getId() != null && getId().equals(role.getId());
     }
 
-    @PrePersist
-    protected void onCreate() {
-        LocalDateTime now = LocalDateTime.now();
-        if (this.createdAt == null) {
-            this.createdAt = now;
-        }
-        this.updatedAt = now;
-        if (this.displayName == null && this.name != null) {
-            this.displayName = this.name;
-        }
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
-    // toString
     @Override
     public String toString() {
         return "Role{" +
-                "id=" + id +
+                "id=" + getId() +
                 ", name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", code='" + code + '\'' +
@@ -468,20 +427,7 @@ public class Role {
                 ", userCount=" + getUserCount() +
                 ", permissionCount=" + getPermissionCount() +
                 ", isActive=" + isActive +
-                ", isDeleted=" + isDeleted +
+                ", isDeleted=" + getIsDeleted() +
                 '}';
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Role)) return false;
-        Role role = (Role) o;
-        return id != null && id.equals(role.id);
-    }
-
-    @Override
-    public int hashCode() {
-        return getClass().hashCode();
     }
 }

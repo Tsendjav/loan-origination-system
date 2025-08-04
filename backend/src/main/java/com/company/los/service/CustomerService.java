@@ -314,6 +314,11 @@ public interface CustomerService {
     boolean canCustomerApplyForLoan(UUID customerId);
 
     /**
+     * ADDED: Зээлийн чадвар шалгах (тестэд шаардлагатай)
+     */
+    boolean checkEligibility(UUID customerId);
+
+    /**
      * Зээлийн хязгаар тооцоолох
      */
     BigDecimal calculateLoanLimit(UUID customerId);
@@ -322,6 +327,13 @@ public interface CustomerService {
      * Эрсдэлийн ангилал тодорхойлох
      */
     String determineRiskCategory(UUID customerId);
+
+    // ==================== CREDIT SCORE MANAGEMENT ====================
+    
+    /**
+     * ADDED: Зээлийн оноо шинэчлэх (тестэд шаардлагатай)
+     */
+    CustomerDto updateCreditScore(UUID customerId, int creditScore);
 
     // ==================== NOTIFICATIONS ====================
     

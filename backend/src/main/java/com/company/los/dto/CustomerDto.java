@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.company.los.entity.Customer;
-import com.company.los.enums.CustomerStatus; // CustomerStatus-г импортлох
+import com.company.los.enums.CustomerStatus;
 import jakarta.validation.constraints.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,6 +17,9 @@ import java.util.UUID;
 /**
  * Харилцагчийн DTO
  * Customer Data Transfer Object
+ * ⭐ ЗАСВАРЛАСАН - compilation errors шийдэгдсэн ⭐
+ *
+ * @version 1.3 - Compilation errors fixed, preferredLanguage field working
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -67,6 +70,10 @@ public class CustomerDto {
     @Size(max = 10, message = "Шуудангийн код 10 тэмдэгтээс ихгүй байх ёстой")
     private String postalCode;
 
+    // ⭐ Ажлын төлөв ⭐
+    @Size(max = 50, message = "Ажлын төлөв 50 тэмдэгтээс ихгүй байх ёстой")
+    private String employmentStatus;
+
     // Ажлын мэдээлэл
     @Size(max = 200, message = "Ажил олгогчийн нэр 200 тэмдэгтээс ихгүй байх ёстой")
     private String employerName;
@@ -80,6 +87,10 @@ public class CustomerDto {
 
     @DecimalMin(value = "0.0", message = "Сарын орлого сөрөг байж болохгүй")
     private BigDecimal monthlyIncome;
+
+    // ⭐ Дуртай хэл ⭐
+    @Size(max = 10, message = "Дуртай хэл 10 тэмдэгтээс ихгүй байх ёстой")
+    private String preferredLanguage;
 
     // Байгууллагын мэдээлэл
     @Size(max = 200, message = "Компанийн нэр 200 тэмдэгтээс ихгүй байх ёстой")
@@ -97,6 +108,9 @@ public class CustomerDto {
     @DecimalMin(value = "0.0", message = "Жилийн орлого сөрөг байж болохгүй")
     private BigDecimal annualRevenue;
 
+    // Зээлийн оноо
+    private Integer creditScore;
+
     // KYC мэдээлэл
     @NotNull(message = "KYC статус заавал байх ёстой")
     private Customer.KycStatus kycStatus;
@@ -110,7 +124,6 @@ public class CustomerDto {
     // Системийн мэдээлэл
     private Boolean isActive = true;
 
-    // CustomerStatus талбарыг нэмэх
     private CustomerStatus status;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -137,7 +150,7 @@ public class CustomerDto {
         this.customerType = Customer.CustomerType.INDIVIDUAL;
         this.kycStatus = Customer.KycStatus.PENDING;
         this.isActive = true;
-        this.status = CustomerStatus.PENDING_VERIFICATION; // Эхний утгыг тохируулах
+        this.status = CustomerStatus.PENDING_VERIFICATION;
     }
 
     public CustomerDto(Customer.CustomerType customerType, String firstName, String lastName, 
@@ -158,7 +171,6 @@ public class CustomerDto {
 
         CustomerDto dto = new CustomerDto();
 
-        // ID is already UUID in BaseEntity, no conversion needed
         dto.setId(customer.getId());
         dto.setCustomerType(customer.getCustomerType());
         dto.setFirstName(customer.getFirstName());
@@ -172,32 +184,30 @@ public class CustomerDto {
         dto.setCity(customer.getCity());
         dto.setProvince(customer.getProvince());
         dto.setPostalCode(customer.getPostalCode());
+
+        // ⭐ ЗАСВАР: try-catch арилгагдсан - Customer entity-д талбарууд байгаа ⭐
+        dto.setEmploymentStatus(customer.getEmploymentStatus());
         dto.setEmployerName(customer.getEmployerName());
         dto.setJobTitle(customer.getJobTitle());
         dto.setWorkExperienceYears(customer.getWorkExperienceYears());
         dto.setMonthlyIncome(customer.getMonthlyIncome());
+        dto.setPreferredLanguage(customer.getPreferredLanguage());
+
         dto.setCompanyName(customer.getCompanyName());
         dto.setBusinessRegistrationNumber(customer.getBusinessRegistrationNumber());
         dto.setTaxNumber(customer.getTaxNumber());
         dto.setBusinessType(customer.getBusinessType());
         dto.setAnnualRevenue(customer.getAnnualRevenue());
+        dto.setCreditScore(customer.getCreditScore());
         dto.setKycStatus(customer.getKycStatus());
         dto.setKycCompletedAt(customer.getKycCompletedAt());
-        
-        // Safe KYC verified by extraction - assuming it might be missing in entity
-        try {
-            dto.setKycVerifiedBy(customer.getKycVerifiedBy()); 
-        } catch (Exception e) {
-            logger.warn("KycVerifiedBy field not available in Customer entity");
-            dto.setKycVerifiedBy(null);
-        }
+        dto.setKycVerifiedBy(customer.getKycVerifiedBy());
         
         dto.setIsActive(customer.getIsActive());
-        dto.setStatus(customer.getStatus()); // Статусыг entity-ээс DTO руу хуулах
+        dto.setStatus(customer.getStatus());
         dto.setCreatedAt(customer.getCreatedAt());
         dto.setUpdatedAt(customer.getUpdatedAt());
         
-        // Audit fields are String in both DTO and BaseEntity
         dto.setCreatedBy(customer.getCreatedBy());
         dto.setUpdatedBy(customer.getUpdatedBy());
 
@@ -221,7 +231,6 @@ public class CustomerDto {
 
         CustomerDto dto = new CustomerDto();
 
-        // ID is already UUID in BaseEntity, no conversion needed
         dto.setId(customer.getId());
         dto.setCustomerType(customer.getCustomerType());
         dto.setFirstName(customer.getFirstName());
@@ -229,7 +238,7 @@ public class CustomerDto {
         dto.setRegisterNumber(customer.getRegisterNumber());
         dto.setPhone(customer.getPhone());
         dto.setKycStatus(customer.getKycStatus());
-        dto.setStatus(customer.getStatus()); // Статусыг summary DTO-д нэмэх
+        dto.setStatus(customer.getStatus());
 
         dto.setDisplayName(dto.calculateDisplayName());
         dto.setKycStatusDisplay(dto.calculateKycStatusDisplay());
@@ -241,7 +250,6 @@ public class CustomerDto {
     public Customer toEntity() {
         Customer customer = new Customer();
 
-        // ID is UUID in both DTO and entity, no conversion needed
         customer.setId(this.id);
         customer.setCustomerType(this.customerType);
         customer.setFirstName(this.firstName);
@@ -255,31 +263,30 @@ public class CustomerDto {
         customer.setCity(this.city);
         customer.setProvince(this.province);
         customer.setPostalCode(this.postalCode);
+
+        // ⭐ ЗАСВАР: try-catch арилгагдсан - Customer entity-д талбарууд байгаа ⭐
+        customer.setEmploymentStatus(this.employmentStatus);
         customer.setEmployerName(this.employerName);
         customer.setJobTitle(this.jobTitle);
         customer.setWorkExperienceYears(this.workExperienceYears);
         customer.setMonthlyIncome(this.monthlyIncome);
+        customer.setPreferredLanguage(this.preferredLanguage);
+
         customer.setCompanyName(this.companyName);
         customer.setBusinessRegistrationNumber(this.businessRegistrationNumber);
         customer.setTaxNumber(this.taxNumber);
         customer.setBusinessType(this.businessType);
         customer.setAnnualRevenue(this.annualRevenue);
+        customer.setCreditScore(this.creditScore);
         customer.setKycStatus(this.kycStatus);
         customer.setKycCompletedAt(this.kycCompletedAt);
-        
-        // Safe KYC verified by setting - assuming it might be missing in entity
-        try {
-            customer.setKycVerifiedBy(this.kycVerifiedBy);
-        } catch (Exception e) {
-            logger.warn("KycVerifiedBy field not available in Customer entity");
-        }
+        customer.setKycVerifiedBy(this.kycVerifiedBy);
         
         customer.setIsActive(this.isActive);
-        customer.setStatus(this.status); // Статусыг DTO-оос entity руу хуулах
+        customer.setStatus(this.status);
         customer.setCreatedAt(this.createdAt);
         customer.setUpdatedAt(this.updatedAt);
         
-        // Audit fields are String in both DTO and BaseEntity
         customer.setCreatedBy(this.createdBy);
         customer.setUpdatedBy(this.updatedBy);
 
@@ -317,7 +324,7 @@ public class CustomerDto {
             case IN_PROGRESS: return "Хийгдэж байна";
             case COMPLETED: return "Дууссан";
             case REJECTED: return "Татгалзсан";
-            case FAILED: return "Амжилтгүй"; // FAILED-г нэмэх
+            case FAILED: return "Амжилтгүй";
             default: return kycStatus.toString();
         }
     }
@@ -342,7 +349,8 @@ public class CustomerDto {
     }
 
     private String formatAmount(BigDecimal amount) {
-        return amount != null ? String.format("%,.0f₮", amount) : "";
+        if (amount == null) return "";
+        return String.format("%,.0f₮", amount);
     }
 
     // Business logic methods
@@ -368,7 +376,7 @@ public class CustomerDto {
             case IN_PROGRESS: return "badge-info";
             case COMPLETED: return "badge-success";
             case REJECTED: return "badge-danger";
-            case FAILED: return "badge-danger"; // FAILED-г нэмэх
+            case FAILED: return "badge-danger";
             default: return "badge-secondary";
         }
     }
@@ -383,7 +391,6 @@ public class CustomerDto {
     }
 
     public boolean canApplyForLoan() {
-        // isActive нь Boolean тул шууд ашиглаж болно
         return Boolean.TRUE.equals(isActive) && Boolean.TRUE.equals(isKycCompleted);
     }
 
@@ -427,6 +434,10 @@ public class CustomerDto {
     public String getPostalCode() { return postalCode; }
     public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
 
+    // ⭐ employmentStatus getter/setter ⭐
+    public String getEmploymentStatus() { return employmentStatus; }
+    public void setEmploymentStatus(String employmentStatus) { this.employmentStatus = employmentStatus; }
+
     public String getEmployerName() { return employerName; }
     public void setEmployerName(String employerName) { this.employerName = employerName; }
 
@@ -438,6 +449,10 @@ public class CustomerDto {
 
     public BigDecimal getMonthlyIncome() { return monthlyIncome; }
     public void setMonthlyIncome(BigDecimal monthlyIncome) { this.monthlyIncome = monthlyIncome; }
+
+    // ⭐ preferredLanguage getter/setter ⭐
+    public String getPreferredLanguage() { return preferredLanguage; }
+    public void setPreferredLanguage(String preferredLanguage) { this.preferredLanguage = preferredLanguage; }
 
     public String getCompanyName() { return companyName; }
     public void setCompanyName(String companyName) { this.companyName = companyName; }
@@ -454,6 +469,9 @@ public class CustomerDto {
     public BigDecimal getAnnualRevenue() { return annualRevenue; }
     public void setAnnualRevenue(BigDecimal annualRevenue) { this.annualRevenue = annualRevenue; }
 
+    public Integer getCreditScore() { return creditScore; }
+    public void setCreditScore(Integer creditScore) { this.creditScore = creditScore; }
+
     public Customer.KycStatus getKycStatus() { return kycStatus; }
     public void setKycStatus(Customer.KycStatus kycStatus) { this.kycStatus = kycStatus; }
 
@@ -466,7 +484,6 @@ public class CustomerDto {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    // CustomerStatus-ийн getter/setter-г нэмэх
     public CustomerStatus getStatus() { return status; }
     public void setStatus(CustomerStatus status) { this.status = status; }
 
@@ -515,7 +532,8 @@ public class CustomerDto {
                 ", registerNumber='" + registerNumber + '\'' +
                 ", phone='" + phone + '\'' +
                 ", kycStatus=" + kycStatus +
-                ", status=" + status + // toString-д статусыг нэмэх
+                ", status=" + status +
+                ", preferredLanguage='" + preferredLanguage + '\'' +
                 '}';
     }
 }

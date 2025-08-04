@@ -70,158 +70,204 @@ apiClient.interceptors.response.use(
   }
 );
 
-// API Response types
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data: T;
-  message?: string;
-  timestamp: string;
+  private getAuthToken(): string | null {
+    return localStorage.getItem('accessToken');
+  }
+
+  private async refreshToken(): Promise<string | null> {
+    if (this.refreshTokenPromise) {
+      return this.refreshTokenPromise;
+    }
+
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      return null;
+    }
+
+    this.refreshTokenPromise = this.client
+      .post<ApiResponse<AuthToken>>('/auth/refresh', { refreshToken })
+      .then((response) => {
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+        
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', newRefreshToken);
+        
+        this.refreshTokenPromise = null;
+        return accessToken;
+      })
+      .catch((error) => {
+        this.refreshTokenPromise = null;
+        throw error;
+      });
+
+    return this.refreshTokenPromise;
+  }
+
+  private handleAuthError(): void {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    
+    // Login хуудас руу чиглүүлэх
+    window.location.href = '/login';
+    
+    message.error('Нэвтрэх эрх дууссан. Дахин нэвтэрнэ үү.');
+  }
+
+  private handleError(error: AxiosError): void {
+    const response = error.response;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`❌ ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
+        status: response?.status,
+        data: response?.data,
+        message: error.message,
+      });
+    }
+
+    // Алдааны мэдээллийг хэрэглэгчид харуулах
+    if (response?.data?.message) {
+      message.error(response.data.message);
+    } else if (response?.status === 500) {
+      message.error('Серверийн алдаа гарлаа. Дахин оролдоно уу.');
+    } else if (response?.status === 404) {
+      message.error('Хүссэн мэдээлэл олдсонгүй.');
+    } else if (response?.status === 403) {
+      message.error('Энэ үйлдлийг хийх эрхгүй байна.');
+    } else if (error.code === 'ECONNABORTED') {
+      message.error('Хүсэлтийн хугацаа дууссан. Дахин оролдоно уу.');
+    } else if (!navigator.onLine) {
+      message.error('Интернэт холболт тасарсан байна.');
+    } else {
+      message.error('Алдаа гарлаа. Дахин оролдоно уу.');
+    }
+  }
+
+  // Generic CRUD үйлдлүүд
+  async get<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.get<ApiResponse<T>>(url, config);
+    return response.data.data;
+  }
+
+  async post<T, D = any>(url: string, data?: D, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.post<ApiResponse<T>>(url, data, config);
+    return response.data.data;
+  }
+
+  async put<T, D = any>(url: string, data?: D, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.put<ApiResponse<T>>(url, data, config);
+    return response.data.data;
+  }
+
+  async patch<T, D = any>(url: string, data?: D, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.patch<ApiResponse<T>>(url, data, config);
+    return response.data.data;
+  }
+
+  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.delete<ApiResponse<T>>(url, config);
+    return response.data.data;
+  }
+
+  // Paginated хүсэлт
+  async getPaginated<T>(
+    url: string, 
+    params?: { page?: number; size?: number; sort?: string; [key: string]: any }
+  ): Promise<PaginatedResponse<T>> {
+    const response = await this.client.get<PaginatedResponse<T>>(url, { params });
+    return response.data;
+  }
+
+  // Файл upload
+  async uploadFile(url: string, file: File, onProgress?: (progress: number) => void): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const config: AxiosRequestConfig = {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    };
+
+    if (onProgress) {
+      config.onUploadProgress = (progressEvent) => {
+        const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+        onProgress(progress);
+      };
+    }
+
+    return this.post(url, formData, config);
+  }
+
+  // Health check
+  async healthCheck(): Promise<{ status: string; timestamp: string }> {
+    return this.get('/health');
+  }
+
+  // Raw client-т хандах (шаардлагатай үед)
+  getRawClient(): AxiosInstance {
+    return this.client;
+  }
 }
 
-export interface ApiError {
-  success: false;
-  error: string;
-  message: string;
-  timestamp: string;
-  path?: string;
-}
+// Singleton instance
+export const apiClient = new ApiClient();
 
-export interface PaginatedResponse<T> {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
-  first: boolean;
-  last: boolean;
-}
-
-// API endpoint URLs
-export const API_ENDPOINTS = {
-  // Authentication
-  AUTH: {
-    LOGIN: '/auth/login',
-    LOGOUT: '/auth/logout',
-    REFRESH: '/auth/refresh',
-    PROFILE: '/auth/profile',
+// Convenience functions
+export const api = {
+  // Auth
+  auth: {
+    login: (credentials: { username: string; password: string }) =>
+      apiClient.post<AuthToken>('/auth/login', credentials),
+    
+    logout: () => apiClient.post('/auth/logout'),
+    
+    refreshToken: (refreshToken: string) =>
+      apiClient.post<AuthToken>('/auth/refresh', { refreshToken }),
+    
+    getCurrentUser: () => apiClient.get<any>('/auth/me'),
   },
-  
+
   // Customers
-  CUSTOMERS: {
-    BASE: '/customers',
-    BY_ID: (id: number) => `/customers/${id}`,
-    SEARCH: '/customers/search',
-    VALIDATE: '/customers/validate',
+  customers: {
+    getAll: (params?: any) => apiClient.getPaginated<any>('/customers', params),
+    getById: (id: string) => apiClient.get<any>(`/customers/${id}`),
+    create: (data: any) => apiClient.post<any>('/customers', data),
+    update: (id: string, data: any) => apiClient.put<any>(`/customers/${id}`, data),
+    delete: (id: string) => apiClient.delete(`/customers/${id}`),
+    search: (query: string) => apiClient.get<any[]>(`/customers/search?q=${encodeURIComponent(query)}`),
   },
-  
+
   // Loan Applications
-  LOANS: {
-    BASE: '/loan-applications',
-    BY_ID: (id: number) => `/loan-applications/${id}`,
-    BY_CUSTOMER: (customerId: number) => `/loan-applications/customer/${customerId}`,
-    SUBMIT: '/loan-applications/submit',
-    APPROVE: (id: number) => `/loan-applications/${id}/approve`,
-    REJECT: (id: number) => `/loan-applications/${id}/reject`,
-    STATUS: (id: number) => `/loan-applications/${id}/status`,
+  loanApplications: {
+    getAll: (params?: any) => apiClient.getPaginated<any>('/loan-applications', params),
+    getById: (id: string) => apiClient.get<any>(`/loan-applications/${id}`),
+    create: (data: any) => apiClient.post<any>('/loan-applications', data),
+    update: (id: string, data: any) => apiClient.put<any>(`/loan-applications/${id}`, data),
+    delete: (id: string) => apiClient.delete(`/loan-applications/${id}`),
+    updateStatus: (id: string, status: string, note?: string) =>
+      apiClient.patch<any>(`/loan-applications/${id}/status`, { status, note }),
+    assess: (id: string) => apiClient.post<any>(`/loan-applications/${id}/assess`),
   },
-  
+
   // Documents
-  DOCUMENTS: {
-    BASE: '/documents',
-    BY_ID: (id: number) => `/documents/${id}`,
-    BY_APPLICATION: (applicationId: number) => `/documents/application/${applicationId}`,
-    UPLOAD: '/documents/upload',
-    DOWNLOAD: (id: number) => `/documents/${id}/download`,
-    TYPES: '/documents/types',
+  documents: {
+    getAll: (params?: any) => apiClient.getPaginated<any>('/documents', params),
+    getById: (id: string) => apiClient.get<any>(`/documents/${id}`),
+    upload: (file: File, onProgress?: (progress: number) => void) =>
+      apiClient.uploadFile('/documents/upload', file, onProgress),
+    delete: (id: string) => apiClient.delete(`/documents/${id}`),
+    download: (id: string) => apiClient.getRawClient().get(`/documents/${id}/download`, {
+      responseType: 'blob',
+    }),
   },
-  
-  // Loan Products
-  PRODUCTS: {
-    BASE: '/loan-products',
-    BY_ID: (id: number) => `/loan-products/${id}`,
-    ACTIVE: '/loan-products/active',
-  },
-  
+
   // System
-  SYSTEM: {
-    HEALTH: '/health',
-    CONFIG: '/system/config',
-    USERS: '/users',
-    ROLES: '/roles',
-    AUDIT: '/audit',
+  system: {
+    health: () => apiClient.healthCheck(),
+    version: () => apiClient.get<{ version: string; buildTime: string }>('/system/version'),
+    stats: () => apiClient.get<any>('/system/stats'),
   },
 };
 
-// Utility functions for API calls
-export const apiUtils = {
-  // Handle API response
-  handleResponse: <T>(response: AxiosResponse<ApiResponse<T>>): T => {
-    if (response.data.success) {
-      return response.data.data;
-    }
-    throw new Error(response.data.message || 'API call failed');
-  },
-  
-  // Handle API error
-  handleError: (error: AxiosError<ApiError>): never => {
-    const message = error.response?.data?.message || error.message || 'An unexpected error occurred';
-    throw new Error(message);
-  },
-  
-  // Build query parameters
-  buildParams: (params: Record<string, any>): string => {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        searchParams.append(key, String(value));
-      }
-    });
-    return searchParams.toString();
-  },
-  
-  // Retry failed requests
-  retry: async <T>(
-    fn: () => Promise<T>, 
-    attempts: number = API_CONFIG.RETRY_ATTEMPTS,
-    delay: number = API_CONFIG.RETRY_DELAY
-  ): Promise<T> => {
-    try {
-      return await fn();
-    } catch (error) {
-      if (attempts > 1) {
-        console.warn(`Retrying request... (${API_CONFIG.RETRY_ATTEMPTS - attempts + 1}/${API_CONFIG.RETRY_ATTEMPTS})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return apiUtils.retry(fn, attempts - 1, delay * 2);
-      }
-      throw error;
-    }
-  },
-};
-
-// Export configured axios instance
-export default apiClient;
-
-// Environment-specific configurations
-export const getApiConfig = () => {
-  const env = process.env.NODE_ENV || 'development';
-  
-  const configs = {
-    development: {
-      API_URL: 'http://localhost:8080/los/api/v1',
-      ENABLE_LOGGING: true,
-      MOCK_API: false,
-    },
-    production: {
-      API_URL: process.env.REACT_APP_API_URL || 'https://los-api.company.com/api/v1',
-      ENABLE_LOGGING: false,
-      MOCK_API: false,
-    },
-    test: {
-      API_URL: 'http://localhost:8080/los/api/v1',
-      ENABLE_LOGGING: false,
-      MOCK_API: true,
-    },
-  };
-  
-  return configs[env as keyof typeof configs] || configs.development;
-};
+export default api;

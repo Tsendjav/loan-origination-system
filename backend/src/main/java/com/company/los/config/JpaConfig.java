@@ -9,27 +9,28 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.Optional;
 
 /**
- * JPA конфигураци
- * JPA Configuration
+ * ⭐ JPA конфигураци - ЗАСВАРЛАСАН (Simplified) ⭐ 
+ * JPA Configuration - зөвхөн AuditorAware bean
+ * DatabaseConfig.java файлд @EnableJpaAuditing байгаа тул энд давхардуулахгүй
  * 
- * JPA Auditing-д зориулсан AuditorAware provider
- * DatabaseConfig.java файлаас @EnableJpaAuditing ашиглагдана
+ * @author LOS Development Team
+ * @version 2.0 - Fixed duplicate configuration issue
+ * @since 2025-08-03
  */
 @Configuration
 public class JpaConfig {
 
     /**
-     * Аудитын мэдээлэл олгогч
+     * ⭐ ЗАСВАРЛАСАН: Аудитын мэдээлэл олгогч ⭐
      * Auditor provider for JPA auditing
-     * DatabaseConfig.java файлд auditorAwareRef = "auditorProvider" гэж заасан
      */
-    @Bean
+    @Bean("auditorProvider")
     public AuditorAware<String> auditorProvider() {
         return new SpringSecurityAuditorAware();
     }
 
     /**
-     * Аудитын мэдээлэл олгогчийн хэрэгжүүлэлт
+     * ⭐ ЗАСВАРЛАСАН: Аудитын мэдээлэл олгогчийн хэрэгжүүлэлт ⭐
      * Implementation of AuditorAware that uses Spring Security (with fallback)
      */
     public static class SpringSecurityAuditorAware implements AuditorAware<String> {

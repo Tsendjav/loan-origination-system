@@ -5,6 +5,7 @@ import com.company.los.enums.CustomerStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -88,6 +89,31 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     Page<Customer> findBySearchTerm(@Param("searchTerm") String searchTerm, Pageable pageable);
 
     /**
+     * FIXED: Search method for test compatibility - multiple parameters with Page version
+     */
+    @Query("SELECT c FROM Customer c WHERE " +
+           "LOWER(c.firstName) LIKE LOWER(CONCAT('%', :firstName, '%')) OR " +
+           "LOWER(c.lastName) LIKE LOWER(CONCAT('%', :lastName, '%')) OR " +
+           "LOWER(c.email) LIKE LOWER(CONCAT('%', :email, '%'))")
+    Page<Customer> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+        @Param("firstName") String firstName, 
+        @Param("lastName") String lastName, 
+        @Param("email") String email,
+        Pageable pageable);
+
+    /**
+     * FIXED: Search method for test compatibility - multiple parameters with List version (for current tests)
+     */
+    @Query("SELECT c FROM Customer c WHERE " +
+           "LOWER(c.firstName) LIKE LOWER(CONCAT('%', :firstName, '%')) OR " +
+           "LOWER(c.lastName) LIKE LOWER(CONCAT('%', :lastName, '%')) OR " +
+           "LOWER(c.email) LIKE LOWER(CONCAT('%', :email, '%'))")
+    List<Customer> findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+        @Param("firstName") String firstName, 
+        @Param("lastName") String lastName, 
+        @Param("email") String email);
+
+    /**
      * Харилцагчийн төрлөөр хайх
      */
     List<Customer> findByCustomerType(Customer.CustomerType customerType);
@@ -120,6 +146,11 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     long countByStatus(CustomerStatus status);
 
     /**
+     * ⭐ ЗАСВАРЛАСАН: isActive field-аар тоолох (test-д шаардлагатай) ⭐
+     */
+    long countByIsActive(boolean isActive);
+
+    /**
      * Харилцагчийн төрлөөр тоолох
      */
     long countByCustomerType(Customer.CustomerType customerType);
@@ -128,6 +159,16 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
      * KYC статусаар тоолох
      */
     long countByKycStatus(Customer.KycStatus kycStatus);
+
+    /**
+     * ADDED: Employment status-аар тоолох (тестэд шаардлагатай)
+     */
+    long countByEmploymentStatus(String employmentStatus);
+
+    /**
+     * ADDED: Credit score-оор тоолох (тестэд шаардлагатай)
+     */
+    long countByCreditScoreGreaterThanEqual(Integer creditScore);
 
     /**
      * Хотоор тоолох
@@ -183,7 +224,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     /**
      * Идэвхтэй зээлтэй харилцагчид
      */
-    @Query("SELECT DISTINCT c FROM Customer c JOIN c.loanApplications la WHERE la.status = 'ACTIVE'")
+    @Query("SELECT DISTINCT c FROM Customer c JOIN c.loanApplications la WHERE la.status = 'APPROVED'")
     Page<Customer> findCustomersWithActiveLoanApplications(Pageable pageable);
 
     /**
@@ -196,7 +237,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
      * Дутуу мэдээлэлтэй харилцагчид
      */
     @Query("SELECT c FROM Customer c WHERE " +
-           "(c.customerType = 'INDIVIDUAL' AND (c.firstName IS NULL OR c.lastName IS NULL OR c.dateOfBirth IS NULL)) OR " +
+           "(c.customerType = 'INDIVIDUAL' AND (c.firstName IS NULL OR c.lastName IS NULL OR c.birthDate IS NULL)) OR " +
            "(c.customerType = 'BUSINESS' AND (c.companyName IS NULL OR c.businessRegistrationNumber IS NULL)) OR " +
            "c.email IS NULL OR c.phone IS NULL OR c.address IS NULL")
     List<Customer> findCustomersWithIncompleteData();
@@ -277,6 +318,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     /**
      * Олон харилцагчийн статус шинэчлэх
      */
+    @Modifying
     @Query("UPDATE Customer c SET c.status = :status, c.updatedAt = CURRENT_TIMESTAMP WHERE c.id IN :customerIds")
     int updateStatusForCustomers(@Param("customerIds") List<UUID> customerIds, 
                                 @Param("status") CustomerStatus status);
@@ -284,6 +326,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     /**
      * Олон харилцагчийн KYC статус шинэчлэх
      */
+    @Modifying
     @Query("UPDATE Customer c SET c.kycStatus = :kycStatus, c.updatedAt = CURRENT_TIMESTAMP WHERE c.id IN :customerIds")
     int updateKycStatusForCustomers(@Param("customerIds") List<UUID> customerIds, 
                                    @Param("kycStatus") Customer.KycStatus kycStatus);

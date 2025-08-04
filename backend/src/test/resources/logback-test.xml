@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- =====================================================================================
+     logback-test.xml - Test environment logging configuration
+     Location: src/test/resources/logback-test.xml
+     ===================================================================================== -->
+<configuration>
+    <!-- Console appender -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+    
+    <!-- File appender for test logs -->
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logs/test.log</file>
+        <append>false</append>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Specific loggers for test environment -->
+    
+    <!-- ⭐ Suppress Spring Boot and Hibernate warnings ⭐ -->
+    <logger name="org.springframework.security" level="WARN"/>
+    <logger name="org.springframework.web" level="WARN"/>
+    <logger name="org.springframework.boot" level="WARN"/>
+    <logger name="org.springframework.boot.autoconfigure" level="ERROR"/>
+    <logger name="org.springframework.boot.autoconfigure.data.redis" level="ERROR"/>
+    <logger name="org.springframework.data.redis" level="ERROR"/>
+    <logger name="org.hibernate" level="WARN"/>
+    <logger name="org.hibernate.orm.deprecation" level="ERROR"/>
+    <logger name="org.h2" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+    
+    <!-- ⭐ Application loggers ⭐ -->
+    <logger name="com.company.los" level="INFO"/>
+    <logger name="com.company.los.controller" level="DEBUG"/>
+    <logger name="com.company.los.service" level="DEBUG"/>
+    <logger name="com.company.los.repository" level="WARN"/>
+    
+    <!-- ⭐ Test framework loggers ⭐ -->
+    <logger name="org.junit" level="WARN"/>
+    <logger name="org.mockito" level="WARN"/>
+    <logger name="org.springframework.test" level="WARN"/>
+    <logger name="org.springframework.transaction" level="WARN"/>
+    
+    <!-- ⭐ SQL and database loggers ⭐ -->
+    <logger name="org.hibernate.SQL" level="WARN"/>
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="WARN"/>
+    <logger name="org.springframework.jdbc" level="WARN"/>
+    
+    <!-- Root logger -->
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

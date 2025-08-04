@@ -4,6 +4,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -27,11 +29,14 @@ import java.util.Set;
  * Global Exception Handler - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
  * ⭐ CHARACTER ENCODING АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
  * ⭐ UTF-8 ДЭМЖЛЭГ НЭМЭГДСЭН ⭐
+ * ⭐ LOGGER ЗАСВАРЛАСАН ⭐
  * Системийн бүх алдаануудыг төвлөрсөн байдлаар барих
  */
-@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    // ⭐ ЗАСВАР: @Slf4j annotation-ийн оронд шууд Logger ашиглах ⭐
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private static final String UTF8_CONTENT_TYPE = "application/json;charset=UTF-8";
 

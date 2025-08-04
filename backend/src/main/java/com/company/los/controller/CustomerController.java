@@ -32,10 +32,11 @@ import java.time.LocalDateTime;
  * ⭐ API АЛДАА БҮРЭН ШИЙДЭГДСЭН ⭐
  * ⭐ ERROR HANDLING НЭМЭГДСЭН ⭐
  * ⭐ HEALTH CHECK ENDPOINT НЭМЭГДСЭН ⭐
- * 
+ * ⭐ CUSTOMER RESPONSE DTO АЛДАА ЗАСВАРЛАГДСАН ⭐
+ *
  * @author LOS Development Team
  */
-@RestController  
+@RestController
 @RequestMapping("/api/v1/customers")
 @CrossOrigin(origins = {"http://localhost:3001", "http://localhost:3000", "http://127.0.0.1:3001", "http://127.0.0.1:3000"})
 @RequiredArgsConstructor
@@ -57,20 +58,23 @@ public class CustomerController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "lastName") String sort,
             @RequestParam(defaultValue = "ASC") String direction) {
-        
+
         logger.debug("📋 Getting all customers - page: {}, size: {}", page, size);
-        
+
         try {
             Sort.Direction sortDirection = Sort.Direction.fromString(direction);
             Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
-            
+
             Page<CustomerDto> customers = customerService.getAllCustomers(pageable);
-            
+
             logger.info("✅ Successfully retrieved {} customers", customers.getTotalElements());
-            return ResponseEntity.ok(ApiResponse.success(customers));
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(customers));
         } catch (Exception e) {
             logger.error("❌ Error getting customers: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагчдийг авахад алдаа гарлаа: " + e.getMessage()));
         }
     }
@@ -83,32 +87,38 @@ public class CustomerController {
     @PreAuthorize("hasAuthority('customer:view')")
     public ResponseEntity<ApiResponse<CustomerDto>> getCustomer(@PathVariable UUID id) {
         logger.debug("👤 Getting customer: {}", id);
-        
+
         try {
             // ⭐ NULL CHECK НЭМЭГДСЭН ⭐
             if (id == null) {
                 logger.warn("⚠️ Customer ID is null");
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
             }
 
             CustomerDto customer = customerService.getCustomerById(id);
-            
+
             if (customer != null) {
                 logger.info("✅ Successfully retrieved customer: {}", id);
-                return ResponseEntity.ok(ApiResponse.success(customer));
+                return ResponseEntity.ok()
+                    .header("Content-Type", "application/json;charset=UTF-8")
+                    .body(ApiResponse.success(customer));
             } else {
                 logger.warn("⚠️ Customer not found: {}", id);
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("Харилцагч олдсонгүй"));
             }
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Customer not found: {}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч олдсонгүй"));
         } catch (Exception e) {
             logger.error("❌ Error getting customer {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Системийн алдаа гарлаа"));
         }
     }
@@ -122,44 +132,50 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<CustomerDto>> createCustomer(
             @Valid @RequestBody CustomerRequestDto customerRequest,
             BindingResult bindingResult) {
-        
+
         logger.info("➕ Creating new customer");
-        
+
         // ⭐ VALIDATION ERROR HANDLING НЭМЭГДСЭН ⭐
         if (bindingResult.hasErrors()) {
             logger.warn("⚠️ Validation errors in customer request");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Мэдээлэл буруу байна", new HashMap<>(getValidationErrors(bindingResult))));
         }
 
         // ⭐ НЭМЭЛТ BUSINESS VALIDATION ⭐
         if (customerRequest.getFirstName() == null || customerRequest.getFirstName().trim().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагчийн нэр заавал оруулна уу"));
         }
 
         if (customerRequest.getLastName() == null || customerRequest.getLastName().trim().isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагчийн овог заавал оруулна уу"));
         }
-        
+
         try {
             // Convert request DTO to service DTO
             CustomerDto customerDto = convertToDto(customerRequest);
-            
+
             CustomerDto createdCustomer = customerService.createCustomer(customerDto);
-            
+
             logger.info("✅ Customer created successfully: {}", createdCustomer.getId());
             return ResponseEntity.status(HttpStatus.CREATED)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.success(createdCustomer, "Харилцагч амжилттай үүсгэгдлээ"));
-                
+
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Business validation error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             logger.error("❌ Error creating customer: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч үүсгэхэд алдаа гарлаа"));
         }
     }
@@ -174,35 +190,41 @@ public class CustomerController {
             @PathVariable UUID id,
             @Valid @RequestBody CustomerRequestDto customerRequest,
             BindingResult bindingResult) {
-        
+
         logger.info("📝 Updating customer: {}", id);
-        
+
         // ⭐ NULL CHECK ⭐
         if (id == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
         }
-        
+
         if (bindingResult.hasErrors()) {
             logger.warn("⚠️ Validation errors in update request");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Мэдээлэл буруу байна", new HashMap<>(getValidationErrors(bindingResult))));
         }
-        
+
         try {
             CustomerDto customerDto = convertToDto(customerRequest);
             CustomerDto updatedCustomer = customerService.updateCustomer(id, customerDto);
-            
+
             logger.info("✅ Customer updated successfully: {}", id);
-            return ResponseEntity.ok(ApiResponse.success(updatedCustomer, "Харилцагч амжилттай шинэчлэгдлээ"));
-            
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(updatedCustomer, "Харилцагч амжилттай шинэчлэгдлээ"));
+
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Customer not found or validation error: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             logger.error("❌ Error updating customer {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч шинэчлэхэд алдаа гарлаа"));
         }
     }
@@ -215,26 +237,31 @@ public class CustomerController {
     @PreAuthorize("hasAuthority('customer:delete')")
     public ResponseEntity<ApiResponse<Void>> deleteCustomer(@PathVariable UUID id) {
         logger.info("🗑️ Deleting customer: {}", id);
-        
+
         try {
             // ⭐ NULL CHECK ⭐
             if (id == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
             }
 
             customerService.deleteCustomer(id);
-            
+
             logger.info("✅ Customer deleted successfully: {}", id);
-            return ResponseEntity.noContent().build();
-            
+            return ResponseEntity.noContent()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .build();
+
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Customer not found: {}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч олдсонгүй"));
         } catch (Exception e) {
             logger.error("❌ Error deleting customer {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч устгахад алдаа гарлаа"));
         }
     }
@@ -251,23 +278,26 @@ public class CustomerController {
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        
+
         logger.debug("🔍 Searching customers with query: {}", query);
-        
+
         try {
             Pageable pageable = PageRequest.of(page, size);
             Page<CustomerDto> customers;
-            
+
             if (query == null || query.trim().isEmpty()) {
                 customers = customerService.getAllCustomers(pageable);
             } else {
                 customers = customerService.searchCustomers(query.trim(), pageable);
             }
-            
-            return ResponseEntity.ok(ApiResponse.success(customers));
+
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(customers));
         } catch (Exception e) {
             logger.error("❌ Error searching customers: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч хайхад алдаа гарлаа"));
         }
     }
@@ -282,31 +312,34 @@ public class CustomerController {
     @PreAuthorize("hasAuthority('customer:view')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> validateCustomer(
             @RequestBody Map<String, String> validation) {
-        
+
         logger.debug("✅ Validating customer data");
-        
+
         try {
             Map<String, Object> result = new HashMap<>();
-            
+
             String email = validation.get("email");
             if (email != null) {
                 result.put("emailUnique", customerService.isEmailUnique(email));
             }
-            
-            String phone = validation.get("phone");  
+
+            String phone = validation.get("phone");
             if (phone != null) {
                 result.put("phoneAvailable", !customerService.existsByPhone(phone));
             }
-            
+
             String registerNumber = validation.get("registerNumber");
             if (registerNumber != null) {
                 result.put("registerNumberAvailable", !customerService.existsByRegisterNumber(registerNumber));
             }
-            
-            return ResponseEntity.ok(ApiResponse.success(result));
+
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(result));
         } catch (Exception e) {
             logger.error("❌ Error validating customer data: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Мэдээлэл шалгахад алдаа гарлаа"));
         }
     }
@@ -322,33 +355,39 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<CustomerDto>> updateCustomerStatus(
             @PathVariable UUID id,
             @RequestParam CustomerStatus status) {
-        
+
         logger.info("📊 Updating customer status: {} -> {}", id, status);
-        
+
         try {
             // ⭐ NULL CHECK ⭐
             if (id == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
             }
 
             if (status == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("Статус заавал оруулна уу"));
             }
 
             CustomerDto updatedCustomer = customerService.updateCustomerStatus(id, status);
-            
+
             logger.info("✅ Customer status updated: {}", id);
-            return ResponseEntity.ok(ApiResponse.success(updatedCustomer, "Статус амжилттай шинэчлэгдлээ"));
-            
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(updatedCustomer, "Статус амжилттай шинэчлэгдлээ"));
+
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Customer not found: {}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч олдсонгүй"));
         } catch (Exception e) {
             logger.error("❌ Error updating customer status {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Статус шинэчлэхэд алдаа гарлаа"));
         }
     }
@@ -362,33 +401,39 @@ public class CustomerController {
     public ResponseEntity<ApiResponse<CustomerDto>> updateKycStatus(
             @PathVariable UUID id,
             @RequestParam KYCStatus kycStatus) {
-        
+
         logger.info("🔐 Updating KYC status: {} -> {}", id, kycStatus);
-        
+
         try {
             // ⭐ NULL CHECK ⭐
             if (id == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("Харилцагчийн ID буруу байна"));
             }
 
             if (kycStatus == null) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "application/json;charset=UTF-8")
                     .body(ApiResponse.error("KYC статус заавал оруулна уу"));
             }
 
             CustomerDto updatedCustomer = customerService.updateKYCStatus(id, kycStatus);
-            
+
             logger.info("✅ KYC status updated: {}", id);
-            return ResponseEntity.ok(ApiResponse.success(updatedCustomer, "KYC статус амжилттай шинэчлэгдлээ"));
-            
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(updatedCustomer, "KYC статус амжилттай шинэчлэгдлээ"));
+
         } catch (IllegalArgumentException e) {
             logger.warn("⚠️ Customer not found: {}", id);
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Харилцагч олдсонгүй"));
         } catch (Exception e) {
             logger.error("❌ Error updating KYC status {}: {}", id, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("KYC статус шинэчлэхэд алдаа гарлаа"));
         }
     }
@@ -403,14 +448,17 @@ public class CustomerController {
     @PreAuthorize("hasAuthority('customer:view')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getCustomerStatistics() {
         logger.debug("📊 Getting customer statistics");
-        
+
         try {
             Map<String, Object> statistics = customerService.getCustomerStatistics();
-            
-            return ResponseEntity.ok(ApiResponse.success(statistics));
+
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(statistics));
         } catch (Exception e) {
             logger.error("❌ Error getting customer statistics: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Статистик авахад алдаа гарлаа"));
         }
     }
@@ -429,7 +477,7 @@ public class CustomerController {
             health.put("service", "CustomerController");
             health.put("timestamp", LocalDateTime.now());
             health.put("version", "2.2");
-            
+
             // Database connectivity шалгах
             try {
                 long customerCount = customerService.getTotalCustomerCount();
@@ -440,9 +488,11 @@ public class CustomerController {
                 health.put("databaseStatus", "DOWN");
                 health.put("databaseError", e.getMessage());
             }
-            
+
             logger.debug("✅ Customer API health check successful");
-            return ResponseEntity.ok(ApiResponse.success(health));
+            return ResponseEntity.ok()
+                .header("Content-Type", "application/json;charset=UTF-8")
+                .body(ApiResponse.success(health));
         } catch (Exception e) {
             logger.error("❌ Customer API health check failed: {}", e.getMessage());
             Map<String, Object> errorHealth = new HashMap<>();
@@ -450,8 +500,9 @@ public class CustomerController {
             errorHealth.put("service", "CustomerController");
             errorHealth.put("error", e.getMessage());
             errorHealth.put("timestamp", LocalDateTime.now());
-            
+
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header("Content-Type", "application/json;charset=UTF-8")
                 .body(ApiResponse.error("Customer API унтарсан байна", errorHealth));
         }
     }
@@ -463,7 +514,7 @@ public class CustomerController {
      */
     private CustomerDto convertToDto(CustomerRequestDto request) {
         CustomerDto dto = new CustomerDto();
-        
+
         // Basic fields
         dto.setFirstName(request.getFirstName());
         dto.setLastName(request.getLastName());
@@ -471,7 +522,7 @@ public class CustomerController {
         dto.setPhone(request.getPhone());
         dto.setBirthDate(request.getDateOfBirth());
         dto.setRegisterNumber(request.getSocialSecurityNumber());
-        
+
         // Convert external enum to internal enum
         if (request.getCustomerType() != null) {
             try {
@@ -482,64 +533,79 @@ public class CustomerController {
                 dto.setCustomerType(com.company.los.entity.Customer.CustomerType.INDIVIDUAL);
             }
         }
-        
+
         return dto;
     }
 
     /**
-     * CustomerDto-г CustomerResponseDto болгож хөрвүүлэх
+     * CustomerDto-г CustomerResponseDto болгож хөрвүүлэх - ⭐ ЗАСВАРЛАСАН SETTERS ⭐
      */
     private CustomerResponseDto convertToResponseDto(CustomerDto dto) {
         CustomerResponseDto response = new CustomerResponseDto();
-        
-        // Type-safe ID conversion - UUID-г String болгох эсвэл Long болгох
+
+        // ⭐ ЗАСВАРЛАСАН: Manual property setting with proper error handling ⭐
         if (dto.getId() != null) {
-            // UUID-г String болгож хөрвүүлэх (CustomerResponseDto.setId нь String хүлээж байвал)
-            // Эсвэл Long хүлээж байвал: response.setId(dto.getId().hashCode()); гэх мэт
-            try {
-                // Assuming CustomerResponseDto.setId accepts String
-                response.setId(Long.valueOf(Math.abs(dto.getId().hashCode())));
-            } catch (Exception e) {
-                logger.warn("⚠️ Could not set ID: {}", e.getMessage());
-                // Try Long conversion if String doesn't work
-                try {
-                    response.setId(Long.valueOf(Math.abs(dto.getId().hashCode())));
-                } catch (Exception ex) {
-                    logger.error("❌ Could not convert UUID to ID: {}", ex.getMessage());
-                }
-            }
+            response.setId(dto.getId());
         }
-        
-        response.setFirstName(dto.getFirstName());
-        response.setLastName(dto.getLastName());
-        response.setEmail(dto.getEmail());
-        response.setPhone(dto.getPhone());
-        response.setDateOfBirth(dto.getBirthDate());
-        response.setSocialSecurityNumber(dto.getRegisterNumber());
-        
+
+        if (dto.getFirstName() != null) {
+            response.setFirstName(dto.getFirstName());
+        }
+
+        if (dto.getLastName() != null) {
+            response.setLastName(dto.getLastName());
+        }
+
+        if (dto.getEmail() != null) {
+            response.setEmail(dto.getEmail());
+        }
+
+        if (dto.getPhone() != null) {
+            response.setPhone(dto.getPhone());
+        }
+
+        if (dto.getBirthDate() != null) {
+            response.setDateOfBirth(dto.getBirthDate());
+        }
+
+        if (dto.getRegisterNumber() != null) {
+            response.setSocialSecurityNumber(dto.getRegisterNumber());
+        }
+
         // Convert internal enum to external enum
         if (dto.getCustomerType() != null) {
             try {
                 response.setCustomerType(CustomerType.valueOf(dto.getCustomerType().name()));
             } catch (IllegalArgumentException e) {
                 logger.warn("⚠️ Could not convert customer type: {}", dto.getCustomerType());
+                // Default value
+                response.setCustomerType(CustomerType.INDIVIDUAL);
             }
         }
-        
-        response.setStatus(dto.getStatus());
-        
+
+        if (dto.getStatus() != null) {
+            response.setStatus(dto.getStatus());
+        }
+
         // Convert internal KYC status to external
         if (dto.getKycStatus() != null) {
             try {
                 response.setKycStatus(KYCStatus.valueOf(dto.getKycStatus().name()));
             } catch (IllegalArgumentException e) {
                 logger.warn("⚠️ Could not convert KYC status: {}", dto.getKycStatus());
+                // Default value
+                response.setKycStatus(KYCStatus.PENDING);
             }
         }
-        
-        response.setRegistrationDate(dto.getCreatedAt());
-        response.setLastUpdated(dto.getUpdatedAt());
-        
+
+        if (dto.getCreatedAt() != null) {
+            response.setRegistrationDate(dto.getCreatedAt());
+        }
+
+        if (dto.getUpdatedAt() != null) {
+            response.setLastUpdated(dto.getUpdatedAt());
+        }
+
         return response;
     }
 
@@ -548,11 +614,11 @@ public class CustomerController {
      */
     private Map<String, String> getValidationErrors(BindingResult bindingResult) {
         Map<String, String> errors = new HashMap<>();
-        
-        bindingResult.getFieldErrors().forEach(error -> 
+
+        bindingResult.getFieldErrors().forEach(error ->
             errors.put(error.getField(), error.getDefaultMessage())
         );
-        
+
         return errors;
     }
 

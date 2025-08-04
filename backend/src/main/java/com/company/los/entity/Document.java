@@ -3,7 +3,7 @@ package com.company.los.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
-import org.hibernate.annotations.Where;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -22,7 +22,7 @@ import java.util.UUID;
         @Index(name = "idx_documents_verification_status", columnList = "verification_status")
 })
 @SQLDelete(sql = "UPDATE documents SET is_deleted = true WHERE id = ?")
-@Where(clause = "is_deleted = false")
+@SQLRestriction("is_deleted = false")
 public class Document extends BaseEntity {
 
     // Enum definitions
@@ -63,12 +63,6 @@ public class Document extends BaseEntity {
                 foreignKey = @ForeignKey(name = "fk_document_type"))
     @NotNull(message = "Баримтын төрөл заавал сонгох ёстой")
     private DocumentType documentType;
-
-    // File information (multiple filename fields for compatibility)
-    @Column(name = "file_name", nullable = false, length = 500)
-    @NotBlank(message = "Файлын нэр заавал байх ёстой")
-    @Size(max = 500, message = "Файлын нэр 500 тэмдэгтээс ихгүй байх ёстой")
-    private String fileName;
 
     @Column(name = "original_filename", nullable = false, length = 500)
     @NotBlank(message = "Файлын нэр заавал байх ёстой")
@@ -112,7 +106,6 @@ public class Document extends BaseEntity {
     @Column(name = "previous_document_id", columnDefinition = "VARCHAR(36)")
     private UUID previousDocumentId;
 
-    // Баталгаажуулалтын мэдээлэл
     @Column(name = "verification_status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     @NotNull(message = "Баталгаажуулалтын статус заавал байх ёстой")
@@ -128,20 +121,16 @@ public class Document extends BaseEntity {
     @Column(name = "verification_notes", columnDefinition = "TEXT")
     private String verificationNotes;
 
-    // Additional status field for schema compatibility
     @Column(name = "status", length = 50)
     @Size(max = 50, message = "Статус 50 тэмдэгтээс ихгүй байх ёстой")
     private String status = "PENDING";
 
-    // Хугацаа
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
-    // Шаардлага
     @Column(name = "is_required", nullable = false)
     private Boolean isRequired = false;
 
-    // Боловсруулалтын мэдээлэл
     @Column(name = "processing_status", length = 50)
     @Size(max = 50, message = "Боловсруулалтын статус 50 тэмдэгтээс ихгүй байх ёстой")
     private String processingStatus;
@@ -160,7 +149,6 @@ public class Document extends BaseEntity {
     @DecimalMax(value = "1.0", message = "AI итгэлцлийн оноо 1.0-аас их байж болохгүй")
     private BigDecimal aiConfidenceScore;
 
-    // Илгээх мэдээлэл
     @Column(name = "uploaded_at", nullable = false)
     @NotNull(message = "Илгээсэн огноо заавал байх ёстой")
     private LocalDateTime uploadedAt;
@@ -183,7 +171,6 @@ public class Document extends BaseEntity {
         this();
         this.customer = customer;
         this.documentType = documentType;
-        this.fileName = originalFilename; // Set file_name same as original
         this.originalFilename = originalFilename;
         this.storedFilename = storedFilename;
         this.filePath = filePath;
@@ -235,16 +222,13 @@ public class Document extends BaseEntity {
 
     public String getFileSizeFormatted() {
         if (fileSize == null) return "0 B";
-
         long size = fileSize;
         String[] units = {"B", "KB", "MB", "GB"};
         int unitIndex = 0;
-
         while (size >= 1024 && unitIndex < units.length - 1) {
             size /= 1024;
             unitIndex++;
         }
-
         return String.format("%d %s", size, units[unitIndex]);
     }
 
@@ -293,14 +277,8 @@ public class Document extends BaseEntity {
     public DocumentType getDocumentType() { return documentType; }
     public void setDocumentType(DocumentType documentType) { this.documentType = documentType; }
 
-    public String getFileName() { return fileName; }
-    public void setFileName(String fileName) { this.fileName = fileName; }
-
     public String getOriginalFilename() { return originalFilename; }
-    public void setOriginalFilename(String originalFilename) { 
-        this.originalFilename = originalFilename;
-        this.fileName = originalFilename; // Keep fileName in sync
-    }
+    public void setOriginalFilename(String originalFilename) { this.originalFilename = originalFilename; }
 
     public String getStoredFilename() { return storedFilename; }
     public void setStoredFilename(String storedFilename) { this.storedFilename = storedFilename; }
@@ -377,7 +355,6 @@ public class Document extends BaseEntity {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
 
-    // toString
     @Override
     public String toString() {
         return "Document{" +
