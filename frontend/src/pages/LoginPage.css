@@ -1,5 +1,19 @@
-/* frontend/src/pages/LoginPage.css */
+/* frontend/src/pages/LoginPage.css - ЭЦСИЙН САЙЖРУУЛСАН ХУВИЛБАР */
 
+/**
+ * ⭐ LOGIN PAGE СТАЙЛ - ЭЦСИЙН ХУВИЛБАР ⭐
+ * - Modern responsive design
+ * - Монгол тэмдэглэлийн дэмжлэг
+ * - Animation болон transition effect
+ * - Test хэрэглэгчдийн товч
+ * - Loading state support
+ * @version 2.0 - Хавсаргасан файлаас сайжруулсан
+ * @date 2025-08-06
+ */
+
+/* ================================
+   ҮНДСЭН КОНТЭЙНЕР
+   ================================ */
 .login-container {
   min-height: 100vh;
   display: flex;
@@ -7,275 +21,271 @@
   justify-content: center;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Segoe UI', 'Arial', 'Helvetica', sans-serif;
+  position: relative;
+  overflow: hidden;
 }
 
+/* Background animation */
+.login-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: backgroundMove 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes backgroundMove {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-50px, -50px); }
+}
+
+/* ================================
+   LOGIN BOX
+   ================================ */
 .login-box {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.2);
   padding: 40px;
   width: 100%;
-  max-width: 420px;
-  animation: slideIn 0.6s ease-out;
+  max-width: 450px;
+  animation: slideInUp 0.8s ease-out;
+  position: relative;
+  z-index: 10;
 }
 
-@keyframes slideIn {
+@keyframes slideInUp {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(50px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
+/* ================================
+   ГАРЧИГ
+   ================================ */
 .login-header {
   text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 35px;
 }
 
 .login-header h1 {
   color: #2c3e50;
-  font-size: 2.2em;
+  font-size: 2.4em;
   margin: 0;
   font-weight: 700;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #2c3e50, #667eea);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .login-header h2 {
   color: #7f8c8d;
-  font-size: 1.4em;
-  margin: 10px 0 0 0;
+  font-size: 1.3em;
+  margin: 12px 0 0 0;
   font-weight: 400;
+  opacity: 0.8;
 }
 
-/* Connection Status */
+/* ================================
+   ХОЛБОЛТЫН СТАТУС
+   ================================ */
 .connection-status {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 20px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  margin-bottom: 24px;
   text-align: center;
-  font-weight: 500;
-  font-size: 0.9em;
+  font-weight: 600;
+  font-size: 0.95em;
   transition: all 0.3s ease;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
 }
 
 .connection-status.connected {
-  background-color: #d4edda;
-  border: 1px solid #c3e6cb;
+  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  border-color: #28a745;
   color: #155724;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2);
+}
+
+.connection-status.connected::before {
+  content: '✅';
+  margin-right: 8px;
 }
 
 .connection-status.disconnected {
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
+  background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+  border-color: #dc3545;
   color: #721c24;
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.2);
 }
 
-/* Login Form */
+.connection-status.disconnected::before {
+  content: '❌';
+  margin-right: 8px;
+}
+
+/* ================================
+   LOGIN FORM
+   ================================ */
 .login-form {
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  position: relative;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   color: #2c3e50;
   font-weight: 600;
   font-size: 0.95em;
+  transition: color 0.3s ease;
 }
 
 .form-group input {
   width: 100%;
-  padding: 14px 16px;
+  padding: 16px 20px;
   border: 2px solid #e9ecef;
-  border-radius: 8px;
-  font-size: 1em;
+  border-radius: 12px;
+  font-size: 1.05em;
   transition: all 0.3s ease;
   box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(5px);
 }
 
 .form-group input:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 
+    0 0 0 4px rgba(102, 126, 234, 0.15),
+    0 8px 16px rgba(102, 126, 234, 0.1);
+  transform: translateY(-2px);
+  background: white;
 }
 
 .form-group input:disabled {
   background-color: #f8f9fa;
   cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
 }
 
-/* Error Message */
+/* ================================
+   АЛДААНЫ МЕССЕЖ
+   ================================ */
 .error-message {
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
+  background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+  border: 2px solid #dc3545;
   color: #721c24;
-  padding: 12px 16px;
-  border-radius: 8px;
+  padding: 14px 18px;
+  border-radius: 12px;
   margin-bottom: 20px;
   display: flex;
   align-items: center;
-  animation: shake 0.5s ease-in-out;
+  animation: errorShake 0.6s ease-in-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.error-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  animation: errorShimmer 2s ease-in-out;
 }
 
 .error-icon {
-  margin-right: 8px;
+  margin-right: 12px;
+  font-size: 18px;
 }
 
-@keyframes shake {
+@keyframes errorShake {
   0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+  25% { transform: translateX(-8px); }
+  75% { transform: translateX(8px); }
 }
 
-/* Login Button */
+@keyframes errorShimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ================================
+   LOGIN ТОВЧ
+   ================================ */
 .login-button {
   width: 100%;
-  padding: 16px;
+  padding: 18px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  border-radius: 8px;
-  font-size: 1.1em;
-  font-weight: 600;
+  border-radius: 12px;
+  font-size: 1.15em;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.login-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
 }
 
 .login-button:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(102, 126, 234, 0.5);
 }
 
-.login-button:active {
-  transform: translateY(0);
+.login-button:hover:not(:disabled)::before {
+  left: 100%;
 }
 
-.login-button:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-/* Test Users Section */
-.test-users {
-  border-top: 1px solid #e9ecef;
-  padding-top: 20px;
-  margin-bottom: 20px;
-}
-
-.test-users h3 {
-  color: #2c3e50;
-  font-size: 1.1em;
-  margin-bottom: 15px;
-  text-align: center;
-}
-
-.test-user-buttons {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.test-user-button {
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: left;
-}
-
-.test-user-button:hover:not(:disabled) {
+.login-button:active:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
 }
 
-.test-user-button:disabled {
-  background: #6c757d;
+.login-button:disabled {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
   cursor: not-allowed;
   transform: none;
-}
-
-.test-info {
-  font-size: 0.85em;
-  color: #6c757d;
-  text-align: center;
-  margin: 0;
-  font-style: italic;
-}
-
-/* System Information */
-.system-info {
-  border-top: 1px solid #e9ecef;
-  padding-top: 20px;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  padding: 20px;
-  margin: -20px -40px -40px -40px;
-  margin-top: 20px;
-}
-
-.system-info h4 {
-  color: #2c3e50;
-  font-size: 1em;
-  margin: 0 0 15px 0;
-}
-
-.system-info ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.system-info li {
-  padding: 6px 0;
-  color: #495057;
-  font-size: 0.9em;
-  border-bottom: 1px solid #dee2e6;
-}
-
-.system-info li:last-child {
-  border-bottom: none;
-}
-
-/* Responsive Design */
-@media (max-width: 480px) {
-  .login-container {
-    padding: 10px;
-  }
-  
-  .login-box {
-    padding: 30px 25px;
-  }
-  
-  .login-header h1 {
-    font-size: 1.8em;
-  }
-  
-  .login-header h2 {
-    font-size: 1.2em;
-  }
-  
-  .system-info {
-    margin: 20px -25px -30px -25px;
-  }
-}
-
-/* Loading Animation */
-.login-button:disabled {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   position: relative;
 }
 
@@ -286,14 +296,311 @@
   top: 50%;
   width: 20px;
   height: 20px;
-  margin: -10px 0 0 -10px;
-  border: 2px solid transparent;
-  border-top: 2px solid #ffffff;
+  margin: -10px 0 0 -60px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top: 3px solid white;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: buttonSpin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes buttonSpin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* ================================
+   TEST ХЭРЭГЛЭГЧД
+   ================================ */
+.test-users {
+  border-top: 2px solid rgba(102, 126, 234, 0.2);
+  padding-top: 24px;
+  margin-bottom: 24px;
+  position: relative;
+}
+
+.test-users::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 2px;
+}
+
+.test-users h3 {
+  color: #2c3e50;
+  font-size: 1.15em;
+  margin-bottom: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.test-user-buttons {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.test-user-button {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.test-user-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: width 0.3s ease;
+}
+
+.test-user-button:hover:not(:disabled) {
+  transform: translateX(6px) translateY(-2px);
+  box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+}
+
+.test-user-button:hover:not(:disabled)::before {
+  width: 8px;
+}
+
+.test-user-button:disabled {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.7;
+}
+
+.test-info {
+  font-size: 0.85em;
+  color: #6c757d;
+  text-align: center;
+  margin: 0;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* ================================
+   СИСТЕМИЙН МЭДЭЭЛЭЛ
+   ================================ */
+.system-info {
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px -40px -40px -40px;
+  border-top: 1px solid rgba(102, 126, 234, 0.2);
+  position: relative;
+}
+
+.system-info::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 12px 12px 0 0;
+}
+
+.system-info h4 {
+  color: #2c3e50;
+  font-size: 1.05em;
+  margin: 0 0 18px 0;
+  font-weight: 700;
+}
+
+.system-info ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.system-info li {
+  padding: 8px 0;
+  color: #495057;
+  font-size: 0.9em;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+  transition: color 0.3s ease;
+}
+
+.system-info li:last-child {
+  border-bottom: none;
+}
+
+.system-info li:hover {
+  color: #667eea;
+}
+
+.system-info a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.system-info a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+/* ================================
+   RESPONSIVE DESIGN
+   ================================ */
+@media (max-width: 480px) {
+  .login-container {
+    padding: 15px;
+  }
+
+  .login-box {
+    padding: 30px 25px;
+    border-radius: 16px;
+  }
+
+  .login-header h1 {
+    font-size: 2em;
+  }
+
+  .login-header h2 {
+    font-size: 1.15em;
+  }
+
+  .form-group input {
+    padding: 14px 16px;
+    font-size: 1em;
+  }
+
+  .login-button {
+    padding: 16px;
+    font-size: 1.05em;
+  }
+
+  .test-user-button {
+    padding: 12px 16px;
+    font-size: 0.9em;
+  }
+
+  .system-info {
+    margin: 20px -25px -30px -25px;
+    padding: 20px;
+  }
+}
+
+@media (max-width: 320px) {
+  .login-container {
+    padding: 10px;
+  }
+
+  .login-box {
+    padding: 25px 20px;
+  }
+
+  .login-header h1 {
+    font-size: 1.8em;
+  }
+
+  .connection-status, 
+  .error-message {
+    padding: 12px 14px;
+    font-size: 0.9em;
+  }
+}
+
+/* ================================
+   DARK MODE SUPPORT (Future)
+   ================================ */
+@media (prefers-color-scheme: dark) {
+  .login-container {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  }
+
+  .login-box {
+    background: rgba(44, 62, 80, 0.95);
+    color: #ecf0f1;
+  }
+
+  .login-header h1 {
+    color: #ecf0f1;
+    background: linear-gradient(135deg, #ecf0f1, #667eea);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .login-header h2 {
+    color: #bdc3c7;
+  }
+
+  .form-group label {
+    color: #ecf0f1;
+  }
+
+  .form-group input {
+    background: rgba(52, 73, 94, 0.8);
+    border-color: #34495e;
+    color: #ecf0f1;
+  }
+
+  .form-group input:focus {
+    background: rgba(52, 73, 94, 1);
+  }
+
+  .system-info {
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+  }
+
+  .system-info h4,
+  .system-info li {
+    color: #ecf0f1;
+  }
+}
+
+/* ================================
+   ACCESSIBILITY
+   ================================ */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus indicators for keyboard navigation */
+.login-button:focus,
+.test-user-button:focus,
+.form-group input:focus {
+  outline: 3px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .login-box {
+    border: 2px solid #000;
+  }
+
+  .form-group input {
+    border-color: #000;
+  }
+
+  .login-button {
+    background: #000;
+    border: 2px solid #fff;
+  }
 }

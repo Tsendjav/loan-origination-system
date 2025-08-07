@@ -1,5 +1,14 @@
-// API Configuration and HTTP client setup
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+// frontend/src/config/api.tsx - ЗАСВАРЛАСАН
+import axios, { AxiosInstance, AxiosResponse, AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
+import { message } from 'antd';
+
+// Extend AxiosRequestConfig to include metadata
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  metadata?: {
+    startTime: Date;
+  };
+  __isRetryRequest?: boolean;
+}
 
 // API Base Configuration
 export const API_CONFIG = {
@@ -9,69 +18,109 @@ export const API_CONFIG = {
   RETRY_DELAY: 1000,
 };
 
-// Create axios instance with default config
-const apiClient: AxiosInstance = axios.create({
-  baseURL: API_CONFIG.BASE_URL,
-  timeout: API_CONFIG.TIMEOUT,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  },
-});
+// Type definitions
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  message?: string;
+  timestamp?: string;
+}
 
-// Request interceptor - add auth token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('los_token');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    // Add request timestamp for debugging
-    config.metadata = { startTime: new Date() };
-    
-    console.log(`🚀 API Request: ${config.method?.toUpperCase()} ${config.url}`);
-    return config;
-  },
-  (error) => {
-    console.error('❌ Request Error:', error);
-    return Promise.reject(error);
-  }
-);
+export interface PaginatedResponse<T> {
+  success: boolean;
+  data: {
+    content: T[];
+    page: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+  };
+  message?: string;
+}
 
-// Response interceptor - handle common errors
-apiClient.interceptors.response.use(
-  (response: AxiosResponse) => {
-    // Calculate request duration
-    const duration = new Date().getTime() - response.config.metadata?.startTime?.getTime();
-    console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
-    
-    return response;
-  },
-  (error: AxiosError) => {
-    const duration = new Date().getTime() - error.config?.metadata?.startTime?.getTime();
-    console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} (${duration}ms)`, error.response?.status);
-    
-    // Handle specific error cases
-    if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
-      localStorage.removeItem('los_token');
-      localStorage.removeItem('los_user');
-      window.location.href = '/login';
-    } else if (error.response?.status === 403) {
-      // Forbidden - show error message
-      console.error('Access denied. You do not have permission to access this resource.');
-    } else if (error.response?.status >= 500) {
-      // Server error - show generic message
-      console.error('Server error. Please try again later.');
-    }
-    
-    return Promise.reject(error);
+export interface AuthToken {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  tokenType: string;
+}
+
+// API Client Class
+class ApiClient {
+  private client: AxiosInstance;
+  private refreshTokenPromise: Promise<string | null> | null = null;
+
+  constructor() {
+    this.client = axios.create({
+      baseURL: API_CONFIG.BASE_URL,
+      timeout: API_CONFIG.TIMEOUT,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    });
+
+    this.setupInterceptors();
   }
-);
+
+  private setupInterceptors(): void {
+    // Request interceptor
+    this.client.interceptors.request.use(
+      async (config: InternalAxiosRequestConfig) => {
+        const token = this.getAuthToken();
+        if (token) {
+          config.headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // Add request timestamp for debugging - using type assertion
+        (config as ExtendedAxiosRequestConfig).metadata = { startTime: new Date() };
+
+        console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        return config;
+      },
+      (error) => {
+        console.error('❌ Request Error:', error);
+        return Promise.reject(error);
+      }
+    );
+
+    // Response interceptor
+    this.client.interceptors.response.use(
+      (response: AxiosResponse) => {
+        // Calculate request duration
+        const configExt = response.config as ExtendedAxiosRequestConfig;
+        const duration = new Date().getTime() - (configExt.metadata?.startTime?.getTime() || 0);
+        console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
+
+        return response;
+      },
+      async (error: AxiosError) => {
+        const configExt = error.config as ExtendedAxiosRequestConfig;
+        const duration = new Date().getTime() - (configExt?.metadata?.startTime?.getTime() || 0);
+        console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} (${duration}ms)`, error.response?.status);
+
+        // Handle token refresh for 401 errors
+        if (error.response?.status === 401 && error.config && !(configExt?.__isRetryRequest)) {
+          try {
+            const newToken = await this.refreshToken();
+            if (newToken && error.config) {
+              error.config.headers['Authorization'] = `Bearer ${newToken}`;
+              (configExt).__isRetryRequest = true;
+              return this.client.request(error.config);
+            }
+          } catch (refreshError) {
+            this.handleAuthError();
+          }
+        }
+
+        this.handleError(error);
+        return Promise.reject(error);
+      }
+    );
+  }
 
   private getAuthToken(): string | null {
-    return localStorage.getItem('accessToken');
+    return localStorage.getItem('los_auth_token');
   }
 
   private async refreshToken(): Promise<string | null> {
@@ -79,7 +128,7 @@ apiClient.interceptors.response.use(
       return this.refreshTokenPromise;
     }
 
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = localStorage.getItem('los_refresh_token');
     if (!refreshToken) {
       return null;
     }
@@ -88,10 +137,10 @@ apiClient.interceptors.response.use(
       .post<ApiResponse<AuthToken>>('/auth/refresh', { refreshToken })
       .then((response) => {
         const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-        
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
-        
+
+        localStorage.setItem('los_auth_token', accessToken);
+        localStorage.setItem('los_refresh_token', newRefreshToken);
+
         this.refreshTokenPromise = null;
         return accessToken;
       })
@@ -104,19 +153,21 @@ apiClient.interceptors.response.use(
   }
 
   private handleAuthError(): void {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    
+    localStorage.removeItem('los_auth_token');
+    localStorage.removeItem('los_refresh_token');
+    localStorage.removeItem('los_user_info');
+
     // Login хуудас руу чиглүүлэх
     window.location.href = '/login';
-    
-    message.error('Нэвтрэх эрх дууссан. Дахин нэвтэрнэ үү.');
+
+    if (typeof message !== 'undefined') {
+      message.error('Нэвтрэх эрх дууссан. Дахин нэвтэрнэ үү.');
+    }
   }
 
   private handleError(error: AxiosError): void {
     const response = error.response;
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.error(`❌ ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
         status: response?.status,
@@ -126,20 +177,23 @@ apiClient.interceptors.response.use(
     }
 
     // Алдааны мэдээллийг хэрэглэгчид харуулах
-    if (response?.data?.message) {
-      message.error(response.data.message);
-    } else if (response?.status === 500) {
-      message.error('Серверийн алдаа гарлаа. Дахин оролдоно уу.');
-    } else if (response?.status === 404) {
-      message.error('Хүссэн мэдээлэл олдсонгүй.');
-    } else if (response?.status === 403) {
-      message.error('Энэ үйлдлийг хийх эрхгүй байна.');
-    } else if (error.code === 'ECONNABORTED') {
-      message.error('Хүсэлтийн хугацаа дууссан. Дахин оролдоно уу.');
-    } else if (!navigator.onLine) {
-      message.error('Интернэт холболт тасарсан байна.');
-    } else {
-      message.error('Алдаа гарлаа. Дахин оролдоно уу.');
+    if (typeof message !== 'undefined') {
+      const responseData = response?.data as any;
+      if (responseData?.message) {
+        message.error(responseData.message);
+      } else if (response?.status === 500) {
+        message.error('Серверийн алдаа гарлаа. Дахин оролдоно уу.');
+      } else if (response?.status === 404) {
+        message.error('Хүссэн мэдээлэл олдсонгүй.');
+      } else if (response?.status === 403) {
+        message.error('Энэ үйлдлийг хийх эрхгүй байна.');
+      } else if (error.code === 'ECONNABORTED') {
+        message.error('Хүсэлтийн хугацаа дууссан. Дахин оролдоно уу.');
+      } else if (!navigator.onLine) {
+        message.error('Интернэт холболт тасарсан байна.');
+      } else {
+        message.error('Алдаа гарлаа. Дахин оролдоно уу.');
+      }
     }
   }
 
@@ -219,12 +273,12 @@ export const api = {
   auth: {
     login: (credentials: { username: string; password: string }) =>
       apiClient.post<AuthToken>('/auth/login', credentials),
-    
+
     logout: () => apiClient.post('/auth/logout'),
-    
+
     refreshToken: (refreshToken: string) =>
       apiClient.post<AuthToken>('/auth/refresh', { refreshToken }),
-    
+
     getCurrentUser: () => apiClient.get<any>('/auth/me'),
   },
 

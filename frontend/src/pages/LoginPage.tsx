@@ -1,4 +1,4 @@
-// frontend/src/pages/LoginPage.tsx
+// frontend/src/pages/LoginPage.tsx - ЗАСВАРЛАСАН
 import React, { useState, useEffect } from 'react';
 import authService, { TEST_USERS } from '../services/authService';
 import './LoginPage.css';
@@ -8,6 +8,12 @@ interface LoginFormData {
   password: string;
 }
 
+interface ConnectionStatus {
+  success: boolean;
+  message: string;
+  endpoint?: string;
+}
+
 const LoginPage: React.FC = () => {
   const [formData, setFormData] = useState<LoginFormData>({
     username: '',
@@ -15,15 +21,17 @@ const LoginPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
 
   // Backend холболт шалгах
   useEffect(() => {
     const checkConnection = async () => {
+      console.log('🔍 Checking backend connection...');
       const isConnected = await authService.testConnection();
+      console.log('🔗 Connection status:', isConnected);
       setConnectionStatus(isConnected);
     };
-    
+
     checkConnection();
   }, []);
 
@@ -34,7 +42,7 @@ const LoginPage: React.FC = () => {
       ...prev,
       [name]: value
     }));
-    
+
     // Алдаа цэвэрлэх
     if (error) {
       setError(null);
@@ -44,7 +52,7 @@ const LoginPage: React.FC = () => {
   // Нэвтрэх үйлдэл
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.username || !formData.password) {
       setError('Хэрэглэгчийн нэр болон нууц үгээ оруулна уу');
       return;
@@ -54,16 +62,18 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     try {
+      console.log('🚀 Starting login process...');
       const response = await authService.login(formData);
-      
+
       if (response.success) {
+        console.log('✅ Login successful, redirecting...');
         // Амжилттай нэвтэрсэн - dashboard луу шилжих
         window.location.href = '/dashboard';
       } else {
         setError(response.message || 'Нэвтрэх амжилтгүй');
       }
     } catch (error: any) {
-      console.error('Нэвтрэх алдаа:', error);
+      console.error('❌ Login error:', error);
       setError(error.message || 'Серверт холбогдох алдаа гарлаа');
     } finally {
       setLoading(false);
@@ -72,15 +82,34 @@ const LoginPage: React.FC = () => {
 
   // Тест хэрэглэгчээр нэвтрэх
   const handleTestLogin = async (testUser: typeof TEST_USERS[0]) => {
+    console.log('🧪 Test login with:', testUser.username);
+
     setFormData({
       username: testUser.username,
       password: testUser.password
     });
-    
-    // Автомат нэвтрэх
-    setTimeout(() => {
-      handleSubmit(new Event('submit') as any);
-    }, 100);
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await authService.login({
+        username: testUser.username,
+        password: testUser.password
+      });
+
+      if (response.success) {
+        console.log('✅ Test login successful');
+        window.location.href = '/dashboard';
+      } else {
+        setError(response.message || 'Тест нэвтрэлт амжилтгүй');
+      }
+    } catch (error: any) {
+      console.error('❌ Test login failed:', error);
+      setError(error.message || 'Тест нэвтрэлтэд алдаа гарлаа');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -92,10 +121,10 @@ const LoginPage: React.FC = () => {
         </div>
 
         {/* Backend холболтын статус */}
-        <div className={`connection-status ${connectionStatus ? 'connected' : 'disconnected'}`}>
+        <div className={`connection-status ${connectionStatus?.success ? 'connected' : 'disconnected'}`}>
           {connectionStatus === null ? (
             <span>🔄 Холболт шалгаж байна...</span>
-          ) : connectionStatus ? (
+          ) : connectionStatus.success ? (
             <span>✅ Backend холбогдсон</span>
           ) : (
             <span>❌ Backend холбогдоогүй (http://localhost:8080)</span>
@@ -133,7 +162,7 @@ const LoginPage: React.FC = () => {
               name="password"
               value={formData.password}
               onChange={handleInputChange}
-              placeholder="••••••"
+              placeholder="••••"
               disabled={loading}
               autoComplete="current-password"
             />
@@ -142,7 +171,7 @@ const LoginPage: React.FC = () => {
           <button 
             type="submit" 
             className="login-button"
-            disabled={loading || !connectionStatus}
+            disabled={loading || !connectionStatus?.success}
           >
             {loading ? '🔄 Нэвтрэж байна...' : '🔐 Нэвтрэх'}
           </button>
@@ -152,12 +181,12 @@ const LoginPage: React.FC = () => {
         <div className="test-users">
           <h3>Тест хэрэглэгчид:</h3>
           <div className="test-user-buttons">
-            {TEST_USERS.map((user) => (
+            {TEST_USERS.map((user: any) => (
               <button
                 key={user.username}
                 onClick={() => handleTestLogin(user)}
                 className="test-user-button"
-                disabled={loading || !connectionStatus}
+                disabled={loading || !connectionStatus?.success}
                 title={`${user.username} / ${user.password}`}
               >
                 👤 {user.username} ({user.role})

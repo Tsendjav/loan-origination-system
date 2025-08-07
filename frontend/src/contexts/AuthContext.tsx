@@ -1,5 +1,47 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
-import apiClient, { API_ENDPOINTS } from '../config/api';
+// Fix API_ENDPOINTS import - create a proper API client interface
+interface ApiClient {
+  get: (endpoint: string) => Promise<{ data: any }>;
+  post: (endpoint: string, data?: any) => Promise<{ data: any }>;
+}
+
+// Create API endpoints constants
+const API_ENDPOINTS = {
+  AUTH: {
+    PROFILE: '/auth/me',
+    LOGIN: '/auth/login', 
+    LOGOUT: '/auth/logout',
+    REFRESH: '/auth/refresh'
+  }
+};
+
+// Mock API client - replace with actual implementation
+const createApiClient = (): ApiClient => ({
+  get: async (endpoint: string) => {
+    // Mock implementation
+    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8080/los/api/v1'}${endpoint}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('los_token')}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    return { data: await response.json() };
+  },
+  post: async (endpoint: string, data?: any) => {
+    // Mock implementation
+    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8080/los/api/v1'}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('los_token')}`,
+        'Content-Type': 'application/json'
+      },
+      body: data ? JSON.stringify(data) : undefined
+    });
+    return { data: await response.json() };
+  }
+});
+
+const apiClient = createApiClient();
 
 // User and Auth types
 export interface User {

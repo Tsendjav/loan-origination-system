@@ -57,7 +57,7 @@ class HealthService {
       
       try {
         // Try simple health as fallback
-        const simpleResult = await apiClient.get(ENDPOINTS.HEALTH.SIMPLE);
+        await apiClient.get(ENDPOINTS.HEALTH.SIMPLE);
         
         // Create a mock health status
         const mockStatus: HealthStatus = {

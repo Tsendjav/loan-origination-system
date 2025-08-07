@@ -9,10 +9,27 @@ interface HeaderProps {
   sidebarCollapsed: boolean;
 }
 
+interface SearchResult {
+  type: string;
+  id: number;
+  title: string;
+  description: string;
+}
+
+interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  time: string;
+  type: string;
+  unread: boolean;
+}
+
 const Header: React.FC<HeaderProps> = ({ 
   onToggleSidebar, 
   sidebarOpen, 
-  sidebarCollapsed 
+  // sidebarCollapsed parameter is received but not used, commenting out to avoid TS error
+  // sidebarCollapsed 
 }) => {
   const { state, logout } = useAuth();
   const navigate = useNavigate();
@@ -20,7 +37,7 @@ const Header: React.FC<HeaderProps> = ({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -73,7 +90,7 @@ const Header: React.FC<HeaderProps> = ({
     try {
       // Implement global search functionality
       // This could search across customers, loans, documents, etc.
-      const mockResults = [
+      const mockResults: SearchResult[] = [
         { type: 'customer', id: 1, title: 'Батбаяр Болд', description: 'Харилцагч' },
         { type: 'loan', id: 1, title: 'Зээлийн хүсэлт #001', description: 'Хувийн зээл' },
         { type: 'document', id: 1, title: 'Иргэний үнэмлэх', description: 'Баримт бичиг' },
@@ -105,7 +122,7 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   // Mock notifications
-  const notifications = [
+  const notifications: Notification[] = [
     {
       id: 1,
       title: 'Шинэ зээлийн хүсэлт',
@@ -209,7 +226,7 @@ const Header: React.FC<HeaderProps> = ({
             {searchResults.length > 0 && (
               <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                 <div className="py-1">
-                  {searchResults.map((result: any) => (
+                  {searchResults.map((result) => (
                     <button
                       key={`${result.type}-${result.id}`}
                       onClick={() => {

@@ -1,81 +1,55 @@
-import apiClient, { API_ENDPOINTS, apiUtils, PaginatedResponse } from '../config/api';
+// customerService.ts - FIXED VERSION
+import { apiClient } from './apiClient';
 
-// Customer interfaces
-export interface Customer {
-  id?: number;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  dateOfBirth: string;
-  socialSecurityNumber: string;
-  address: Address;
-  employmentInfo: EmploymentInfo;
-  creditScore?: number;
-  customerType: CustomerType;
-  status: CustomerStatus;
-  registrationDate?: string;
-  lastUpdated?: string;
-  kycStatus: KYCStatus;
-  riskLevel: RiskLevel;
-  preferredLanguage: string;
-  communicationPreferences: CommunicationPreferences;
-}
+// Import types from our fixed type definitions
+import {
+  Customer,
+  CustomerType,
+  CustomerStatus,
+  KycStatus,
+  RiskLevel,
+  Address,
+  PaginatedResponse,
+  ValidationError
+} from '../types';
 
-export interface Address {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-  addressType: 'PRIMARY' | 'SECONDARY' | 'WORK';
-}
+// Fixed API endpoints - create proper structure
+const API_ENDPOINTS = {
+  CUSTOMERS: {
+    BASE: '/customers',
+    BY_ID: (id: string) => `/customers/${id}`,
+    SEARCH: '/customers/search',
+    VALIDATE: '/customers/validate',
+    BY_EMAIL: (email: string) => `/customers/by-email/${email}`,
+    EXISTS: '/customers/exists'
+  }
+};
 
-export interface EmploymentInfo {
-  employerName: string;
-  jobTitle: string;
-  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'SELF_EMPLOYED' | 'UNEMPLOYED';
-  monthlyIncome: number;
-  employmentStartDate: string;
-  workPhone?: string;
-  workAddress?: Address;
-}
-
-export interface CommunicationPreferences {
-  emailNotifications: boolean;
-  smsNotifications: boolean;
-  phoneNotifications: boolean;
-  marketingConsent: boolean;
-  preferredContactTime: 'MORNING' | 'AFTERNOON' | 'EVENING' | 'ANYTIME';
-}
-
-export enum CustomerType {
-  INDIVIDUAL = 'INDIVIDUAL',
-  BUSINESS = 'BUSINESS',
-  VIP = 'VIP',
-}
-
-export enum CustomerStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-}
-
-export enum KYCStatus {
-  NOT_STARTED = 'NOT_STARTED',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  REJECTED = 'REJECTED',
-  EXPIRED = 'EXPIRED',
-}
-
-export enum RiskLevel {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-  VERY_HIGH = 'VERY_HIGH',
-}
+// API utilities - create proper implementation
+const apiUtils = {
+  buildParams: (params: Record<string, any>): string => {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.set(key, value.toString());
+      }
+    });
+    return searchParams.toString();
+  },
+  
+  handleResponse: <T>(response: any): T => {
+    // Handle different response formats
+    if (response?.data) {
+      return response.data;
+    }
+    return response;
+  },
+  
+  handleError: (error: any): never => {
+    console.error('API Error:', error);
+    throw error;
+  }
+};
 
 // Search and filter interfaces
 export interface CustomerSearchParams {
@@ -86,7 +60,7 @@ export interface CustomerSearchParams {
   phone?: string;
   customerType?: CustomerType;
   status?: CustomerStatus;
-  kycStatus?: KYCStatus;
+  kycStatus?: KycStatus;
   riskLevel?: RiskLevel;
   registrationDateFrom?: string;
   registrationDateTo?: string;
@@ -105,12 +79,6 @@ export interface CustomerValidationRequest {
 export interface CustomerValidationResponse {
   valid: boolean;
   errors: ValidationError[];
-}
-
-export interface ValidationError {
-  field: string;
-  message: string;
-  code: string;
 }
 
 // Customer statistics
@@ -133,42 +101,42 @@ class CustomerService {
       const response = await apiClient.get(url);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Get customer by ID
-  async getCustomerById(id: number): Promise<Customer> {
+  async getCustomerById(id: string): Promise<Customer> {
     try {
       const response = await apiClient.get(API_ENDPOINTS.CUSTOMERS.BY_ID(id));
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Create new customer
-  async createCustomer(customer: Omit<Customer, 'id' | 'registrationDate' | 'lastUpdated'>): Promise<Customer> {
+  async createCustomer(customer: Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>): Promise<Customer> {
     try {
       const response = await apiClient.post(API_ENDPOINTS.CUSTOMERS.BASE, customer);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Update existing customer
-  async updateCustomer(id: number, customer: Partial<Customer>): Promise<Customer> {
+  async updateCustomer(id: string, customer: Partial<Customer>): Promise<Customer> {
     try {
       const response = await apiClient.put(API_ENDPOINTS.CUSTOMERS.BY_ID(id), customer);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Delete customer
-  async deleteCustomer(id: number): Promise<void> {
+  async deleteCustomer(id: string): Promise<void> {
     try {
       await apiClient.delete(API_ENDPOINTS.CUSTOMERS.BY_ID(id));
     } catch (error: any) {
@@ -185,7 +153,7 @@ class CustomerService {
       const response = await apiClient.get(url);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
@@ -195,7 +163,7 @@ class CustomerService {
       const response = await apiClient.post(API_ENDPOINTS.CUSTOMERS.VALIDATE, data);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
@@ -205,46 +173,40 @@ class CustomerService {
       const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.BASE}/stats`);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Upload customer document
-  async uploadDocument(customerId: number, file: File, documentType: string): Promise<any> {
+  async uploadDocument(customerId: string, file: File, documentType: string): Promise<any> {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('customerId', customerId.toString());
-      formData.append('documentType', documentType);
-
-      const response = await apiClient.post(
+      const response = await apiClient.uploadFile(
         `${API_ENDPOINTS.CUSTOMERS.BY_ID(customerId)}/documents`,
-        formData,
+        file,
         {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          customerId: customerId,
+          documentType: documentType
         }
       );
       
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Get customer documents
-  async getCustomerDocuments(customerId: number): Promise<any[]> {
+  async getCustomerDocuments(customerId: string): Promise<any[]> {
     try {
       const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.BY_ID(customerId)}/documents`);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Update customer status
-  async updateCustomerStatus(id: number, status: CustomerStatus): Promise<Customer> {
+  async updateCustomerStatus(id: string, status: CustomerStatus): Promise<Customer> {
     try {
       const response = await apiClient.patch(
         `${API_ENDPOINTS.CUSTOMERS.BY_ID(id)}/status`,
@@ -252,12 +214,12 @@ class CustomerService {
       );
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Update KYC status
-  async updateKYCStatus(id: number, kycStatus: KYCStatus): Promise<Customer> {
+  async updateKYCStatus(id: string, kycStatus: KycStatus): Promise<Customer> {
     try {
       const response = await apiClient.patch(
         `${API_ENDPOINTS.CUSTOMERS.BY_ID(id)}/kyc-status`,
@@ -265,17 +227,17 @@ class CustomerService {
       );
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Get customer activity log
-  async getCustomerActivity(customerId: number): Promise<any[]> {
+  async getCustomerActivity(customerId: string): Promise<any[]> {
     try {
       const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.BY_ID(customerId)}/activity`);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
@@ -283,20 +245,22 @@ class CustomerService {
   async exportCustomers(params: CustomerSearchParams = {}): Promise<Blob> {
     try {
       const queryParams = apiUtils.buildParams(params);
-      const url = `${API_ENDPOINTS.CUSTOMERS.BASE}/export?${queryParams}`;
-      
-      const response = await apiClient.get(url, {
-        responseType: 'blob',
-      });
-      
+      const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.BASE}/export?${queryParams}`);
       return response.data;
+      
+      // Create a mock CSV blob for now
+      const csvContent = 'Name,Email,Phone,Status\n' +
+        'John Doe,john@example.com,123-456-7890,ACTIVE\n' +
+        'Jane Smith,jane@example.com,098-765-4321,INACTIVE';
+      
+      return new Blob([csvContent], { type: 'text/csv' });
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
   // Bulk update customers
-  async bulkUpdateCustomers(customerIds: number[], updates: Partial<Customer>): Promise<void> {
+  async bulkUpdateCustomers(customerIds: string[], updates: Partial<Customer>): Promise<void> {
     try {
       await apiClient.patch(`${API_ENDPOINTS.CUSTOMERS.BASE}/bulk-update`, {
         customerIds,
@@ -310,13 +274,13 @@ class CustomerService {
   // Get customer by email
   async getCustomerByEmail(email: string): Promise<Customer | null> {
     try {
-      const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.BASE}/by-email/${email}`);
+      const response = await apiClient.get(API_ENDPOINTS.CUSTOMERS.BY_EMAIL(email));
       return apiUtils.handleResponse(response);
     } catch (error: any) {
       if (error.response?.status === 404) {
         return null;
       }
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 
@@ -325,10 +289,10 @@ class CustomerService {
     try {
       const params = { email, phone };
       const queryParams = apiUtils.buildParams(params);
-      const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.BASE}/exists?${queryParams}`);
+      const response = await apiClient.get(`${API_ENDPOINTS.CUSTOMERS.EXISTS}?${queryParams}`);
       return apiUtils.handleResponse(response);
     } catch (error: any) {
-      apiUtils.handleError(error);
+      return apiUtils.handleError(error);
     }
   }
 }
@@ -341,12 +305,21 @@ export default customerService;
 export const customerUtils = {
   // Format customer name
   getFullName: (customer: Customer): string => {
-    return `${customer.firstName} ${customer.lastName}`.trim();
+    if (customer.customerType === CustomerType.INDIVIDUAL) {
+      return `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
+    }
+    return customer.companyName || '';
   },
 
   // Format customer address
   formatAddress: (address: Address): string => {
-    return `${address.street}, ${address.city}, ${address.state} ${address.zipCode}`;
+    const parts = [
+      address.street,
+      address.city,
+      address.state,
+      address.postalCode
+    ].filter(Boolean);
+    return parts.join(', ');
   },
 
   // Calculate customer age
@@ -365,22 +338,25 @@ export const customerUtils = {
 
   // Get status color for UI
   getStatusColor: (status: CustomerStatus): string => {
-    const colors = {
+    const colors: Record<CustomerStatus, string> = {
       [CustomerStatus.ACTIVE]: 'green',
       [CustomerStatus.INACTIVE]: 'gray',
       [CustomerStatus.SUSPENDED]: 'red',
+      [CustomerStatus.BLOCKED]: 'red',
       [CustomerStatus.PENDING_VERIFICATION]: 'yellow',
     };
     return colors[status] || 'gray';
   },
 
+
   // Get risk level color
   getRiskLevelColor: (riskLevel: RiskLevel): string => {
-    const colors = {
+    const colors: Record<RiskLevel, string> = {
       [RiskLevel.LOW]: 'green',
       [RiskLevel.MEDIUM]: 'yellow',
       [RiskLevel.HIGH]: 'orange',
-      [RiskLevel.VERY_HIGH]: 'red',
+      [RiskLevel.CRITICAL]: 'red',
+      [RiskLevel.VERY_HIGH]: 'darkred',
     };
     return colors[riskLevel] || 'gray';
   },
@@ -389,33 +365,38 @@ export const customerUtils = {
   validateCustomerData: (customer: Partial<Customer>): ValidationError[] => {
     const errors: ValidationError[] = [];
 
-    if (!customer.firstName?.trim()) {
-      errors.push({
-        field: 'firstName',
-        message: 'Нэр заавал бөглөх ёстой',
-        code: 'REQUIRED',
-      });
-    }
+    if (customer.customerType === CustomerType.INDIVIDUAL) {
+      if (!customer.firstName?.trim()) {
+        errors.push({
+          field: 'firstName',
+          message: 'Нэр заавал бөглөх ёстой',
+        });
+      }
 
-    if (!customer.lastName?.trim()) {
-      errors.push({
-        field: 'lastName',
-        message: 'Овог заавал бөглөх ёстой',
-        code: 'REQUIRED',
-      });
+      if (!customer.lastName?.trim()) {
+        errors.push({
+          field: 'lastName',
+          message: 'Овог заавал бөглөх ёстой',
+        });
+      }
+    } else if (customer.customerType === CustomerType.BUSINESS) {
+      if (!customer.companyName?.trim()) {
+        errors.push({
+          field: 'companyName',
+          message: 'Байгууллагын нэр заавал бөглөх ёстой',
+        });
+      }
     }
 
     if (!customer.email?.trim()) {
       errors.push({
         field: 'email',
         message: 'И-мэйл хаяг заавал бөглөх ёстой',
-        code: 'REQUIRED',
       });
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) {
       errors.push({
         field: 'email',
         message: 'И-мэйл хаягийн формат буруу байна',
-        code: 'INVALID_FORMAT',
       });
     }
 
@@ -423,7 +404,13 @@ export const customerUtils = {
       errors.push({
         field: 'phone',
         message: 'Утасны дугаар заавал бөглөх ёстой',
-        code: 'REQUIRED',
+      });
+    }
+
+    if (!customer.registerNumber?.trim()) {
+      errors.push({
+        field: 'registerNumber',
+        message: 'Регистрийн дугаар заавал бөглөх ёстой',
       });
     }
 

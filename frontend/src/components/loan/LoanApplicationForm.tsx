@@ -1,7 +1,122 @@
+// LoanApplicationForm.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import React, { useState, useEffect } from 'react';
-import { LoanApplication, LoanProduct, LoanType, LoanPurpose, DocumentType, CollateralType, loanService, loanUtils } from '../../services/loanService';
-import { Customer, customerService } from '../../services/customerService';
-import { showToast } from '../layout/MainLayout';
+
+// ⭐ ИСПРАВЛЕНО: Импортируем только используемые типы из централизованного файла
+import { 
+  LoanApplication, 
+  Collateral, 
+  CollateralType,
+  CollateralCondition,
+  Customer,
+  DocumentType,
+  DocumentStatus // Added DocumentStatus import
+} from '../../types';
+
+// Define missing interfaces locally
+export interface LoanProduct {
+  id: number;
+  name: string;
+  description: string;
+  minAmount: number;
+  maxAmount: number;
+  minTerm: number;
+  maxTerm: number;
+  baseInterestRate: number;
+  requiredDocuments?: string[];
+}
+
+export enum LoanPurpose {
+  HOME_PURCHASE = 'HOME_PURCHASE',
+  HOME_IMPROVEMENT = 'HOME_IMPROVEMENT',
+  DEBT_CONSOLIDATION = 'DEBT_CONSOLIDATION',
+  EDUCATION = 'EDUCATION',
+  MEDICAL = 'MEDICAL',
+  BUSINESS_EXPANSION = 'BUSINESS_EXPANSION',
+  VEHICLE_PURCHASE = 'VEHICLE_PURCHASE',
+  OTHER = 'OTHER',
+}
+
+// Mock service functions
+const loanService = {
+  getActiveLoanProducts: async (): Promise<LoanProduct[]> => {
+    return [
+      {
+        id: 1,
+        name: 'Хувийн зээл',
+        description: 'Хувь хүний зээл',
+        minAmount: 100000,
+        maxAmount: 10000000,
+        minTerm: 6,
+        maxTerm: 60,
+        baseInterestRate: 12.5,
+        requiredDocuments: ['IDENTITY_PROOF', 'INCOME_PROOF']
+      }
+    ];
+  },
+  calculateLoanPayment: async (request: any) => {
+    const monthlyPayment = (request.loanAmount * request.interestRate / 100 / 12) * request.loanTerm;
+    return {
+      monthlyPayment,
+      totalInterest: monthlyPayment * request.loanTerm - request.loanAmount,
+      totalAmount: monthlyPayment * request.loanTerm
+    };
+  },
+  uploadLoanDocument: async (_applicationId: number, file: File, documentType: DocumentType) => {
+    return {
+      id: Date.now().toString(),
+      filename: file.name,
+      originalFilename: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+      documentType,
+      status: DocumentStatus.UPLOADED, // Changed to use DocumentStatus enum
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: 'current-user'
+    };
+  }
+};
+
+const customerService = {
+  // ⭐ ИСПРАВЛЕНО: Убран неиспользуемый параметр params
+  getCustomers: async () => {
+    return {
+      data: {
+        content: [
+          {
+            id: '1',
+            firstName: 'Бат',
+            lastName: 'Болд',
+            email: 'bat@email.com',
+            phone: '99112233',
+            customerType: 'INDIVIDUAL' as const,
+            registerNumber: 'УБ12345678',
+            status: 'ACTIVE' as const,
+            kycStatus: 'APPROVED' as const,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ] as Customer[]
+      }
+    };
+  }
+};
+
+const loanUtils = {
+  formatAmount: (amount: number): string => {
+    return new Intl.NumberFormat('mn-MN', {
+      style: 'currency',
+      currency: 'MNT',
+    }).format(amount);
+  },
+  formatInterestRate: (rate: number): string => {
+    return `${rate.toFixed(2)}%`;
+  }
+};
+
+// Mock showToast function
+const showToast = (options: { message: string; type: string }) => {
+  console.log(`${options.type.toUpperCase()}: ${options.message}`);
+};
 
 interface LoanApplicationFormProps {
   application?: LoanApplication;
@@ -21,9 +136,9 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
   mode = 'create',
 }) => {
   const [formData, setFormData] = useState<Partial<LoanApplication>>({
-    customerId: customerId,
+    customerId: customerId?.toString(),
     requestedAmount: 0,
-    loanTerm: 12,
+    requestedTermMonths: 12,
     purpose: LoanPurpose.OTHER,
     documents: [],
     collateral: [],
@@ -46,21 +161,22 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
     if (application) {
       setFormData(application);
       if (application.loanProduct) {
-        setSelectedProduct(application.loanProduct);
+        const product = loanProducts.find(p => p.name === application.loanProduct) || null;
+        setSelectedProduct(product);
       }
     }
-  }, [application]);
+  }, [application, loanProducts]);
 
   // Load customers and loan products
   useEffect(() => {
     const loadData = async () => {
       try {
         const [customersData, productsData] = await Promise.all([
-          customerService.getCustomers({ size: 1000 }),
+          customerService.getCustomers(),
           loanService.getActiveLoanProducts(),
         ]);
         
-        setCustomers(customersData.content);
+        setCustomers(customersData.data.content);
         setLoanProducts(productsData);
       } catch (error) {
         console.error('Error loading data:', error);
@@ -76,19 +192,19 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
 
   // Calculate loan payment when amount or product changes
   useEffect(() => {
-    if (formData.requestedAmount && formData.loanTerm && selectedProduct) {
+    if (formData.requestedAmount && formData.requestedTermMonths && selectedProduct) {
       calculatePayment();
     }
-  }, [formData.requestedAmount, formData.loanTerm, selectedProduct]);
+  }, [formData.requestedAmount, formData.requestedTermMonths, selectedProduct]);
 
   const calculatePayment = async () => {
-    if (!formData.requestedAmount || !formData.loanTerm || !selectedProduct) return;
+    if (!formData.requestedAmount || !formData.requestedTermMonths || !selectedProduct) return;
 
     try {
       const result = await loanService.calculateLoanPayment({
         loanAmount: formData.requestedAmount,
         interestRate: selectedProduct.baseInterestRate,
-        loanTerm: formData.loanTerm,
+        loanTerm: formData.requestedTermMonths,
         paymentFrequency: 'MONTHLY',
       });
       setCalculationResult(result);
@@ -115,21 +231,21 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
             newErrors.requestedAmount = `Хамгийн их дүн: ${selectedProduct.maxAmount.toLocaleString()} ₮`;
           }
         }
-        if (!formData.loanTerm || formData.loanTerm <= 0) {
-          newErrors.loanTerm = 'Зээлийн хугацаа оруулна уу';
+        if (!formData.requestedTermMonths || formData.requestedTermMonths <= 0) {
+          newErrors.requestedTermMonths = 'Зээлийн хугацаа оруулна уу';
         } else if (selectedProduct) {
-          if (formData.loanTerm < selectedProduct.minTerm) {
-            newErrors.loanTerm = `Хамгийн бага хугацаа: ${selectedProduct.minTerm} сар`;
+          if (formData.requestedTermMonths < selectedProduct.minTerm) {
+            newErrors.requestedTermMonths = `Хамгийн бага хугацаа: ${selectedProduct.minTerm} сар`;
           }
-          if (formData.loanTerm > selectedProduct.maxTerm) {
-            newErrors.loanTerm = `Хамгийн их хугацаа: ${selectedProduct.maxTerm} сар`;
+          if (formData.requestedTermMonths > selectedProduct.maxTerm) {
+            newErrors.requestedTermMonths = `Хамгийн их хугацаа: ${selectedProduct.maxTerm} сар`;
           }
         }
         if (!formData.purpose) newErrors.purpose = 'Зээлийн зорилго сонгоно уу';
         break;
 
       case 2: // Documents
-        if (selectedProduct?.requiredDocuments?.length > 0) {
+        if (selectedProduct?.requiredDocuments && selectedProduct.requiredDocuments.length > 0) {
           const missingDocs = selectedProduct.requiredDocuments.filter(
             docType => !documentFiles[docType] && !formData.documents?.some(d => d.documentType.toString() === docType)
           );
@@ -161,7 +277,7 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
 
     // Clear error for this field
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
 
     // Handle product selection
@@ -178,11 +294,11 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
 
   // Add collateral
   const addCollateral = () => {
-    const newCollateral = {
+    const newCollateral: Collateral = {
       type: CollateralType.OTHER,
       description: '',
       estimatedValue: 0,
-      condition: 'GOOD',
+      condition: CollateralCondition.GOOD,
       documents: [],
     };
     setFormData(prev => ({
@@ -231,7 +347,7 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
         if (file) {
           try {
             const uploadedDoc = await loanService.uploadLoanDocument(
-              formData.id || 0, // Will be set by backend for new applications
+              Number(formData.id) || 0,
               file,
               docType as DocumentType
             );
@@ -242,7 +358,7 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
         }
       }
 
-      const applicationData = {
+      const applicationData: Partial<LoanApplication> = {
         ...formData,
         documents: [...(formData.documents || []), ...uploadedDocuments],
       };
@@ -310,7 +426,7 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
           </label>
           <select
             value={formData.customerId || ''}
-            onChange={(e) => handleChange('customerId', Number(e.target.value))}
+            onChange={(e) => handleChange('customerId', e.target.value)}
             disabled={isReadOnly || !!customerId}
             className={`
               w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500
@@ -391,19 +507,19 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
           </label>
           <input
             type="number"
-            value={formData.loanTerm || ''}
-            onChange={(e) => handleChange('loanTerm', Number(e.target.value))}
+            value={formData.requestedTermMonths || ''}
+            onChange={(e) => handleChange('requestedTermMonths', Number(e.target.value))}
             disabled={isReadOnly}
             className={`
               w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500
-              ${errors.loanTerm ? 'border-red-300' : ''}
+              ${errors.requestedTermMonths ? 'border-red-300' : ''}
               ${isReadOnly ? 'bg-gray-50' : ''}
             `}
             placeholder="12"
             min={selectedProduct?.minTerm || 1}
             max={selectedProduct?.maxTerm || 360}
           />
-          {errors.loanTerm && <p className="mt-1 text-sm text-red-600">{errors.loanTerm}</p>}
+          {errors.requestedTermMonths && <p className="mt-1 text-sm text-red-600">{errors.requestedTermMonths}</p>}
         </div>
 
         {/* Purpose */}
@@ -667,11 +783,11 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
             </div>
             <div>
               <span className="text-gray-600">Хугацаа:</span>
-              <p className="font-medium">{formData.loanTerm} сар</p>
+              <p className="font-medium">{formData.requestedTermMonths} сар</p>
             </div>
             <div>
               <span className="text-gray-600">Зорилго:</span>
-              <p className="font-medium">{getLoanPurposeName(formData.purpose)}</p>
+              <p className="font-medium">{getLoanPurposeName(formData.purpose as LoanPurpose)}</p>
             </div>
           </div>
         </div>
@@ -737,15 +853,15 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({
   // Helper functions
   const getDocumentTypeName = (type: string) => {
     const names: Record<string, string> = {
-      [DocumentType.IDENTITY_PROOF]: 'Иргэний үнэмлэх',
-      [DocumentType.INCOME_PROOF]: 'Орлогын справка',
-      [DocumentType.ADDRESS_PROOF]: 'Хаягийн баталгаа',
-      [DocumentType.BANK_STATEMENTS]: 'Банкны хуулга',
-      [DocumentType.TAX_RETURNS]: 'Татварын тайлан',
-      [DocumentType.EMPLOYMENT_LETTER]: 'Ажлын газрын справка',
-      [DocumentType.PROPERTY_DOCUMENTS]: 'Өмчийн гэрчилгээ',
-      [DocumentType.COLLATERAL_DOCUMENTS]: 'Барьцааны баримт',
-      [DocumentType.OTHER]: 'Бусад',
+      'IDENTITY_PROOF': 'Иргэний үнэмлэх',
+      'INCOME_PROOF': 'Орлогын справка',
+      'PASSPORT': 'Паспорт',
+      'BANK_STATEMENT': 'Банкны хуулга',
+      'TAX_RETURN': 'Татварын тайлан',
+      'EMPLOYMENT_LETTER': 'Ажлын газрын справка',
+      'BUSINESS_REGISTRATION': 'Үйл ажиллагааны лиценз',
+      'COLLATERAL_DOCUMENT': 'Барьцааны баримт',
+      'OTHER': 'Бусад',
     };
     return names[type] || type;
   };

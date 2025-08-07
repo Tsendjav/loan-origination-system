@@ -16,189 +16,84 @@ import {
   message,
   Spin,
   Alert,
-  Switch, // Added Switch for boolean options
+  Switch,
 } from 'antd';
 import {
   UserOutlined,
   BankOutlined,
   PhoneOutlined,
   MailOutlined,
-  HomeOutlined,
   DollarOutlined,
   SafetyOutlined,
   SaveOutlined,
   CloseOutlined,
   InfoCircleOutlined,
-  CheckCircleOutlined, // For KYC Status
-  WarningOutlined, // For Risk Level
-  CommentOutlined, // For Communication Preferences
+  CheckCircleOutlined,
+  WarningOutlined,
+  CommentOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-// Define all necessary types and options directly within the component or import from a types file
-// For simplicity, I'm defining them here. In a real app, these would be in a separate `types/customer.ts`
-export enum CustomerType {
-  INDIVIDUAL = 'INDIVIDUAL',
-  BUSINESS = 'BUSINESS',
-  VIP = 'VIP',
-}
+import {
+  Customer,
+  CustomerType,
+  Gender,
+  MaritalStatus,
+  KycStatus,
+  CustomerStatus,
+  EmploymentType,
+  RiskLevel,
+} from '../../types';
 
-export enum Gender {
-  MALE = 'MALE',
-  FEMALE = 'FEMALE',
-  OTHER = 'OTHER',
-}
-
-export enum MaritalStatus {
-  SINGLE = 'SINGLE',
-  MARRIED = 'MARRIED',
-  DIVORCED = 'DIVORCED',
-  WIDOWED = 'WIDOWED',
-}
-
-export enum KycStatus {
-  NOT_STARTED = 'NOT_STARTED',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  REJECTED = 'REJECTED',
-}
-
-export enum RiskRating {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-}
-
-export enum CustomerStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-  SUSPENDED = 'SUSPENDED',
-}
-
-export enum EmploymentType {
-  FULL_TIME = 'FULL_TIME',
-  PART_TIME = 'PART_TIME',
-  CONTRACT = 'CONTRACT',
-  SELF_EMPLOYED = 'SELF_EMPLOYED',
-  UNEMPLOYED = 'UNEMPLOYED',
-}
-
-export interface Address {
-  street: string;
+interface CustomerFormData {
+  customerType: CustomerType;
+  registerNumber: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  email: string;
+  phone: string;
+  dateOfBirth: string;
+  socialSecurityNumber: string;
+  gender?: Gender;
+  maritalStatus?: MaritalStatus;
+  companyName: string;
+  businessType: string;
+  establishmentDate: string;
+  taxNumber: string;
+  businessRegistrationNumber: string;
+  annualRevenue: number;
+  address: string;
   city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-  addressType: string;
-}
-
-export interface EmploymentInfo {
+  province: string;
+  postalCode: string;
   employerName: string;
   jobTitle: string;
-  employmentType: EmploymentType;
   monthlyIncome: number;
-  employmentStartDate: string;
-  workPhone: string;
+  workExperienceYears: number;
+  bankName: string;
+  accountNumber: string;
+  notes: string;
+  kycStatus: KycStatus;
+  riskLevel: RiskLevel;
+  status: CustomerStatus;
+  preferredLanguage: string;
+  employmentInfo_employerName: string;
+  employmentInfo_jobTitle: string;
+  employmentInfo_employmentType: EmploymentType;
+  employmentInfo_monthlyIncome: number;
+  employmentInfo_employmentStartDate: string;
+  employmentInfo_workPhone: string;
+  communicationPreferences_emailNotifications: boolean;
+  communicationPreferences_smsNotifications: boolean;
+  communicationPreferences_phoneNotifications: boolean;
+  communicationPreferences_marketingConsent: boolean;
+  communicationPreferences_preferredContactTime: string;
 }
 
-export interface CommunicationPreferences {
-  emailNotifications: boolean;
-  smsNotifications: boolean;
-  phoneNotifications: boolean;
-  marketingConsent: boolean;
-  preferredContactTime: string;
-}
-
-export interface Customer {
-  id?: string;
-  firstName?: string;
-  lastName?: string;
-  middleName?: string;
-  registerNumber: string;
-  dateOfBirth?: string;
-  gender?: Gender;
-  maritalStatus?: MaritalStatus;
-  customerType: CustomerType;
-  companyName?: string;
-  businessType?: string;
-  establishmentDate?: string;
-  taxNumber?: string;
-  businessRegistrationNumber?: string;
-  annualRevenue?: number;
-  phone: string;
-  email?: string;
-  address?: Address; // Changed from string to Address object
-  city?: string; // Kept for simplicity if address is string, but ideally part of Address object
-  province?: string; // Kept for simplicity if address is string, but ideally part of Address object
-  postalCode?: string; // Kept for simplicity if address is string, but ideally part of Address object
-  employerName?: string; // Moved to EmploymentInfo
-  jobTitle?: string; // Moved to EmploymentInfo
-  monthlyIncome?: number; // Moved to EmploymentInfo
-  workExperienceYears?: number; // Added this field
-  bankName?: string;
-  accountNumber?: string;
-  notes?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  kycStatus?: KycStatus; // Added from customer_form.tsx
-  riskLevel?: RiskRating; // Added from customer_form.tsx
-  status?: CustomerStatus; // Added from customer_form.tsx
-  preferredLanguage?: string; // Added from customer_form.tsx
-  socialSecurityNumber?: string; // Added from customer_form.tsx
-  employmentInfo?: EmploymentInfo; // Added from customer_form.tsx
-  communicationPreferences?: CommunicationPreferences; // Added from customer_form.tsx
-}
-
-export interface CustomerFormData {
-  firstName?: string;
-  lastName?: string;
-  middleName?: string;
-  registerNumber: string;
-  dateOfBirth?: string;
-  gender?: Gender;
-  maritalStatus?: MaritalStatus;
-  customerType: CustomerType;
-  companyName?: string;
-  businessType?: string;
-  establishmentDate?: string;
-  taxNumber?: string;
-  businessRegistrationNumber?: string;
-  annualRevenue?: number;
-  phone: string;
-  email?: string;
-  address?: string; // Kept as string for simplicity with Ant Design's single input
-  city?: string;
-  province?: string;
-  postalCode?: string;
-  employerName?: string;
-  jobTitle?: string;
-  monthlyIncome?: number;
-  workExperienceYears?: number;
-  bankName?: string;
-  accountNumber?: string;
-  notes?: string;
-  kycStatus?: KycStatus;
-  riskLevel?: RiskRating;
-  status?: CustomerStatus;
-  preferredLanguage?: string;
-  socialSecurityNumber?: string;
-  employmentInfo_employerName?: string; // Flattened for Ant Design Form.Item
-  employmentInfo_jobTitle?: string;
-  employmentInfo_employmentType?: EmploymentType;
-  employmentInfo_monthlyIncome?: number;
-  employmentInfo_employmentStartDate?: string;
-  employmentInfo_workPhone?: string;
-  communicationPreferences_emailNotifications?: boolean;
-  communicationPreferences_smsNotifications?: boolean;
-  communicationPreferences_phoneNotifications?: boolean;
-  communicationPreferences_marketingConsent?: boolean;
-  communicationPreferences_preferredContactTime?: string;
-}
-
-export interface CustomerFormErrors {
-  [key: string]: string;
-}
+const { Option } = Select;
+const { TextArea } = Input;
+const { Title, Text } = Typography;
 
 export interface CustomerFormProps {
   customer?: Customer;
@@ -206,10 +101,9 @@ export interface CustomerFormProps {
   onCancel: () => void;
   loading?: boolean;
   readonly?: boolean;
-  mode?: 'create' | 'edit' | 'view'; // Added mode prop
+  mode?: 'create' | 'edit' | 'view';
 }
 
-// Options for Select and Radio components
 export const CUSTOMER_TYPE_OPTIONS = [
   { label: 'Хувь хүн', value: CustomerType.INDIVIDUAL },
   { label: 'Байгууллага', value: CustomerType.BUSINESS },
@@ -233,13 +127,14 @@ export const KYC_STATUS_OPTIONS = [
   { label: 'Эхлээгүй', value: KycStatus.NOT_STARTED },
   { label: 'Үргэлжилж байна', value: KycStatus.IN_PROGRESS },
   { label: 'Бүрэн', value: KycStatus.COMPLETED },
+  { label: 'Зөвшөөрөгдсөн', value: KycStatus.APPROVED },
   { label: 'Татгалзсан', value: KycStatus.REJECTED },
 ];
 
 export const RISK_RATING_OPTIONS = [
-  { label: 'Бага', value: RiskRating.LOW },
-  { label: 'Дунд', value: RiskRating.MEDIUM },
-  { label: 'Өндөр', value: RiskRating.HIGH },
+  { label: 'Бага', value: RiskLevel.LOW },
+  { label: 'Дунд', value: RiskLevel.MEDIUM },
+  { label: 'Өндөр', value: RiskLevel.HIGH },
 ];
 
 export const CUSTOMER_STATUS_OPTIONS = [
@@ -292,7 +187,7 @@ export const DEFAULT_CUSTOMER_FORM: CustomerFormData = {
   accountNumber: '',
   notes: '',
   kycStatus: KycStatus.NOT_STARTED,
-  riskLevel: RiskRating.LOW,
+  riskLevel: RiskLevel.LOW,
   status: CustomerStatus.PENDING_VERIFICATION,
   preferredLanguage: 'mn',
   employmentInfo_employerName: '',
@@ -308,18 +203,13 @@ export const DEFAULT_CUSTOMER_FORM: CustomerFormData = {
   communicationPreferences_preferredContactTime: 'ANYTIME',
 };
 
-
-const { Option } = Select;
-const { TextArea } = Input;
-const { Title, Text } = Typography;
-
 const CustomerForm: React.FC<CustomerFormProps> = ({
   customer,
   onSubmit,
   onCancel,
   loading = false,
   readonly = false,
-  mode = 'create', // Default mode
+  mode = 'create',
 }) => {
   const [form] = Form.useForm<CustomerFormData>();
   const [customerType, setCustomerType] = useState<CustomerType>(CustomerType.INDIVIDUAL);
@@ -328,7 +218,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   const isEditing = !!customer && mode !== 'create';
   const isReadOnly = mode === 'view' || readonly;
 
-  // Initialize form
   useEffect(() => {
     if (customer) {
       const formData: Partial<CustomerFormData> = {
@@ -337,32 +226,31 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         firstName: customer.firstName || '',
         lastName: customer.lastName || '',
         middleName: customer.middleName || '',
-        dateOfBirth: customer.dateOfBirth ? dayjs(customer.dateOfBirth).format('YYYY-MM-DD') : '', // Format date for DatePicker
+        dateOfBirth: customer.dateOfBirth ? dayjs(customer.dateOfBirth).format('YYYY-MM-DD') : '',
         gender: customer.gender || Gender.MALE,
         maritalStatus: customer.maritalStatus || MaritalStatus.SINGLE,
         companyName: customer.companyName || '',
         businessType: customer.businessType || '',
-        establishmentDate: customer.establishmentDate ? dayjs(customer.establishmentDate).format('YYYY-MM-DD') : '', // Format date for DatePicker
+        establishmentDate: customer.establishmentDate ? dayjs(customer.establishmentDate).format('YYYY-MM-DD') : '',
         taxNumber: customer.taxNumber || '',
         businessRegistrationNumber: customer.businessRegistrationNumber || '',
         annualRevenue: customer.annualRevenue || 0,
         phone: customer.phone,
         email: customer.email || '',
-        // Flatten address fields if they are objects in customer
         address: customer.address?.street || '',
         city: customer.address?.city || '',
-        province: customer.address?.state || '', // Using state from address as province
-        postalCode: customer.address?.zipCode || '',
+        province: customer.address?.state || '',
+        postalCode: customer.address?.zipCode || customer.address?.postalCode || '',
         
-        // Flatten employment info
         employmentInfo_employerName: customer.employmentInfo?.employerName || '',
         employmentInfo_jobTitle: customer.employmentInfo?.jobTitle || '',
         employmentInfo_employmentType: customer.employmentInfo?.employmentType || EmploymentType.FULL_TIME,
         employmentInfo_monthlyIncome: customer.employmentInfo?.monthlyIncome || 0,
-        employmentInfo_employmentStartDate: customer.employmentInfo?.employmentStartDate ? dayjs(customer.employmentInfo.employmentStartDate).format('YYYY-MM-DD') : '',
+        employmentInfo_employmentStartDate: customer.employmentInfo?.employmentStartDate 
+          ? dayjs(customer.employmentInfo.employmentStartDate).format('YYYY-MM-DD') 
+          : '',
         employmentInfo_workPhone: customer.employmentInfo?.workPhone || '',
 
-        // Flatten communication preferences
         communicationPreferences_emailNotifications: customer.communicationPreferences?.emailNotifications ?? true,
         communicationPreferences_smsNotifications: customer.communicationPreferences?.smsNotifications ?? true,
         communicationPreferences_phoneNotifications: customer.communicationPreferences?.phoneNotifications ?? false,
@@ -374,7 +262,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         accountNumber: customer.accountNumber || '',
         notes: customer.notes || '',
         kycStatus: customer.kycStatus || KycStatus.NOT_STARTED,
-        riskLevel: customer.riskLevel || RiskRating.LOW,
+        riskLevel: customer.riskLevel || RiskLevel.LOW,
         status: customer.status || CustomerStatus.PENDING_VERIFICATION,
         preferredLanguage: customer.preferredLanguage || 'mn',
         socialSecurityNumber: customer.socialSecurityNumber || '',
@@ -388,12 +276,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     }
   }, [customer, form]);
 
-  // Handle customer type change
   const handleCustomerTypeChange = (type: CustomerType) => {
     setCustomerType(type);
     setHasUnsavedChanges(true);
     
-    // Clear type-specific fields when switching
     if (type === CustomerType.INDIVIDUAL) {
       form.setFieldsValue({
         companyName: '',
@@ -415,7 +301,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     }
   };
 
-  // Handle form submission
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
@@ -424,7 +309,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         ...(isEditing && customer?.id && { id: customer.id }),
         customerType: values.customerType,
         registerNumber: values.registerNumber,
-        socialSecurityNumber: values.socialSecurityNumber, // Added socialSecurityNumber
+        socialSecurityNumber: values.socialSecurityNumber,
 
         ...(values.customerType === CustomerType.INDIVIDUAL ? {
           firstName: values.firstName,
@@ -443,24 +328,25 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         }),
         phone: values.phone,
         email: values.email,
-        address: { // Reconstruct address object
+        address: {
           street: values.address || '',
           city: values.city || '',
-          state: values.province || '', // Using province as state
+          state: values.province || '',
           zipCode: values.postalCode || '',
-          country: customer?.address?.country || 'Mongolia', // Keep existing country or default
-          addressType: customer?.address?.addressType || 'PRIMARY', // Keep existing type or default
+          postalCode: values.postalCode || '',
+          country: customer?.address?.country || 'Mongolia',
+          addressType: customer?.address?.addressType || 'PRIMARY',
         },
-        // Reconstruct employmentInfo object
         employmentInfo: {
           employerName: values.employmentInfo_employerName || '',
           jobTitle: values.employmentInfo_jobTitle || '',
           employmentType: values.employmentInfo_employmentType || EmploymentType.FULL_TIME,
           monthlyIncome: values.employmentInfo_monthlyIncome || 0,
-          employmentStartDate: values.employmentInfo_employmentStartDate ? dayjs(values.employmentInfo_employmentStartDate).format('YYYY-MM-DD') : '',
+          employmentStartDate: values.employmentInfo_employmentStartDate 
+            ? dayjs(values.employmentInfo_employmentStartDate).format('YYYY-MM-DD') 
+            : '',
           workPhone: values.employmentInfo_workPhone || '',
         },
-        // Reconstruct communicationPreferences object
         communicationPreferences: {
           emailNotifications: values.communicationPreferences_emailNotifications ?? true,
           smsNotifications: values.communicationPreferences_smsNotifications ?? true,
@@ -480,19 +366,19 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
 
       await onSubmit(submitData);
       setHasUnsavedChanges(false);
-      message.success(isEditing ? 'Харилцагчийн мэдээлэл амжилттай шинэчлэгдлээ!' : 'Шинэ харилцагч амжилттай бүртгэгдлээ!');
+      message.success(isEditing 
+        ? 'Харилцагчийн мэдээлэл амжилттай шинэчлэгдлээ!' 
+        : 'Шинэ харилцагч амжилттай бүртгэгдлээ!');
     } catch (error) {
       console.error('Form validation failed:', error);
       message.error('Форм бөглөхөд алдаа гарлаа. Бүх шаардлагатай талбарыг зөв бөгөлнө үү.');
     }
   };
 
-  // Handle form values change
   const handleValuesChange = () => {
     setHasUnsavedChanges(true);
   };
 
-  // Validation rules
   const validationRules = {
     registerNumber: [
       { required: true, message: 'Регистрийн дугаар шаардлагатай' },
@@ -501,7 +387,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         message: 'Регистрийн дугаар буруу байна (жнь: УБ12345678)' 
       }
     ],
-    socialSecurityNumber: [ // Added validation for socialSecurityNumber
+    socialSecurityNumber: [
       { required: true, message: 'Регистрийн дугаар заавал бөглөх ёстой' },
       { 
         pattern: /^[А-ЯЁ]{2}\d{8}$/, 
@@ -523,7 +409,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
     phone: [
       { required: true, message: 'Утасны дугаар шаардлагатай' },
       { 
-        pattern: /^\+976\d{8}$|^\d{8}$/, // Allow 8 digits or +976 prefix
+        pattern: /^\+976\d{8}$|^\d{8}$/, 
         message: 'Утасны дугаар буруу байна (жнь: +97612345678 эсвэл 99112233)' 
       }
     ],
@@ -542,7 +428,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
         message: 'Татварын дугаар буруу байна' 
       }
     ] : [],
-    employmentInfo_employerName: [ // Added validation for employment info
+    employmentInfo_employerName: [
       { required: true, message: 'Ажлын газрын нэр заавал бөглөх ёстой' }
     ],
     employmentInfo_jobTitle: [
@@ -657,7 +543,7 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               <Col span={8}>
                 <Form.Item
                   name="socialSecurityNumber"
-                  label="Регистрийн дугаар (НД)" // Added social security number
+                  label="Регистрийн дугаар (НД)"
                   rules={validationRules.socialSecurityNumber}
                 >
                   <Input 
@@ -712,8 +598,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                         style={{ width: '100%' }}
                         placeholder="Огноо сонгох"
                         format="YYYY-MM-DD"
-                        value={form.getFieldValue('dateOfBirth') ? dayjs(form.getFieldValue('dateOfBirth')) : null}
-                        onChange={(date, dateString) => form.setFieldsValue({ dateOfBirth: dateString })}
                         disabledDate={(current) => current && current > dayjs().subtract(18, 'year')}
                       />
                     </Form.Item>
@@ -785,8 +669,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                         style={{ width: '100%' }}
                         placeholder="Огноо сонгох"
                         format="YYYY-MM-DD"
-                        value={form.getFieldValue('establishmentDate') ? dayjs(form.getFieldValue('establishmentDate')) : null}
-                        onChange={(date, dateString) => form.setFieldsValue({ establishmentDate: dateString })}
                         disabledDate={(current) => current && current > dayjs()}
                       />
                     </Form.Item>
@@ -828,7 +710,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                         placeholder="0"
                         min={0}
                         formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                        parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                        parser={(value) => {
+                          const result = value ? parseInt(value.replace(/[^\d]/g, ''), 10) || 0 : 0;
+                          return result as any;
+                        }}
                       />
                     </Form.Item>
                   </Col>
@@ -974,7 +859,10 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                     placeholder="0"
                     min={0}
                     formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                    parser={(value) => {
+                      const result = value ? parseInt(value.replace(/[^\d]/g, ''), 10) || 0 : 0;
+                      return result as any;
+                    }}
                   />
                 </Form.Item>
               </Col>
@@ -988,8 +876,6 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
                     style={{ width: '100%' }}
                     placeholder="Огноо сонгох"
                     format="YYYY-MM-DD"
-                    value={form.getFieldValue('employmentInfo_employmentStartDate') ? dayjs(form.getFieldValue('employmentInfo_employmentStartDate')) : null}
-                    onChange={(date, dateString) => form.setFieldsValue({ employmentInfo_employmentStartDate: dateString })}
                     disabledDate={(current) => current && current > dayjs()}
                   />
                 </Form.Item>

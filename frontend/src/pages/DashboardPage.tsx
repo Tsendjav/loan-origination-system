@@ -1,8 +1,10 @@
+// DashboardPage.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth, PERMISSIONS } from '../contexts/AuthContext';
 import { customerService } from '../services/customerService';
-import { loanService, LoanStatus } from '../services/loanService';
+// ИСПРАВЛЕНО: Убираем неиспользуемый LoanStatus и импортируем правильный тип
+import { loanService } from '../services/loanService';
 import { showToast } from '../components/layout/MainLayout';
 
 interface DashboardStats {

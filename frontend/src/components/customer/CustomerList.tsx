@@ -1,5 +1,4 @@
-// frontend/src/components/customer/CustomerList.tsx
-
+// CustomerList.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table,
@@ -20,7 +19,6 @@ import {
   Badge,
   Typography,
   message,
-  Spin
 } from 'antd';
 import {
   SearchOutlined,
@@ -40,23 +38,73 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import type { FilterValue, SorterResult } from 'antd/es/table/interface';
 import dayjs from 'dayjs';
 
+// ⭐ ИСПРАВЛЕНО: Импортируем все типы из централизованного файла
 import {
   Customer,
-  CustomerSearchFilters,
   CustomerType,
   KycStatus,
-  RiskRating,
-  CustomerListProps,
-  CUSTOMER_TYPE_OPTIONS,
-  KYC_STATUS_OPTIONS,
-  RISK_RATING_OPTIONS,
-  PROVINCE_OPTIONS
-} from '../../types/customer';
+  RiskLevel, // Changed from RiskRating to RiskLevel
+} from '../../types';
+
+// Mock service import
 import { customerService } from '../../services/customerService';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
 const { Text, Title } = Typography;
+
+export interface CustomerSearchFilters {
+  search?: string;
+  customerType?: CustomerType;
+  kycStatus?: KycStatus;
+  province?: string;
+  city?: string;
+  riskRating?: RiskLevel; // Changed from RiskRating to RiskLevel
+  assignedTo?: string;
+  isActive?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+  direction?: 'ASC' | 'DESC';
+}
+
+export interface CustomerListProps {
+  onCustomerSelect?: (customer: Customer) => void;
+  onCustomerEdit?: (customer: Customer) => void;
+  onCustomerDelete?: (id: string) => void;
+  filters?: CustomerSearchFilters;
+  showActions?: boolean;
+  selectable?: boolean;
+  pageSize?: number;
+}
+
+// ⭐ ИСПРАВЛЕНО: Обновленные опции с правильными значениями RiskLevel
+export const CUSTOMER_TYPE_OPTIONS = [
+  { label: 'Хувь хүн', value: CustomerType.INDIVIDUAL },
+  { label: 'Байгууллага', value: CustomerType.BUSINESS },
+];
+
+export const KYC_STATUS_OPTIONS = [
+  { label: 'Хүлээгдэж буй', value: KycStatus.PENDING },
+  { label: 'Явагдаж буй', value: KycStatus.IN_PROGRESS },
+  { label: 'Зөвшөөрөгдсөн', value: KycStatus.APPROVED },
+  { label: 'Татгалзсан', value: KycStatus.REJECTED },
+  { label: 'Хугацаа дууссан', value: KycStatus.EXPIRED },
+];
+
+export const RISK_RATING_OPTIONS = [
+  { label: 'Бага', value: 'LOW' as RiskLevel },
+  { label: 'Дунд', value: 'MEDIUM' as RiskLevel },
+  { label: 'Өндөр', value: 'HIGH' as RiskLevel },
+];
+
+export const PROVINCE_OPTIONS = [
+  'Улаанбаатар', 'Архангай', 'Баян-Өлгий', 'Баянхонгор', 'Булган', 'Говь-Алтай', 'Говьсүмбэр',
+  'Дархан-Уул', 'Дорноговь', 'Дорнод', 'Дундговь', 'Завхан', 'Орхон', 'Өвөрхангай', 'Өмнөговь',
+  'Сүхбаатар', 'Сэлэнгэ', 'Төв', 'Увс', 'Ховд', 'Хөвсгөл', 'Хэнтий',
+];
 
 interface TableParams {
   pagination?: TablePaginationConfig;
@@ -100,14 +148,14 @@ const CustomerList: React.FC<CustomerListProps> = ({
         ...searchFilters
       };
 
-      const response = await customerService.getAllCustomers(params);
+      const response = await customerService.getCustomers(params);
       setCustomers(response.content);
       setTableParams(prev => ({
         ...prev,
         pagination: {
           ...prev.pagination,
           total: response.totalElements,
-          current: response.number + 1,
+          current: response.page + 1,
           pageSize: response.size
         }
       }));
@@ -133,7 +181,7 @@ const CustomerList: React.FC<CustomerListProps> = ({
       pagination,
       filters,
       sortField: Array.isArray(sorter) ? undefined : sorter.field as string,
-      sortOrder: Array.isArray(sorter) ? undefined : sorter.order
+      sortOrder: Array.isArray(sorter) ? undefined : (sorter.order || undefined)
     });
   };
 
@@ -160,48 +208,49 @@ const CustomerList: React.FC<CustomerListProps> = ({
     })
   } : undefined;
 
-  // Render customer type
   const renderCustomerType = (type: CustomerType) => {
     const color = type === CustomerType.INDIVIDUAL ? 'blue' : 'green';
     const text = type === CustomerType.INDIVIDUAL ? 'Хувь хүн' : 'Байгууллага';
     return <Tag color={color}>{text}</Tag>;
   };
 
-  // Render KYC status
   const renderKycStatus = (status: KycStatus) => {
-    const colorMap = {
+    const colorMap: Record<string, string> = {
       [KycStatus.PENDING]: 'orange',
       [KycStatus.IN_PROGRESS]: 'blue',
-      [KycStatus.COMPLETED]: 'green',
+      [KycStatus.APPROVED]: 'green',
       [KycStatus.REJECTED]: 'red',
-      [KycStatus.FAILED]: 'red'
+      [KycStatus.EXPIRED]: 'red'
     };
-    const textMap = {
+    
+    const textMap: Record<string, string> = {
       [KycStatus.PENDING]: 'Хүлээгдэж буй',
       [KycStatus.IN_PROGRESS]: 'Явагдаж буй',
-      [KycStatus.COMPLETED]: 'Дууссан',
+      [KycStatus.APPROVED]: 'Зөвшөөрөгдсөн',
       [KycStatus.REJECTED]: 'Татгалзсан',
-      [KycStatus.FAILED]: 'Амжилтгүй'
+      [KycStatus.EXPIRED]: 'Хугацаа дууссан'
     };
+    
     return <Tag color={colorMap[status]}>{textMap[status]}</Tag>;
   };
 
-  // Render risk rating
-  const renderRiskRating = (rating: RiskRating) => {
-    const colorMap = {
-      [RiskRating.LOW]: 'green',
-      [RiskRating.MEDIUM]: 'orange',
-      [RiskRating.HIGH]: 'red'
+  // ⭐ ИСПРАВЛЕНО: Обновлено для работы с RiskLevel
+  const renderRiskRating = (rating: RiskLevel) => {
+    const colorMap: Record<string, string> = {
+      'LOW': 'green',
+      'MEDIUM': 'orange',
+      'HIGH': 'red'
     };
-    const textMap = {
-      [RiskRating.LOW]: 'Бага',
-      [RiskRating.MEDIUM]: 'Дунд',
-      [RiskRating.HIGH]: 'Өндөр'
+    
+    const textMap: Record<string, string> = {
+      'LOW': 'Бага',
+      'MEDIUM': 'Дунд',
+      'HIGH': 'Өндөр'
     };
+    
     return <Tag color={colorMap[rating]}>{textMap[rating]}</Tag>;
   };
 
-  // Render customer name/company
   const renderCustomerName = (record: Customer) => {
     const name = record.customerType === CustomerType.INDIVIDUAL
       ? `${record.firstName || ''} ${record.lastName || ''}`.trim()
@@ -268,10 +317,10 @@ const CustomerList: React.FC<CustomerListProps> = ({
       width: 150,
       render: (_, record) => (
         <div>
-          <div>{record.province || 'Тодорхойгүй'}</div>
-          {record.city && (
+          <div>{record.province || record.address?.state || 'Тодорхойгүй'}</div>
+          {(record.city || record.address?.city) && (
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.city}
+              {record.city || record.address?.city}
             </Text>
           )}
         </div>
@@ -288,8 +337,8 @@ const CustomerList: React.FC<CustomerListProps> = ({
     },
     {
       title: 'Эрсдэлийн үнэлгээ',
-      dataIndex: 'riskRating',
-      key: 'riskRating',
+      dataIndex: 'riskLevel',
+      key: 'riskLevel',
       width: 120,
       render: renderRiskRating,
       filters: RISK_RATING_OPTIONS.map(opt => ({ text: opt.label, value: opt.value }))
@@ -460,8 +509,8 @@ const CustomerList: React.FC<CustomerListProps> = ({
               if (dates && dates[0] && dates[1]) {
                 setSearchFilters(prev => ({
                   ...prev,
-                  dateFrom: dates[0].format('YYYY-MM-DD'),
-                  dateTo: dates[1].format('YYYY-MM-DD')
+                  dateFrom: dates[0]!.format('YYYY-MM-DD'),
+                  dateTo: dates[1]!.format('YYYY-MM-DD')
                 }));
               } else {
                 setSearchFilters(prev => ({
@@ -528,7 +577,6 @@ const CustomerList: React.FC<CustomerListProps> = ({
               <Button
                 icon={<ExportOutlined />}
                 onClick={() => {
-                  // TODO: Implement export functionality
                   message.info('Экспорт функц удахгүй нэмэгдэнэ');
                 }}
               >
@@ -538,7 +586,6 @@ const CustomerList: React.FC<CustomerListProps> = ({
                 type="primary"
                 icon={<UserAddOutlined />}
                 onClick={() => {
-                  // TODO: Trigger add customer modal/page
                   message.info('Шинэ харилцагч нэмэх функц удахгүй нэмэгдэнэ');
                 }}
               >
@@ -566,8 +613,8 @@ const CustomerList: React.FC<CustomerListProps> = ({
           </Col>
           <Col span={6}>
             <Statistic
-              title="KYC дууссан"
-              value={customers.filter(c => c.kycStatus === KycStatus.COMPLETED).length}
+              title="KYC зөвшөөрөгдсөн"
+              value={customers.filter(c => c.kycStatus === KycStatus.APPROVED).length}
               valueStyle={{ color: '#1890ff' }}
             />
           </Col>

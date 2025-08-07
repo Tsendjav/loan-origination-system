@@ -1,6 +1,7 @@
+// Sidebar.tsx - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useAuth, PERMISSIONS, ROLES } from '../../contexts/AuthContext';
+import { useAuth, PERMISSIONS } from '../../contexts/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -32,9 +33,9 @@ const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   onClose,
 }) => {
-  const { state, hasPermission, hasRole } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const location = useLocation();
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['main']);
+  // ИСПРАВЛЕНО: Убрали неиспользуемые переменные expandedGroups и setExpandedGroups
 
   // Define menu structure
   const menuGroups: MenuGroup[] = [
@@ -201,14 +202,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const toggleGroup = (groupName: string) => {
-    setExpandedGroups(prev =>
-      prev.includes(groupName)
-        ? prev.filter(g => g !== groupName)
-        : [...prev, groupName]
-    );
-  };
-
   const isActive = (href: string) => {
     return location.pathname === href || 
            (href !== '/dashboard' && location.pathname.startsWith(href));
@@ -270,8 +263,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             {menuGroups.map((group) => {
               if (!shouldShowGroup(group)) return null;
 
-              const isGroupExpanded = expandedGroups.includes(group.name);
-
               return (
                 <div key={group.name} className="space-y-1">
                   {/* Group header */}
@@ -294,7 +285,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     return (
                       <div key={item.name}>
                         {/* Main item */}
-                        <div className="relative">
+                        <div className="relative group">
                           {hasSubItems ? (
                             <button
                               onClick={() => setIsSubMenuOpen(!isSubMenuOpen)}

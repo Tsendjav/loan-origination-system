@@ -96,6 +96,7 @@ export interface CreateCustomerRequest {
   city?: string;
   province?: string;
   postalCode?: string;
+  country?: string;
   
   // Employment
   employerName?: string;
@@ -207,6 +208,7 @@ export interface CustomerFormData {
   city: string;
   province: string;
   postalCode: string;
+  country: string;
   
   // Employment
   employerName: string;
