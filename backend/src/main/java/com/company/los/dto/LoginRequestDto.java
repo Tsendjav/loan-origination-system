@@ -2,20 +2,20 @@ package com.company.los.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.io.Serializable;
 
 /**
- * Login хүсэлтийн DTO - ЭЦСИЙН ЗАСВАРЛАСАН ХУВИЛБАР
- * ⭐ MANUAL SETTERS/GETTERS НЭМЭГДСЭН - ЗАСВАРЛАСАН ⭐
+ * Login хүсэлтийн DTO - ЭЦСИЙН САЙЖРУУЛСАН ХУВИЛБАР
+ * ⭐ MANUAL SETTERS/GETTERS НЭМЭГДСЭН ⭐
  * ⭐ CHARACTER ENCODING АЛДАА ШИЙДЭГДСЭН ⭐
+ * ⭐ VALIDATION САЙЖРУУЛСАН ⭐
  * Хэрэглэгчийн нэвтрэх мэдээллийг хүлээн авах
  * 
  * @author LOS Development Team
- * @version 2.3 - Manual Implementation
+ * @version 2.4 - Final Implementation
  * @since 2025-08-01
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -25,7 +25,6 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * Хэрэглэгчийн нэр эсвэл имэйл хаяг
-     * ⭐ VALIDATION MESSAGE ТОДОРХОЙ ЗААСАН ⭐
      */
     @NotBlank(message = "Хэрэглэгчийн нэр заавал бөглөх ёстой")
     @Size(min = 3, max = 50, message = "Хэрэглэгчийн нэр 3-50 тэмдэгт байх ёстой")
@@ -37,7 +36,6 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * Нууц үг
-     * ⭐ VALIDATION MESSAGE ТОДОРХОЙ ЗААСАН ⭐
      */
     @NotBlank(message = "Нууц үг заавал бөглөх ёстой")
     @Size(min = 6, max = 100, message = "Нууц үг 6-100 тэмдэгт байх ёстой")
@@ -85,49 +83,135 @@ public class LoginRequestDto implements Serializable {
 
     // ==================== CONSTRUCTORS ====================
 
+    /**
+     * Default constructor for deserialization
+     */
     public LoginRequestDto() {
     }
 
+    /**
+     * Constructor with basic fields
+     */
+    public LoginRequestDto(String username, String password) {
+        this.username = username != null ? username.trim() : null;
+        this.password = password;
+        this.rememberMe = false;
+        this.timestamp = System.currentTimeMillis();
+        this.platform = "WEB";
+    }
+
+    /**
+     * Constructor with remember me option
+     */
+    public LoginRequestDto(String username, String password, boolean rememberMe) {
+        this.username = username != null ? username.trim() : null;
+        this.password = password;
+        this.rememberMe = rememberMe;
+        this.timestamp = System.currentTimeMillis();
+        this.platform = "WEB";
+    }
+
+    /**
+     * Full constructor
+     */
     public LoginRequestDto(String username, String password, boolean rememberMe, String deviceInfo, 
                           String userAgent, String ipAddress, Long timestamp, String clientVersion, 
                           String timezone, String platform) {
-        this.username = username;
+        this.username = username != null ? username.trim() : null;
         this.password = password;
         this.rememberMe = rememberMe;
-        this.deviceInfo = deviceInfo;
-        this.userAgent = userAgent;
-        this.ipAddress = ipAddress;
-        this.timestamp = timestamp;
-        this.clientVersion = clientVersion;
-        this.timezone = timezone;
-        this.platform = platform;
+        this.deviceInfo = deviceInfo != null ? deviceInfo.trim() : null;
+        this.userAgent = userAgent != null ? userAgent.trim() : null;
+        this.ipAddress = ipAddress != null ? ipAddress.trim() : null;
+        this.timestamp = timestamp != null ? timestamp : System.currentTimeMillis();
+        this.clientVersion = clientVersion != null ? clientVersion.trim() : null;
+        this.timezone = timezone != null ? timezone.trim() : null;
+        this.platform = platform != null ? platform.trim() : "WEB";
     }
 
     // ==================== MANUAL GETTERS ====================
 
-    public String getUsername() { return username; }
-    public String getPassword() { return password; }
-    public boolean isRememberMe() { return rememberMe; }
-    public String getDeviceInfo() { return deviceInfo; }
-    public String getUserAgent() { return userAgent; }
-    public String getIpAddress() { return ipAddress; }
-    public Long getTimestamp() { return timestamp; }
-    public String getClientVersion() { return clientVersion; }
-    public String getTimezone() { return timezone; }
-    public String getPlatform() { return platform; }
+    public String getUsername() { 
+        return username; 
+    }
+    
+    public String getPassword() { 
+        return password; 
+    }
+    
+    public boolean isRememberMe() { 
+        return rememberMe; 
+    }
+    
+    public String getDeviceInfo() { 
+        return deviceInfo; 
+    }
+    
+    public String getUserAgent() { 
+        return userAgent; 
+    }
+    
+    public String getIpAddress() { 
+        return ipAddress; 
+    }
+    
+    public Long getTimestamp() { 
+        return timestamp; 
+    }
+    
+    public String getClientVersion() { 
+        return clientVersion; 
+    }
+    
+    public String getTimezone() { 
+        return timezone; 
+    }
+    
+    public String getPlatform() { 
+        return platform; 
+    }
 
-    // ==================== MANUAL SETTERS ====================
+    // ==================== MANUAL SETTERS WITH TRIMMING ====================
 
-    public void setUsername(String username) { this.username = username; }
-    public void setPassword(String password) { this.password = password; }
-    public void setRememberMe(boolean rememberMe) { this.rememberMe = rememberMe; }
-    public void setDeviceInfo(String deviceInfo) { this.deviceInfo = deviceInfo; }
-    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
-    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
-    public void setTimestamp(Long timestamp) { this.timestamp = timestamp; }
-    public void setClientVersion(String clientVersion) { this.clientVersion = clientVersion; }
-    public void setTimezone(String timezone) { this.timezone = timezone; }
-    public void setPlatform(String platform) { this.platform = platform; }
+    public void setUsername(String username) { 
+        this.username = username != null ? username.trim() : null; 
+    }
+    
+    public void setPassword(String password) { 
+        this.password = password; 
+    }
+    
+    public void setRememberMe(boolean rememberMe) { 
+        this.rememberMe = rememberMe; 
+    }
+    
+    public void setDeviceInfo(String deviceInfo) { 
+        this.deviceInfo = deviceInfo != null ? deviceInfo.trim() : null; 
+    }
+    
+    public void setUserAgent(String userAgent) { 
+        this.userAgent = userAgent != null ? userAgent.trim() : null; 
+    }
+    
+    public void setIpAddress(String ipAddress) { 
+        this.ipAddress = ipAddress != null ? ipAddress.trim() : null; 
+    }
+    
+    public void setTimestamp(Long timestamp) { 
+        this.timestamp = timestamp; 
+    }
+    
+    public void setClientVersion(String clientVersion) { 
+        this.clientVersion = clientVersion != null ? clientVersion.trim() : null; 
+    }
+    
+    public void setTimezone(String timezone) { 
+        this.timezone = timezone != null ? timezone.trim() : null; 
+    }
+    
+    public void setPlatform(String platform) { 
+        this.platform = platform != null ? platform.trim() : null; 
+    }
 
     // ==================== BUSINESS LOGIC METHODS ====================
 
@@ -155,61 +239,66 @@ public class LoginRequestDto implements Serializable {
     }
 
     /**
-     * Хүсэлт валид эсэхийг шалгах - ⭐ MANUAL VALIDATION САЙЖРУУЛСАН ⭐
+     * Manual validation - клиент болон серверт хоёуланд ашиглах боломжтой
      */
     @JsonIgnore
-    public boolean isValid() {
-        // Null check
-        if (username == null || username.trim().isEmpty()) {
-            return false;
-        }
-        if (password == null || password.trim().isEmpty()) {
-            return false;
-        }
-        
-        // Length check
-        String trimmedUsername = username.trim();
-        if (trimmedUsername.length() < 3 || trimmedUsername.length() > 50) {
-            return false;
-        }
-        if (password.length() < 6 || password.length() > 100) {
-            return false;
-        }
-        
-        // Pattern check
-        return trimmedUsername.matches("^[a-zA-Z0-9._@-]+$");
-    }
-
-    /**
-     * ⭐ НЭМЭЛТ VALIDATION МЕТОДУУД ⭐
-     */
-    @JsonIgnore
-    public String getValidationError() {
-        if (username == null || username.trim().isEmpty()) {
+    public String validateManual() {
+        // Username validation
+        if (this.username == null || this.username.trim().isEmpty()) {
             return "Хэрэглэгчийн нэр заавал оруулна уу";
         }
-        if (password == null || password.trim().isEmpty()) {
-            return "Нууц үг заавал оруулна уу";
-        }
         
-        String trimmedUsername = username.trim();
+        String trimmedUsername = this.username.trim();
         if (trimmedUsername.length() < 3) {
             return "Хэрэглэгчийн нэр хамгийн багадаа 3 тэмдэгт байх ёстой";
         }
         if (trimmedUsername.length() > 50) {
             return "Хэрэглэгчийн нэр 50 тэмдэгтээс их байж болохгүй";
         }
-        if (password.length() < 6) {
-            return "Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой";
-        }
-        if (password.length() > 100) {
-            return "Нууц үг 100 тэмдэгтээс их байж болохгүй";
-        }
         if (!trimmedUsername.matches("^[a-zA-Z0-9._@-]+$")) {
             return "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас, @ тэмдэг агуулах боломжтой";
         }
         
+        // Password validation
+        if (this.password == null || this.password.trim().isEmpty()) {
+            return "Нууц үг заавал оруулна уу";
+        }
+        if (this.password.length() < 6) {
+            return "Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой";
+        }
+        if (this.password.length() > 100) {
+            return "Нууц үг 100 тэмдэгтээс их байж болохгүй";
+        }
+        
         return null; // No error
+    }
+
+    /**
+     * Хүсэлт валид эсэхийг шалгах
+     */
+    @JsonIgnore
+    public boolean isValid() {
+        return validateManual() == null;
+    }
+
+    /**
+     * Validation алдааны мессеж авах (AuthController-тэй нийцүүлэх)
+     */
+    @JsonIgnore
+    public String getValidationError() {
+        return validateManual();
+    }
+
+    /**
+     * Username normalize хийх
+     */
+    public void normalizeUsername() {
+        if (username != null) {
+            username = username.trim();
+            if (isEmail()) {
+                username = username.toLowerCase();
+            }
+        }
     }
 
     /**
@@ -226,24 +315,12 @@ public class LoginRequestDto implements Serializable {
      */
     public void ensurePlatform() {
         if (this.platform == null || this.platform.trim().isEmpty()) {
-            this.platform = "WEB";
+            this.platform = Platform.WEB;
         }
     }
 
     /**
-     * ⭐ NORMALIZE USERNAME - САЙЖРУУЛСАН ⭐
-     */
-    public void normalizeUsername() {
-        if (username != null) {
-            username = username.trim();
-            if (isEmail()) {
-                username = username.toLowerCase();
-            }
-        }
-    }
-
-    /**
-     * ⭐ INPUT SANITIZATION - НЭМЭЛТ АЮУЛГҮЙ БАЙДАЛ ⭐
+     * Input sanitization
      */
     public void sanitizeInputs() {
         if (username != null) {
@@ -276,6 +353,7 @@ public class LoginRequestDto implements Serializable {
         if (ipAddress != null) sb.append(", ip=").append(ipAddress);
         if (deviceInfo != null) sb.append(", device=").append(deviceInfo);
         if (platform != null) sb.append(", platform=").append(platform);
+        if (timestamp != null) sb.append(", timestamp=").append(timestamp);
         return sb.toString();
     }
 
@@ -285,26 +363,14 @@ public class LoginRequestDto implements Serializable {
      * Static factory method - энгийн хүсэлт
      */
     public static LoginRequestDto of(String username, String password) {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setUsername(username);
-        request.setPassword(password);
-        request.setRememberMe(false);
-        request.setTimestamp(System.currentTimeMillis());
-        request.setPlatform("WEB");
-        return request;
+        return new LoginRequestDto(username, password);
     }
 
     /**
      * Static factory method - remember me тэй
      */
     public static LoginRequestDto withRememberMe(String username, String password, boolean rememberMe) {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setUsername(username);
-        request.setPassword(password);
-        request.setRememberMe(rememberMe);
-        request.setTimestamp(System.currentTimeMillis());
-        request.setPlatform("WEB");
-        return request;
+        return new LoginRequestDto(username, password, rememberMe);
     }
 
     /**
@@ -312,14 +378,10 @@ public class LoginRequestDto implements Serializable {
      */
     public static LoginRequestDto withFullInfo(String username, String password, boolean rememberMe, 
                                              String deviceInfo, String ipAddress, String platform) {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setUsername(username);
-        request.setPassword(password);
-        request.setRememberMe(rememberMe);
+        LoginRequestDto request = new LoginRequestDto(username, password, rememberMe);
         request.setDeviceInfo(deviceInfo);
         request.setIpAddress(ipAddress);
         request.setPlatform(platform);
-        request.setTimestamp(System.currentTimeMillis());
         return request;
     }
 
@@ -328,20 +390,15 @@ public class LoginRequestDto implements Serializable {
      */
     public static LoginRequestDto forMobile(String username, String password, String platform, 
                                           String clientVersion, String deviceInfo) {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setUsername(username);
-        request.setPassword(password);
-        request.setRememberMe(true);
+        LoginRequestDto request = new LoginRequestDto(username, password, true);
         request.setPlatform(platform);
         request.setClientVersion(clientVersion);
         request.setDeviceInfo(deviceInfo);
-        request.setTimestamp(System.currentTimeMillis());
         return request;
     }
 
-    /**
-     * Builder-style method chaining
-     */
+    // ==================== BUILDER-STYLE METHODS ====================
+
     public LoginRequestDto withUsername(String username) {
         this.setUsername(username);
         return this;
@@ -441,6 +498,7 @@ public class LoginRequestDto implements Serializable {
         public static final String MOBILE_ANDROID = "MOBILE_ANDROID";
         public static final String MOBILE_IOS = "MOBILE_IOS";
         public static final String DESKTOP = "DESKTOP";
+        public static final String API = "API";
         
         private Platform() {
             // Utility class
@@ -448,7 +506,7 @@ public class LoginRequestDto implements Serializable {
     }
 
     /**
-     * Validation helper - ⭐ САЙЖРУУЛСАН ⭐
+     * Validation helper - сайжруулсан хувилбар
      */
     public static final class Validator {
         
@@ -466,7 +524,7 @@ public class LoginRequestDto implements Serializable {
          * Password format шалгах
          */
         public static boolean isValidPassword(String password) {
-            if (password == null || password.trim().isEmpty()) return false;
+            if (password == null) return false;
             return password.length() >= 6 && password.length() <= 100;
         }
         
@@ -485,30 +543,7 @@ public class LoginRequestDto implements Serializable {
             if (request == null) {
                 return "Login мэдээлэл байхгүй байна";
             }
-            
-            if (!isValidUsername(request.getUsername())) {
-                if (request.getUsername() == null || request.getUsername().trim().isEmpty()) {
-                    return "Хэрэглэгчийн нэр заавал оруулна уу";
-                } else if (request.getUsername().trim().length() < 3) {
-                    return "Хэрэглэгчийн нэр хамгийн багадаа 3 тэмдэгт байх ёстой";
-                } else if (request.getUsername().trim().length() > 50) {
-                    return "Хэрэглэгчийн нэр 50 тэмдэгтээс их байж болохгүй";
-                } else {
-                    return "Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас, @ тэмдэг агуулах боломжтой";
-                }
-            }
-            
-            if (!isValidPassword(request.getPassword())) {
-                if (request.getPassword() == null || request.getPassword().trim().isEmpty()) {
-                    return "Нууц үг заавал оруулна уу";
-                } else if (request.getPassword().length() < 6) {
-                    return "Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой";
-                } else {
-                    return "Нууц үг 100 тэмдэгтээс их байж болохгүй";
-                }
-            }
-            
-            return null; // No error
+            return request.validateManual();
         }
         
         private Validator() {

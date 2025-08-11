@@ -1,8 +1,9 @@
 # ================================================================
-# 🏦 LOS Төслийн Дэлгэрэнгүй Прогресс Шалгагч v3.0  
-# Full-Featured-Progress-Tracker.ps1
-# Версий: 3.0 - 2025-07-29
-# Анхны progress-tracker.ps1 + file_counter.ps1 сайн функцуудтайгаар
+# 🏦 LOS Төслийн Дэлгэрэнгүй Прогресс Шалгагч v5.0  
+# Enhanced-LOS-Progress-Tracker.ps1
+# Версий: 5.0 - 2025-08-11
+# file-check.ps1 v3.4 + progress-tracker.ps1 v3.0 бүрэн нэгтгэсэн хувилбар
+# Шинэ өргөтгөлүүд: Docker файлууд, Migration файлууд, CI/CD pipeline файлууд
 # ================================================================
 
 param(
@@ -28,7 +29,25 @@ param(
     [switch]$QuickCheck = $false,
     
     [Parameter(Mandatory=$false)]
-    [string]$LogFile = "los-progress.log",
+    [switch]$ShowAllFiles = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ShowMissingOnly = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ShowExistingOnly = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ShowFilePaths = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ShowFileDetails = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ValidateContent = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$LogFile = "los-progress-enhanced.log",
     
     [Parameter(Mandatory=$false)]
     [string]$BackendLogFile = "backend-structure.log",
@@ -49,7 +68,16 @@ param(
     [string]$RootPath = ".",
     
     [Parameter(Mandatory=$false)]
-    [int]$MaxDepth = 3
+    [int]$MaxDepth = 3,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$DebugMode = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$CheckDependencies = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ShowMigrations = $false
 )
 
 # UTF-8 дэмжлэг
@@ -60,8 +88,15 @@ $global:TotalFilesExpected = 0
 $global:TotalFilesFound = 0
 $global:PhaseResults = @{}
 $global:StartTime = Get-Date
+$global:ExistingFiles = @()
+$global:MissingFiles = @()
+$global:ProjectRoot = if ($RootPath -eq ".") { Get-Location } else { $RootPath }
 
-# file_counter.ps1-ээс авсан файлын icon системтэй өнгөтэй гаралт функц
+# ================================================================
+# CORE UTILITY FUNCTIONS
+# ================================================================
+
+# Өнгөтэй текст бичих функц
 function Write-ColoredText {
     param(
         $Text, 
@@ -87,11 +122,11 @@ function Write-ColoredText {
         Write-FrontendLog $Text
     }
     
-    # Үндсэн лог файлд бичих
+    # Лог файлд бичих
     if ($LogFile) {
         try {
             $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            $cleanText = $text -replace '\x1b\[[0-9;]*m', ''
+            $cleanText = $Text -replace '\x1b\[[0-9;]*m', ''
             $logEntry = "[$timestamp] $cleanText"
             Add-Content -Path $LogFile -Value $logEntry -Encoding UTF8 -ErrorAction SilentlyContinue
         } catch {
@@ -100,9 +135,25 @@ function Write-ColoredText {
     }
 }
 
-# file_counter.ps1-ээс авсан файлын icon функц
+# Файлын icon авах функц
 function Get-FileIcon {
-    param($Extension)
+    param($Extension, $FileName = "")
+    
+    # Тусгай файлуудын icon
+    switch -Regex ($FileName) {
+        "^docker-compose" { return '🐳' }
+        "^Dockerfile" { return '🐳' }
+        "\.env" { return '🔐' }
+        "ci\.yml$|\.github" { return '🔄' }
+        "README\.md$" { return '📖' }
+        "pom\.xml$" { return '🏗️' }
+        "package\.json$" { return '📦' }
+        "V\d+.*\.sql$" { return '🗃️' }
+        "\.gitignore$" { return '🚫' }
+        "mvnw\.cmd$" { return '⚙️' }
+    }
+    
+    # Extension-ээр icon
     switch -Wildcard ($Extension.ToLower()) {
         '.java' { return '☕' }
         '.tsx' { return '⚛️' }
@@ -120,13 +171,12 @@ function Get-FileIcon {
         '.txt' { return '📄' }
         '.properties' { return '⚙️' }
         '.bak' { return '💾' }
-        '.gitignore' { return '🚫' }
         '.dockerfile' { return '🐳' }
         default { return '📄' }
     }
 }
 
-# file_counter.ps1-ээс авсан файлын өнгө тогтоох функц
+# Файлын өнгө тогтоох функц
 function Get-FileColor {
     param($Extension)
     switch ($Extension.ToLower()) {
@@ -145,9 +195,464 @@ function Get-FileColor {
         ".md" { return "White" }
         ".txt" { return "Gray" }
         ".bpmn" { return "DarkMagenta" }
+        ".dockerfile" { return "Blue" }
         default { return "White" }
     }
 }
+
+# Progress bar үүсгэх
+function Show-ProgressBar {
+    param($Current, $Total, $Title = "Progress", $ShowPercentage = $true, $BarLength = 50)
+    
+    if ($Total -eq 0 -or $null -eq $Total) {
+        $percent = 0
+        $bar = "░" * $BarLength
+    } else {
+        $percent = [math]::Round(($Current / $Total) * 100, 1)
+        $filledLength = [math]::Round(($percent / 100) * $BarLength)
+        $bar = "█" * $filledLength + "░" * ($BarLength - $filledLength)
+    }
+    
+    if ($ShowPercentage) {
+        Write-ColoredText "$Title [$bar] $percent% ($Current/$Total)" "Cyan"
+    } else {
+        Write-ColoredText "$Title [$bar] ($Current/$Total)" "Cyan"
+    }
+}
+
+# Файлын хэмжээ форматлах
+function Format-FileSize {
+    param($Bytes)
+    if ($Bytes -lt 1KB) {
+        return "$Bytes B"
+    } elseif ($Bytes -lt 1MB) {
+        return "$([math]::Round($Bytes/1KB, 1)) KB"
+    } elseif ($Bytes -lt 1GB) {
+        return "$([math]::Round($Bytes/1MB, 1)) MB"
+    } else {
+        return "$([math]::Round($Bytes/1GB, 1)) GB"
+    }
+}
+
+# ================================================================
+# ADVANCED FILE SEARCH AND DETECTION FUNCTIONS
+# ================================================================
+
+# Сайжруулсан файл хайх функц
+function Find-ProjectFile {
+    param($FileName, $ExpectedPath = "")
+    
+    if ($DebugMode) {
+        Write-ColoredText "🔍 Хайж байна: $FileName" "Gray"
+    }
+    
+    # Эхлээд expected path-ээр шалгах
+    if ($ExpectedPath -and (Test-Path $ExpectedPath)) {
+        if ($DebugMode) {
+            Write-ColoredText "   ✅ Expected path-д олдлоо: $ExpectedPath" "Green"
+        }
+        return (Get-Item $ExpectedPath).FullName
+    }
+    
+    $searchPaths = @()
+    $extension = [System.IO.Path]::GetExtension($FileName)
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($FileName)
+    
+    # Docker файлуудын тусгай хайлт
+    if ($FileName -match "^(Dockerfile|docker-compose)") {
+        $dockerPaths = @(
+            (Join-Path $global:ProjectRoot $FileName),
+            (Join-Path $global:ProjectRoot "docker/$FileName"),
+            (Join-Path $global:ProjectRoot "scripts/$FileName")
+        )
+        
+        foreach ($path in $dockerPaths) {
+            if ($DebugMode) {
+                Write-ColoredText "   📍 Docker файл шалгаж байна: $path" "Gray"
+            }
+            if (Test-Path $path) {
+                if ($DebugMode) {
+                    Write-ColoredText "   ✅ Олдлоо: $path" "Green"
+                }
+                return (Get-Item $path).FullName
+            }
+        }
+    }
+    
+    # CI/CD файлуудын хайлт
+    if ($FileName -eq "ci.yml" -or $FileName -like "*.workflow*") {
+        $ciPaths = @(
+            (Join-Path $global:ProjectRoot ".github/workflows/$FileName"),
+            (Join-Path $global:ProjectRoot ".github/workflows/ci.yml"),
+            (Join-Path $global:ProjectRoot ".github/workflows/build.yml"),
+            (Join-Path $global:ProjectRoot ".github/workflows/deploy.yml"),
+            (Join-Path $global:ProjectRoot "ci/$FileName"),
+            (Join-Path $global:ProjectRoot "scripts/$FileName")
+        )
+        
+        foreach ($path in $ciPaths) {
+            if ($DebugMode) {
+                Write-ColoredText "   📍 CI файл шалгаж байна: $path" "Gray"
+            }
+            if (Test-Path $path) {
+                if ($DebugMode) {
+                    Write-ColoredText "   ✅ Олдлоо: $path" "Green"
+                }
+                return (Get-Item $path).FullName
+            }
+        }
+    }
+    
+    # Migration файлуудын хайлт
+    if ($FileName -like "V*__*.sql" -or $FileName -like "*migration*") {
+        $migrationPaths = @(
+            (Join-Path $global:ProjectRoot "backend/src/main/resources/db/migration/$FileName"),
+            (Join-Path $global:ProjectRoot "backend/src/main/resources/db/migrations/$FileName"),
+            (Join-Path $global:ProjectRoot "backend/db/migration/$FileName"),
+            (Join-Path $global:ProjectRoot "src/main/resources/db/migration/$FileName"),
+            (Join-Path $global:ProjectRoot "database/migrations/$FileName")
+        )
+        
+        foreach ($path in $migrationPaths) {
+            if ($DebugMode) {
+                Write-ColoredText "   📍 Migration файл шалгаж байна: $path" "Gray"
+            }
+            if (Test-Path $path) {
+                if ($DebugMode) {
+                    Write-ColoredText "   ✅ Олдлоо: $path" "Green"
+                }
+                return (Get-Item $path).FullName
+            }
+        }
+    }
+    
+    # Java файлуудын хайлт
+    if ($extension -eq ".java") {
+        $javaPaths = @(
+            "backend/src/main/java/com/company/los",
+            "backend/src/main/java/com/company/los/*",
+            "backend/src/main/java/com/company/los/**/*",
+            "backend/src/test/java/com/company/los",
+            "backend/src/test/java/com/company/los/*",
+            "backend/src/test/java/com/company/los/**/*",
+            "src/main/java/com/company/los",
+            "src/test/java/com/company/los"
+        )
+        
+        foreach ($basePath in $javaPaths) {
+            $searchPaths += Join-Path $global:ProjectRoot "$basePath/$FileName"
+        }
+    }
+    
+    # Frontend файлуудын хайлт
+    elseif ($extension -in @('.tsx', '.ts', '.css', '.json', '.js')) {
+        $frontendPaths = @(
+            "frontend/src",
+            "frontend/src/components",
+            "frontend/src/pages", 
+            "frontend/src/services",
+            "frontend/src/types",
+            "frontend/src/hooks",
+            "frontend/src/store",
+            "frontend/src/utils",
+            "frontend/src/styles",
+            "frontend/src/contexts",
+            "frontend/src/config",
+            "frontend",
+            "src/components",
+            "src/pages",
+            "src/services"
+        )
+        
+        foreach ($path in $frontendPaths) {
+            $searchPaths += Join-Path $global:ProjectRoot "$path/$FileName"
+        }
+    }
+    
+    # Resource файлуудын хайлт  
+    elseif ($extension -in @('.yml', '.yaml', '.sql', '.properties')) {
+        $resourcePaths = @(
+            "backend/src/main/resources",
+            "backend/src/main/resources/config",
+            "backend/src/main/resources/db",
+            "backend/src/main/resources/processes",
+            "backend/src/main/resources/templates",
+            "src/main/resources",
+            "config",
+            "resources"
+        )
+        
+        foreach ($path in $resourcePaths) {
+            $searchPaths += Join-Path $global:ProjectRoot "$path/$FileName"
+        }
+    }
+    
+    # Documentation файлууд
+    elseif ($extension -eq ".md" -or $FileName -like "README*") {
+        $docPaths = @(
+            (Join-Path $global:ProjectRoot $FileName),
+            (Join-Path $global:ProjectRoot "docs/$FileName"),
+            (Join-Path $global:ProjectRoot "documentation/$FileName"),
+            (Join-Path $global:ProjectRoot "README.md")
+        )
+        
+        foreach ($path in $docPaths) {
+            if ($DebugMode) {
+                Write-ColoredText "   📍 Documentation файл шалгаж байна: $path" "Gray"
+            }
+            if (Test-Path $path) {
+                if ($DebugMode) {
+                    Write-ColoredText "   ✅ Олдлоо: $path" "Green"
+                }
+                return (Get-Item $path).FullName
+            }
+        }
+    }
+    
+    # Ерөнхий хайлт
+    else {
+        $searchPaths += @(
+            (Join-Path $global:ProjectRoot $FileName),
+            (Join-Path $global:ProjectRoot "*/$FileName"),
+            (Join-Path $global:ProjectRoot "backend/$FileName"),
+            (Join-Path $global:ProjectRoot "frontend/$FileName"),
+            (Join-Path $global:ProjectRoot "docs/$FileName"),
+            (Join-Path $global:ProjectRoot "scripts/$FileName"),
+            (Join-Path $global:ProjectRoot "config/$FileName")
+        )
+    }
+    
+    # Файлыг олох гэж оролдох
+    foreach ($searchPath in $searchPaths) {
+        if ($DebugMode) {
+            Write-ColoredText "   📍 Хайлтын зам: $searchPath" "Gray"
+        }
+        try {
+            if (Test-Path $searchPath) {
+                if ($DebugMode) {
+                    Write-ColoredText "   ✅ Олдлоо: $searchPath" "Green"
+                }
+                return (Get-Item $searchPath).FullName
+            }
+            
+            # Recursive хайлт
+            $foundFiles = Get-ChildItem -Path $searchPath -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq $FileName }
+            if ($foundFiles.Count -gt 0) {
+                if ($DebugMode) {
+                    Write-ColoredText "   ✅ Recursive-ээр олдлоо: $($foundFiles[0].FullName)" "Green"
+                }
+                return $foundFiles[0].FullName
+            }
+        } catch {
+            if ($DebugMode) {
+                Write-ColoredText "   ⚠️ Хайлтын алдаа: $searchPath - $($_.Exception.Message)" "Yellow"
+            }
+        }
+    }
+    
+    if ($DebugMode) {
+        Write-ColoredText "   ❌ Олдсонгүй: $FileName" "Red"
+    }
+    return $null
+}
+
+# Файлын дэлгэрэнгүй мэдээлэл авах функц
+function Get-FileDetails {
+    param($FilePath)
+    
+    if (Test-Path $FilePath) {
+        $fileInfo = Get-Item $FilePath
+        $extension = [System.IO.Path]::GetExtension($FilePath)
+        
+        # Мөрийн тоо (текст файлуудын хувьд)
+        $lineCount = 0
+        $textExtensions = @('.java', '.ts', '.tsx', '.sql', '.yml', '.yaml', '.html', '.txt', '.md', '.css', '.js', '.xml', '.properties', '.dockerfile')
+        if ($extension -in $textExtensions) {
+            try {
+                $lineCount = (Get-Content $FilePath -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+            } catch {
+                $lineCount = 0
+            }
+        }
+        
+        return @{
+            Exists = $true
+            Size = $fileInfo.Length
+            LastModified = $fileInfo.LastWriteTime
+            LineCount = $lineCount
+            Extension = $extension
+            FullPath = $fileInfo.FullName
+            Directory = $fileInfo.DirectoryName
+        }
+    } else {
+        return @{
+            Exists = $false
+            Size = 0
+            LastModified = $null
+            LineCount = 0
+            Extension = [System.IO.Path]::GetExtension($FilePath)
+            FullPath = $null
+            Directory = $null
+        }
+    }
+}
+
+# ================================================================
+# ENHANCED PROJECT FILE DEFINITIONS  
+# ================================================================
+
+# ТӨСЛИЙН ФАЙЛУУДЫН ШИНЭЧЛЭГДСЭН ЖАГСААЛТ
+$expectedFiles = @{
+    # Phase 1.1: Infrastructure & DevOps Setup
+    "Phase1_Infrastructure" = @(
+        "backend/pom.xml",
+        "backend/mvnw.cmd", 
+        "backend/src/main/java/com/company/los/LoanOriginationApplication.java",
+        "backend/src/main/java/com/company/los/config/CorsConfig.java",
+        "backend/src/main/java/com/company/los/config/SwaggerConfig.java",
+        "backend/src/main/java/com/company/los/config/DatabaseConfig.java",
+        "backend/src/main/java/com/company/los/config/JpaConfig.java",
+        "Dockerfile.backend",
+        "Dockerfile.frontend", 
+        "docker-compose.yml",
+        "docker-compose.prod.yml",
+        ".gitignore",
+        ".github/workflows/ci.yml"
+    )
+    
+    # Phase 1.2: Domain Model & Database Setup
+    "Phase1_DomainModel" = @(
+        "backend/src/main/java/com/company/los/entity/BaseEntity.java",
+        "backend/src/main/java/com/company/los/entity/Customer.java",
+        "backend/src/main/java/com/company/los/entity/LoanApplication.java",
+        "backend/src/main/java/com/company/los/entity/Document.java",
+        "backend/src/main/java/com/company/los/entity/DocumentType.java",
+        "backend/src/main/java/com/company/los/entity/User.java",
+        "backend/src/main/java/com/company/los/entity/Role.java",
+        "backend/src/main/java/com/company/los/enums/LoanStatus.java",
+        "backend/src/main/java/com/company/los/enums/DocumentType.java",
+        "backend/src/main/resources/application.yml",
+        "backend/src/main/resources/application-dev.yml",
+        "backend/src/main/resources/application-prod.yml",
+        "backend/src/main/resources/data.sql",
+        "backend/src/main/resources/schema.sql",
+        "backend/src/main/resources/db/migration/V1__init.sql"
+    )
+    
+    # Phase 1.3: Data Access Layer
+    "Phase1_DataAccess" = @(
+        "backend/src/main/java/com/company/los/repository/BaseRepository.java",
+        "backend/src/main/java/com/company/los/repository/CustomerRepository.java",
+        "backend/src/main/java/com/company/los/repository/LoanApplicationRepository.java",
+        "backend/src/main/java/com/company/los/repository/DocumentRepository.java",
+        "backend/src/main/java/com/company/los/repository/DocumentTypeRepository.java",
+        "backend/src/main/java/com/company/los/repository/UserRepository.java",
+        "backend/src/main/java/com/company/los/repository/RoleRepository.java"
+    )
+    
+    # Phase 2.1: Business Logic Services
+    "Phase2_Services" = @(
+        "backend/src/main/java/com/company/los/service/CustomerService.java",
+        "backend/src/main/java/com/company/los/service/LoanApplicationService.java",
+        "backend/src/main/java/com/company/los/service/DocumentService.java",
+        "backend/src/main/java/com/company/los/service/UserService.java",
+        "backend/src/main/java/com/company/los/service/AuthService.java",
+        "backend/src/main/java/com/company/los/service/impl/CustomerServiceImpl.java",
+        "backend/src/main/java/com/company/los/service/impl/LoanApplicationServiceImpl.java",
+        "backend/src/main/java/com/company/los/service/impl/DocumentServiceImpl.java",
+        "backend/src/main/java/com/company/los/service/impl/UserServiceImpl.java",
+        "backend/src/main/java/com/company/los/service/impl/AuthServiceImpl.java"
+    )
+    
+    # Phase 2.2: REST API Controllers
+    "Phase2_Controllers" = @(
+        "backend/src/main/java/com/company/los/controller/CustomerController.java",
+        "backend/src/main/java/com/company/los/controller/LoanApplicationController.java",
+        "backend/src/main/java/com/company/los/controller/DocumentController.java",
+        "backend/src/main/java/com/company/los/controller/UserController.java",
+        "backend/src/main/java/com/company/los/controller/AuthController.java",
+        "backend/src/main/java/com/company/los/controller/HealthController.java",
+        "backend/src/main/java/com/company/los/security/JwtUtil.java",
+        "backend/src/main/java/com/company/los/security/SecurityConfig.java"
+    )
+    
+    # Phase 2.3: Data Transfer Objects
+    "Phase2_DTOs" = @(
+        "backend/src/main/java/com/company/los/dto/CustomerDto.java",
+        "backend/src/main/java/com/company/los/dto/LoanApplicationDto.java",
+        "backend/src/main/java/com/company/los/dto/DocumentDto.java",
+        "backend/src/main/java/com/company/los/dto/DocumentTypeDto.java",
+        "backend/src/main/java/com/company/los/dto/UserDto.java",
+        "backend/src/main/java/com/company/los/dto/CreateLoanRequestDto.java",
+        "backend/src/main/java/com/company/los/dto/AuthResponseDto.java"
+    )
+    
+    # Phase 3.1: Frontend Foundation
+    "Phase3_FrontendSetup" = @(
+        "frontend/package.json",
+        "frontend/vite.config.ts",
+        "frontend/tsconfig.json",
+        "frontend/index.html",
+        "frontend/src/main.tsx",
+        "frontend/src/App.tsx",
+        "frontend/src/types/index.ts",
+        "frontend/src/config/api.ts"
+    )
+    
+    # Phase 3.2: React Components
+    "Phase3_Components" = @(
+        "frontend/src/components/layout/MainLayout.tsx",
+        "frontend/src/components/layout/Header.tsx",
+        "frontend/src/components/layout/Sidebar.tsx",
+        "frontend/src/components/customer/CustomerList.tsx",
+        "frontend/src/components/customer/CustomerForm.tsx",
+        "frontend/src/components/loan/LoanApplicationForm.tsx",
+        "frontend/src/components/auth/LoginForm.tsx",
+        "frontend/src/components/common/LoadingSpinner.tsx"
+    )
+    
+    # Phase 3.3: Application Pages
+    "Phase3_Pages" = @(
+        "frontend/src/pages/CustomerPage.tsx",
+        "frontend/src/pages/LoanApplicationPage.tsx",
+        "frontend/src/pages/LoginPage.tsx",
+        "frontend/src/pages/DashboardPage.tsx"
+    )
+    
+    # Phase 3.4: Frontend Services
+    "Phase3_Services" = @(
+        "frontend/src/services/customerService.ts",
+        "frontend/src/services/loanService.ts",
+        "frontend/src/services/authService.ts",
+        "frontend/src/contexts/AuthContext.tsx",
+        "frontend/src/types/customer.ts",
+        "frontend/src/types/loan.ts",
+        "frontend/src/types/document.ts"
+    )
+    
+    # Phase 4.1: Testing Framework
+    "Phase4_Testing" = @(
+        "backend/src/test/java/com/company/los/controller/CustomerControllerTest.java",
+        "backend/src/test/java/com/company/los/service/CustomerServiceTest.java",
+        "backend/src/test/java/com/company/los/service/DocumentServiceTest.java",
+        "backend/src/test/java/com/company/los/service/LoanApplicationServiceTest.java",
+        "backend/src/test/java/com/company/los/integration/LoanApplicationIntegrationTest.java",
+        "frontend/src/__tests__/components/CustomerForm.test.tsx",
+        "frontend/src/__tests__/services/api.test.ts"
+    )
+    
+    # Phase 4.2: DevOps & Documentation  
+    "Phase4_DevOps" = @(
+        "docs/API.md",
+        "docs/USER_GUIDE.md",
+        "docs/DEPLOYMENT.md",
+        "README.md"
+    )
+}
+
+# ================================================================
+# HTTP AND SYSTEM UTILITIES
+# ================================================================
 
 # HTTP хүсэлт шалгах функц
 function Test-HttpEndpoint {
@@ -171,113 +676,6 @@ function Test-HttpEndpoint {
             Error = $_.Exception.Message
             ResponseTime = 0
         }
-    }
-}
-
-# Лог файлд бичих функц
-function Write-Log {
-    param($Message, $Level = "INFO")
-    try {
-        if ($LogFile) {
-            $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-            $logEntry = "[$timestamp] [$Level] $Message"
-            Add-Content -Path $LogFile -Value $logEntry -Encoding UTF8 -ErrorAction SilentlyContinue
-        }
-    } catch {
-        # Лог бичихэд алдаа гарвал үл тоомсорло
-    }
-}
-
-# Backend лог файлд бичих функц
-function Write-BackendLog {
-    param($Message)
-    try {
-        if ($BackendLogFile) {
-            $cleanMessage = $Message -replace '\x1b\[[0-9;]*m', ''
-            Add-Content -Path $BackendLogFile -Value "$cleanMessage" -Encoding UTF8 -ErrorAction SilentlyContinue
-        }
-    } catch {
-        # Лог бичихэд алдаа гарвал үл тоомсорло
-    }
-}
-
-# Frontend лог файлд бичих функц
-function Write-FrontendLog {
-    param($Message)
-    try {
-        if ($FrontendLogFile) {
-            $cleanMessage = $Message -replace '\x1b\[[0-9;]*m', ''
-            Add-Content -Path $FrontendLogFile -Value "$cleanMessage" -Encoding UTF8 -ErrorAction SilentlyContinue
-        }
-    } catch {
-        # Лог бичихэд алдаа гарвал үл тоомсорло
-    }
-}
-
-# Лог файлууд эхлүүлэх
-function Initialize-StructureLogs {
-    if ($ShowStructure) {
-        # Backend лог
-        if (!$FrontendOnly -and $BackendLogFile) {
-            try {
-                if (Test-Path $BackendLogFile) { Remove-Item $BackendLogFile -Force }
-                $header = @"
-═══════════════════════════════════════════════════════════════════
-🏗️ BACKEND ФАЙЛЫН БҮТЭЦ - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-═══════════════════════════════════════════════════════════════════
-📂 Ажиллаж буй директор: $(Get-Location)
-☕ Java Backend Structure Analysis
-🎯 LOS Төсөл - Enhanced Progress Tracker v3.0
-═══════════════════════════════════════════════════════════════════
-
-"@
-                Add-Content -Path $BackendLogFile -Value $header -Encoding UTF8
-                Write-ColoredText "📋 Backend лог файл эхлүүлэгдлээ: $BackendLogFile" "Green"
-            } catch {
-                Write-ColoredText "⚠️ Backend лог файл үүсгэхэд алдаа: $($_.Exception.Message)" "Red"
-            }
-        }
-        
-        # Frontend лог
-        if (!$BackendOnly -and $FrontendLogFile) {
-            try {
-                if (Test-Path $FrontendLogFile) { Remove-Item $FrontendLogFile -Force }
-                $header = @"
-═══════════════════════════════════════════════════════════════════
-🎨 FRONTEND ФАЙЛЫН БҮТЭЦ - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-═══════════════════════════════════════════════════════════════════
-📂 Ажиллаж буй директор: $(Get-Location)  
-⚛️ React/TypeScript Frontend Structure Analysis
-🎯 LOS Төсөл - Enhanced Progress Tracker v3.0
-═══════════════════════════════════════════════════════════════════
-
-"@
-                Add-Content -Path $FrontendLogFile -Value $header -Encoding UTF8
-                Write-ColoredText "📋 Frontend лог файл эхлүүлэгдлээ: $FrontendLogFile" "Green"
-            } catch {
-                Write-ColoredText "⚠️ Frontend лог файл үүсгэхэд алдаа: $($_.Exception.Message)" "Red"
-            }
-        }
-    }
-}
-
-# Progress bar үүсгэх
-function Show-ProgressBar {
-    param($Current, $Total, $Title = "Progress", $ShowPercentage = $true, $BarLength = 50)
-    
-    if ($Total -eq 0 -or $null -eq $Total) {
-        $percent = 0
-        $bar = "░" * $BarLength
-    } else {
-        $percent = [math]::Round(($Current / $Total) * 100, 1)
-        $filledLength = [math]::Round(($percent / 100) * $BarLength)
-        $bar = "█" * $filledLength + "░" * ($BarLength - $filledLength)
-    }
-    
-    if ($ShowPercentage) {
-        Write-ColoredText "$Title [$bar] $percent% ($Current/$Total)" "Cyan"
-    } else {
-        Write-ColoredText "$Title [$bar] ($Current/$Total)" "Cyan"
     }
 }
 
@@ -312,625 +710,85 @@ function Get-DirectorySize {
     }
 }
 
-# Файлын хэмжээ форматлах
-function Format-FileSize {
-    param($Bytes)
-    if ($Bytes -lt 1KB) {
-        return "$Bytes B"
-    } elseif ($Bytes -lt 1MB) {
-        return "$([math]::Round($Bytes/1KB, 1)) KB"
-    } elseif ($Bytes -lt 1GB) {
-        return "$([math]::Round($Bytes/1MB, 1)) MB"
-    } else {
-        return "$([math]::Round($Bytes/1GB, 1)) GB"
+# ================================================================
+# LOGGING FUNCTIONS
+# ================================================================
+
+# Лог файлуудыг эхлүүлэх
+function Initialize-StructureLogs {
+    if ($ShowStructure) {
+        # Backend лог
+        if (!$FrontendOnly -and $BackendLogFile) {
+            try {
+                if (Test-Path $BackendLogFile) { Remove-Item $BackendLogFile -Force }
+                $header = @"
+═══════════════════════════════════════════════════════════════════
+🏗️ BACKEND ФАЙЛЫН БҮТЭЦ - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+═══════════════════════════════════════════════════════════════════
+📂 Ажиллаж буй директор: $(Get-Location)
+☕ Java Backend Structure Analysis
+🎯 LOS Төсөл - Enhanced Progress Tracker v5.0
+═══════════════════════════════════════════════════════════════════
+
+"@
+                Add-Content -Path $BackendLogFile -Value $header -Encoding UTF8
+                Write-ColoredText "📋 Backend лог файл эхлүүлэгдлээ: $BackendLogFile" "Green"
+            } catch {
+                Write-ColoredText "⚠️ Backend лог файл үүсгэхэд алдаа: $($_.Exception.Message)" "Red"
+            }
+        }
+        
+        # Frontend лог
+        if (!$BackendOnly -and $FrontendLogFile) {
+            try {
+                if (Test-Path $FrontendLogFile) { Remove-Item $FrontendLogFile -Force }
+                $header = @"
+═══════════════════════════════════════════════════════════════════
+🎨 FRONTEND ФАЙЛЫН БҮТЭЦ - $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+═══════════════════════════════════════════════════════════════════
+📂 Ажиллаж буй директор: $(Get-Location)  
+⚛️ React/TypeScript Frontend Structure Analysis
+🎯 LOS Төсөл - Enhanced Progress Tracker v5.0
+═══════════════════════════════════════════════════════════════════
+
+"@
+                Add-Content -Path $FrontendLogFile -Value $header -Encoding UTF8
+                Write-ColoredText "📋 Frontend лог файл эхлүүлэгдлээ: $FrontendLogFile" "Green"
+            } catch {
+                Write-ColoredText "⚠️ Frontend лог файл үүсгэхэд алдаа: $($_.Exception.Message)" "Red"
+            }
+        }
     }
 }
 
-# file_counter.ps1 стилээр сайжруулсан файлын мод үүсгэх функц
-function Show-FileSystemTree {
-    param(
-        [string]$rootPath,
-        [int]$depth = 0,
-        [int]$maxDepth = 3,
-        [switch]$ShowAll = $false,
-        [string]$LogType = "Both"
-    )
-    
-    $indent = '    ' * $depth
-    $dirName = Split-Path $rootPath -Leaf
-    
-    if ($depth -eq 0) {
-        $rootSize = Get-DirectorySize $rootPath
-        Write-ColoredText "`n🌳 Фолдер бүтэц: $rootPath ($(Format-FileSize $rootSize))" "Cyan" -ToBackendLog:($LogType -eq "Backend" -or $LogType -eq "Both") -ToFrontendLog:($LogType -eq "Frontend" -or $LogType -eq "Both")
-    } else {
-        $dirSize = Get-DirectorySize $rootPath
-        $sizeText = if ($dirSize -gt 0) { " ($(Format-FileSize $dirSize))" } else { "" }
-        Write-ColoredText "$indent📂 $dirName$sizeText" "DarkCyan" -ToBackendLog:($LogType -eq "Backend" -or $LogType -eq "Both") -ToFrontendLog:($LogType -eq "Frontend" -or $LogType -eq "Both")
-    }
-    
-    if ($depth -ge $maxDepth) {
-        Write-ColoredText "${indent}    ... (дэд фолдеруудыг дарсан)" "DarkGray" -ToBackendLog:($LogType -eq "Backend" -or $LogType -eq "Both") -ToFrontendLog:($LogType -eq "Frontend" -or $LogType -eq "Both")
-        return
-    }
-    
+# Backend/Frontend лог файлд бичих функцууд
+function Write-BackendLog {
+    param($Message)
     try {
-        $dirs = Get-ChildItem -Path $rootPath -Directory -ErrorAction Stop | Sort-Object Name
-        $files = Get-ChildItem -Path $rootPath -File -ErrorAction Stop | Sort-Object Name
-        
-        # Хэрэгтэй файлууд шүүх ($ShowAll биш бол)
-        if (!$ShowAll) {
-            $importantExtensions = @('.java', '.tsx', '.ts', '.json', '.yml', '.yaml', '.sql', '.md', '.bpmn', '.html', '.txt', '.css', '.xml', '.properties', '.js')
-            $importantFiles = @('pom.xml', 'package.json', 'application.yml', 'data.sql', 'schema.sql', 'README.md', 'Dockerfile', 'mvnw.cmd', '.gitignore')
-            
-            $files = $files | Where-Object {
-                $_.Extension -in $importantExtensions -or $_.Name -in $importantFiles
-            }
-            
-            $importantDirNames = @('src', 'main', 'java', 'resources', 'test', 'components', 'pages', 'services', 'types', 'styles', 'db', 'processes', 'templates', 'entity', 'repository', 'service', 'controller', 'dto', 'config', 'impl', 'security')
-            $dirs = $dirs | Where-Object { $_.Name -in $importantDirNames -or $_.Name -like 'com*' -or $_.Name -like 'los*' -or $_.Name -like 'company*' }
-        }
-        
-        # Файлуудыг харуулах
-        foreach ($file in $files) {
-            $fileIcon = Get-FileIcon $file.Extension
-            $fileColor = Get-FileColor $file.Extension
-            $fileSize = Format-FileSize $file.Length
-            
-            # Файлын мөр тоо (текст файлын хувьд)
-            $lineInfo = ""
-            $textExtensions = @('.java', '.ts', '.tsx', '.sql', '.yml', '.yaml', '.html', '.txt', '.md', '.css', '.js', '.xml', '.properties')
-            if ($file.Extension -in $textExtensions) {
-                try {
-                    $lineCount = (Get-Content $file.FullName -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
-                    if ($lineCount -gt 0) {
-                        $lineInfo = ", $lineCount мөр"
-                    }
-                } catch {
-                    # Мөр тоолоход алдаа гарвал үл тоомсорло
-                }
-            }
-            
-            Write-ColoredText "${indent}    $fileIcon $($file.Name) ($fileSize$lineInfo)" $fileColor -ToBackendLog:($LogType -eq "Backend" -or $LogType -eq "Both") -ToFrontendLog:($LogType -eq "Frontend" -or $LogType -eq "Both")
-            
-            # Статистикт нэмэх
-            $global:TotalFilesFound++
-        }
-        
-        # Директоруудыг харуулах
-        foreach ($dir in $dirs) {
-            Show-FileSystemTree -rootPath $dir.FullName -depth ($depth + 1) -maxDepth $maxDepth -ShowAll:$ShowAll -LogType $LogType
-        }
-    }
-    catch {
-        Write-ColoredText "${indent}    ❌ Алдаа: $($_.Exception.Message)" "Red" -ToBackendLog:($LogType -eq "Backend" -or $LogType -eq "Both") -ToFrontendLog:($LogType -eq "Frontend" -or $LogType -eq "Both")
-    }
-}
-
-# file_counter.ps1 стилээр файлын статистик харуулах
-function Show-FileTypeStatistics {
-    param($Path)
-    
-    Write-ColoredText "`n📦 Файлын төрлүүдийн статистик:" "Cyan"
-    
-    try {
-        if (Test-Path $Path) {
-            $allFiles = Get-ChildItem -Path $Path -Recurse -File -ErrorAction SilentlyContinue
-            $currentExpected = $allFiles.Count
-            
-            if ($allFiles.Count -eq 0) {
-                Write-ColoredText "   📂 Файл олдсонгүй" "Yellow"
-                return
-            }
-            
-            $allFiles | Group-Object Extension | Sort-Object Count -Descending | ForEach-Object {
-                $icon = Get-FileIcon $_.Name
-                $percentage = if ($currentExpected -gt 0) { [math]::Round(($_.Count/$currentExpected)*100, 1) } else { 0 }
-                Write-ColoredText ("   {0} {1}: {2} файл ({3}%)" -f $icon, $_.Name, $_.Count, $percentage) "White"
-            }
-            
-            # Нийт хэмжээ
-            $totalSize = Get-DirectorySize $Path
-            Write-ColoredText ("   📦 Нийт хэмжээ: {0}" -f (Format-FileSize $totalSize)) "White"
+        if ($BackendLogFile) {
+            $cleanMessage = $Message -replace '\x1b\[[0-9;]*m', ''
+            Add-Content -Path $BackendLogFile -Value "$cleanMessage" -Encoding UTF8 -ErrorAction SilentlyContinue
         }
     } catch {
-        Write-ColoredText "   ❌ Статистик тооцоолоход алдаа: $($_.Exception.Message)" "Red"
+        # Лог бичихэд алдаа гарвал үл тоомсорло
     }
 }
 
-# Файлын структур харуулах функц
-function Show-ProjectStructure {
-    param(
-        [string]$RootPath = ".",
-        [int]$MaxDepth = 3,
-        [switch]$ShowAll = $false
-    )
-    
-    if (!$BackendOnly -and !$FrontendOnly) {
-        Write-ColoredText "🌳 ТӨСЛИЙН ФАЙЛЫН БҮТЭЦ" "Green"
-        Write-ColoredText "══════════════════════" "Green"
-    }
-    
-    # Backend структур
-    if (!$FrontendOnly) {
-        Show-BackendStructure -RootPath $RootPath -MaxDepth $MaxDepth -ShowAll:$ShowAll
-    }
-    
-    # Frontend структур  
-    if (!$BackendOnly) {
-        Show-FrontendStructure -RootPath $RootPath -MaxDepth $MaxDepth -ShowAll:$ShowAll
+function Write-FrontendLog {
+    param($Message)
+    try {
+        if ($FrontendLogFile) {
+            $cleanMessage = $Message -replace '\x1b\[[0-9;]*m', ''
+            Add-Content -Path $FrontendLogFile -Value "$cleanMessage" -Encoding UTF8 -ErrorAction SilentlyContinue
+        }
+    } catch {
+        # Лог бичихэд алдаа гарвал үл тоомсорло
     }
 }
 
-# Backend структур харуулах
-function Show-BackendStructure {
-    param(
-        [string]$RootPath = ".",
-        [int]$MaxDepth = 3,
-        [switch]$ShowAll = $false
-    )
-    
-    Write-ColoredText "🏗️ BACKEND СТРУКТУР (Java/Spring Boot)" "Yellow" -ToBackendLog
-    Write-ColoredText "════════════════════════════════════" "Yellow" -ToBackendLog
-    
-    if (Test-Path "backend") {
-        Show-FileSystemTree "backend" 0 $MaxDepth $ShowAll "Backend"
-        Show-FileTypeStatistics "backend"
-        Show-ResourcesStructure -ResourcesPath "backend/src/main/resources"
-        Write-ColoredText "" "White" -ToBackendLog
-    } else {
-        Write-ColoredText "❌ Backend directory олдсонгүй" "Red" -ToBackendLog
-    }
-    
-    # Backend холбоотой root файлууд
-    $backendRootFiles = Get-ChildItem -Path $RootPath -File | Where-Object { 
-        $_.Name -eq "pom.xml" -or 
-        $_.Name -like "mvnw*" -or
-        $_.Name -like "Dockerfile*" -or
-        $_.Name -like ".gitignore"
-    }
-    
-    if ($backendRootFiles.Count -gt 0) {
-        Write-ColoredText "📋 Backend Root файлууд:" "White" -ToBackendLog
-        foreach ($file in $backendRootFiles) {
-            $statusIcon = Get-FileIcon $file.Extension
-            if ($file.Name -eq "pom.xml") { $statusIcon = "🏗️" }
-            elseif ($file.Name -like "mvnw*") { $statusIcon = "⚙️" }
-            elseif ($file.Name -like "Dockerfile*") { $statusIcon = "🐳" }
-            elseif ($file.Name -like ".git*") { $statusIcon = "📝" }
-            
-            $size = Format-FileSize $file.Length
-            Write-ColoredText "├── $statusIcon $($file.Name) ($size)" "White" -ToBackendLog
-        }
-        Write-ColoredText "" "White" -ToBackendLog
-    }
-}
-
-# Resources файлуудыг дэлгэрэнгүй шалгах
-function Show-ResourcesStructure {
-    param($ResourcesPath)
-    
-    Write-ColoredText "📂 RESOURCES ФАЙЛУУДЫН ДЭЛГЭРЭНГҮЙ МЭДЭЭЛЭЛ" "Blue" -ToBackendLog
-    Write-ColoredText "══════════════════════════════════════════" "Blue" -ToBackendLog
-    
-    # application.yml шалгах
-    $appYml = Join-Path $ResourcesPath "application.yml"
-    if (Test-Path $appYml) {
-        $size = (Get-Item $appYml).Length
-        $lines = (Get-Content $appYml | Measure-Object -Line).Lines
-        Write-ColoredText "✅ application.yml байна ($(Format-FileSize $size), $lines мөр)" "Green" -ToBackendLog
-        
-        # Configuration profiles шалгах
-        $content = Get-Content $appYml -Raw
-        if ($content -match "spring:\s*profiles:") {
-            Write-ColoredText "   📋 Spring profiles тохиргоо байна" "White" -ToBackendLog
-        }
-        if ($content -match "datasource:") {
-            Write-ColoredText "   🗄️ Database тохиргоо байна" "White" -ToBackendLog
-        }
-        if ($content -match "jpa:") {
-            Write-ColoredText "   🏗️ JPA тохиргоо байна" "White" -ToBackendLog
-        }
-    } else {
-        Write-ColoredText "❌ application.yml байхгүй" "Red" -ToBackendLog
-    }
-    
-    # data.sql шалгах
-    $dataSql = Join-Path $ResourcesPath "data.sql"
-    if (Test-Path $dataSql) {
-        $size = (Get-Item $dataSql).Length
-        $content = Get-Content $dataSql -Raw
-        $insertCount = ([regex]::Matches($content, "INSERT", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
-        Write-ColoredText "✅ data.sql байна ($(Format-FileSize $size), ~$insertCount INSERT statement)" "Green" -ToBackendLog
-    } else {
-        Write-ColoredText "❌ data.sql байхгүй" "Red" -ToBackendLog
-    }
-    
-    # schema.sql шалгах
-    $schemaSql = Join-Path $ResourcesPath "schema.sql"
-    if (Test-Path $schemaSql) {
-        $size = (Get-Item $schemaSql).Length
-        $content = Get-Content $schemaSql -Raw
-        $tableCount = ([regex]::Matches($content, "CREATE TABLE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
-        Write-ColoredText "✅ schema.sql байна ($(Format-FileSize $size), ~$tableCount table)" "Green" -ToBackendLog
-    } else {
-        Write-ColoredText "❌ schema.sql байхгүй" "Red" -ToBackendLog
-    }
-    
-    # Фолдеруудыг шалгах
-    $folders = @("db", "processes", "templates")
-    foreach ($folder in $folders) {
-        $folderPath = Join-Path $ResourcesPath $folder
-        if (Test-Path $folderPath) {
-            $folderSize = Get-DirectorySize $folderPath
-            $fileCount = (Get-ChildItem -Path $folderPath -Recurse -File | Measure-Object).Count
-            Write-ColoredText "✅ $folder/ фолдер байна ($(Format-FileSize $folderSize), $fileCount файл)" "Green" -ToBackendLog
-            
-            # Фолдер доторх файлуудыг шалгах
-            if ($folder -eq "processes") {
-                $bpmnFiles = Get-ChildItem -Path $folderPath -Filter "*.bpmn" -File | Measure-Object | Select-Object -ExpandProperty Count
-                if ($bpmnFiles -gt 0) {
-                    Write-ColoredText "   🔄 $bpmnFiles BPMN workflow файл байна" "White" -ToBackendLog
-                }
-            } elseif ($folder -eq "templates") {
-                $htmlFiles = Get-ChildItem -Path $folderPath -Filter "*.html" -File | Measure-Object | Select-Object -ExpandProperty Count
-                $txtFiles = Get-ChildItem -Path $folderPath -Filter "*.txt" -File | Measure-Object | Select-Object -ExpandProperty Count
-                if ($htmlFiles -gt 0) {
-                    Write-ColoredText "   📧 $htmlFiles HTML template файл байна" "White" -ToBackendLog
-                }
-                if ($txtFiles -gt 0) {
-                    Write-ColoredText "   📱 $txtFiles SMS template файл байна" "White" -ToBackendLog
-                }
-            } elseif ($folder -eq "db") {
-                $sqlFiles = Get-ChildItem -Path $folderPath -Filter "*.sql" -Recurse -File | Measure-Object | Select-Object -ExpandProperty Count
-                $xmlFiles = Get-ChildItem -Path $folderPath -Filter "*.xml" -Recurse -File | Measure-Object | Select-Object -ExpandProperty Count
-                if ($sqlFiles -gt 0) {
-                    Write-ColoredText "   🗄️ $sqlFiles SQL migration файл байна" "White" -ToBackendLog
-                }
-                if ($xmlFiles -gt 0) {
-                    Write-ColoredText "   📋 $xmlFiles XML changelog файл байна" "White" -ToBackendLog
-                }
-            }
-        } else {
-            Write-ColoredText "❌ $folder/ фолдер байхгүй" "Red" -ToBackendLog
-        }
-    }
-    
-    Write-ColoredText "" "White" -ToBackendLog
-}
-
-# Frontend структур харуулах
-function Show-FrontendStructure {
-    param(
-        [string]$RootPath = ".",
-        [int]$MaxDepth = 3,
-        [switch]$ShowAll = $false
-    )
-    
-    Write-ColoredText "🎨 FRONTEND СТРУКТУР (React/TypeScript)" "Cyan" -ToFrontendLog
-    Write-ColoredText "═══════════════════════════════════════" "Cyan" -ToFrontendLog
-    
-    if (Test-Path "frontend") {
-        Show-FileSystemTree "frontend" 0 $MaxDepth $ShowAll "Frontend"
-        Show-FileTypeStatistics "frontend"
-        Write-ColoredText "" "White" -ToFrontendLog
-    } else {
-        Write-ColoredText "❌ Frontend directory олдсонгүй" "Red" -ToFrontendLog
-    }
-    
-    # Frontend холбоотой root файлууд
-    $frontendRootFiles = Get-ChildItem -Path $RootPath -File | Where-Object { 
-        $_.Name -eq "package.json" -or 
-        $_.Name -like "*.config.*" -or
-        $_.Name -eq "README.md" -or
-        $_.Name -like ".env*"
-    }
-    
-    if ($frontendRootFiles.Count -gt 0) {
-        Write-ColoredText "📋 Frontend Root файлууд:" "White" -ToFrontendLog
-        foreach ($file in $frontendRootFiles) {
-            $statusIcon = Get-FileIcon $file.Extension
-            if ($file.Name -eq "package.json") { $statusIcon = "📦" }
-            elseif ($file.Name -like "*.config.*") { $statusIcon = "⚙️" }
-            elseif ($file.Name -eq "README.md") { $statusIcon = "📖" }
-            elseif ($file.Name -like ".env*") { $statusIcon = "🔐" }
-            
-            $size = Format-FileSize $file.Length
-            Write-ColoredText "├── $statusIcon $($file.Name) ($size)" "White" -ToFrontendLog
-        }
-        Write-ColoredText "" "White" -ToFrontendLog
-    }
-}
-
-# Файлын төлөв байдал шалгах
-function Show-FileStatus {
-    if (!$FrontendOnly) {
-        Show-BackendFileStatus
-    }
-    
-    if (!$BackendOnly) {
-        Show-FrontendFileStatus
-    }
-}
-
-# Backend файлын төлөв байдал шалгах
-function Show-BackendFileStatus {
-    Write-ColoredText "📊 BACKEND ФАЙЛЫН ТӨЛӨВ БАЙДАЛ" "Blue" -ToBackendLog
-    Write-ColoredText "═══════════════════════════════" "Blue" -ToBackendLog
-    
-    $backendCategories = @{
-        "Backend Entities" = @("Customer.java", "LoanApplication.java", "Document.java", "DocumentType.java", "BaseEntity.java", "User.java", "Role.java")
-        "Backend Repositories" = @("CustomerRepository.java", "DocumentRepository.java", "DocumentTypeRepository.java", "LoanApplicationRepository.java", "UserRepository.java")
-        "Backend Services" = @("DocumentService.java", "DocumentServiceImpl.java", "CustomerService.java", "LoanApplicationService.java", "AuthService.java")
-        "Backend Controllers" = @("HealthController.java", "AuthController.java", "DocumentController.java", "CustomerController.java", "LoanApplicationController.java")
-        "Backend DTOs" = @("DocumentDto.java", "DocumentTypeDto.java", "CustomerDto.java", "LoanApplicationDto.java", "AuthResponseDto.java")
-        "Configuration" = @("LoanOriginationApplication.java", "JpaConfig.java", "CorsConfig.java", "SecurityConfig.java", "SwaggerConfig.java")
-        "Resources - ОДООГИЙН" = @("application.yml", "data.sql", "schema.sql")
-    }
-    
-    foreach ($category in $backendCategories.Keys) {
-        Write-ColoredText "  📂 $category" "Yellow" -ToBackendLog
-        foreach ($file in $backendCategories[$category]) {
-            $found = $false
-            $filePath = ""
-            $fileSize = 0
-            
-            if ($category -eq "Resources - ОДООГИЙН") {
-                # Resources файлуудыг шалгах
-                $resourcesPath = "backend/src/main/resources/$file"
-                if (Test-Path $resourcesPath) {
-                    $found = $true
-                    $filePath = $resourcesPath
-                    $fileSize = (Get-Item $resourcesPath).Length
-                }
-            } else {
-                # Java файлуудыг хайх газрууд
-                $searchPaths = @()
-                
-                if ($file.EndsWith(".java")) {
-                    $basePaths = @(
-                        "backend\src\main\java\com\company\los",
-                        "backend/src/main/java/com/company/los"
-                    )
-                    
-                    $subPaths = @(
-                        "entity",
-                        "repository", 
-                        "service",
-                        "service\impl",
-                        "service/impl",
-                        "controller",
-                        "dto",
-                        "config",
-                        "security",
-                        ""
-                    )
-                    
-                    foreach ($basePath in $basePaths) {
-                        foreach ($subPath in $subPaths) {
-                            if ($subPath -eq "") {
-                                $searchPaths += "$basePath\$file"
-                                $searchPaths += "$basePath/$file"
-                            } else {
-                                $searchPaths += "$basePath\$subPath\$file"
-                                $searchPaths += "$basePath/$subPath/$file"
-                            }
-                        }
-                    }
-                }
-                
-                # Файлыг олох гэж оролдох
-                foreach ($searchPath in $searchPaths) {
-                    if (Test-Path $searchPath) {
-                        $found = $true
-                        $filePath = $searchPath -replace "\\", "/"
-                        $fileSize = (Get-Item $searchPath).Length
-                        break
-                    }
-                }
-            }
-            
-            # Хэрэв олдсон бол
-            if ($found) {
-                $sizeText = Format-FileSize $fileSize
-                $icon = Get-FileIcon ([System.IO.Path]::GetExtension($file))
-                Write-ColoredText "    ✅ $icon $file ($sizeText) - $filePath" "Green" -ToBackendLog
-            } else {
-                Write-ColoredText "    ❌ $file" "Red" -ToBackendLog
-            }
-        }
-        Write-ColoredText "" "White" -ToBackendLog
-    }
-}
-
-# Frontend файлын төлөв байдал шалгах
-function Show-FrontendFileStatus {
-    Write-ColoredText "📊 FRONTEND ФАЙЛЫН ТӨЛӨВ БАЙДАЛ" "Blue" -ToFrontendLog
-    Write-ColoredText "════════════════════════════════" "Blue" -ToFrontendLog
-    
-    $frontendCategories = @{
-        "Main Components" = @("App.tsx", "main.tsx", "index.html")
-        "Configuration" = @("package.json", "vite.config.ts", "tsconfig.json", "tailwind.config.js")
-        "Types" = @("customer.ts", "loan.ts", "document.ts", "index.ts")
-        "Components" = @("CustomerList.tsx", "CustomerForm.tsx", "LoanApplicationForm.tsx", "MainLayout.tsx", "Header.tsx")
-        "Pages" = @("DashboardPage.tsx", "CustomerPage.tsx", "LoginPage.tsx")
-        "Services" = @("customerService.ts", "loanService.ts", "authService.ts", "api.ts")
-        "Styles" = @("globals.css", "index.css", "App.css")
-    }
-    
-    foreach ($category in $frontendCategories.Keys) {
-        Write-ColoredText "  📂 $category" "Yellow" -ToFrontendLog
-        foreach ($file in $frontendCategories[$category]) {
-            $found = $false
-            $foundPath = ""
-            $fileSize = 0
-            
-            if ($file.EndsWith(".tsx") -or $file.EndsWith(".ts") -or $file.EndsWith(".json") -or $file.EndsWith(".html") -or $file.EndsWith(".css") -or $file.EndsWith(".js")) {
-                $frontendPaths = @(
-                    "frontend/src/**/$file",
-                    "frontend/src/*/$file",
-                    "frontend/src/$file",
-                    "frontend/$file"
-                )
-                foreach ($path in $frontendPaths) {
-                    $foundFiles = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
-                    if ($foundFiles.Count -gt 0) {
-                        $found = $true
-                        $foundFile = $foundFiles[0]
-                        $foundPath = $foundFile.FullName.Replace((Get-Location).Path + "\", "").Replace("\", "/")
-                        $fileSize = $foundFile.Length
-                        break
-                    }
-                }
-            }
-            
-            if ($found) {
-                $sizeText = Format-FileSize $fileSize
-                $icon = Get-FileIcon ([System.IO.Path]::GetExtension($file))
-                Write-ColoredText "    ✅ $icon $file ($sizeText) - $foundPath" "Green" -ToFrontendLog
-            } else {
-                Write-ColoredText "    ❌ $file" "Red" -ToFrontendLog
-            }
-        }
-        Write-ColoredText "" "White" -ToFrontendLog
-    }
-}
-
-# ТӨСЛИЙН ФАЙЛУУДЫН ЖАГСААЛТ - Одоогийн бодит байдалтай нийцүүлсэн
-$expectedFiles = @{
-    # 1-р долоо хоног: Суурь архитектур
-    "Phase1_Infrastructure" = @(
-        "backend/pom.xml",
-        "backend/mvnw.cmd", 
-        "backend/src/main/java/com/company/los/LoanOriginationApplication.java",
-        "backend/src/main/java/com/company/los/config/CorsConfig.java",
-        "backend/src/main/java/com/company/los/config/SwaggerConfig.java",
-        "backend/src/main/java/com/company/los/config/DatabaseConfig.java",
-        "backend/src/main/java/com/company/los/config/JpaConfig.java",
-        "Dockerfile.backend",
-        "docker-compose.yml",
-        ".gitignore"
-    )
-    
-    "Phase1_DomainModel" = @(
-        "backend/src/main/java/com/company/los/entity/BaseEntity.java",
-        "backend/src/main/java/com/company/los/entity/Customer.java",
-        "backend/src/main/java/com/company/los/entity/LoanApplication.java",
-        "backend/src/main/java/com/company/los/entity/Document.java",
-        "backend/src/main/java/com/company/los/entity/DocumentType.java",
-        "backend/src/main/java/com/company/los/entity/User.java",
-        "backend/src/main/java/com/company/los/entity/Role.java",
-        "backend/src/main/java/com/company/los/enums/LoanStatus.java",
-        "backend/src/main/java/com/company/los/enums/DocumentType.java",
-        "backend/src/main/resources/application.yml",
-        "backend/src/main/resources/application-dev.yml",
-        "backend/src/main/resources/application-prod.yml",
-        "backend/src/main/resources/data.sql",
-        "backend/src/main/resources/schema.sql"
-    )
-    
-    "Phase1_DataAccess" = @(
-        "backend/src/main/java/com/company/los/repository/BaseRepository.java",
-        "backend/src/main/java/com/company/los/repository/CustomerRepository.java",
-        "backend/src/main/java/com/company/los/repository/LoanApplicationRepository.java",
-        "backend/src/main/java/com/company/los/repository/DocumentRepository.java",
-        "backend/src/main/java/com/company/los/repository/DocumentTypeRepository.java",
-        "backend/src/main/java/com/company/los/repository/UserRepository.java",
-        "backend/src/main/java/com/company/los/repository/RoleRepository.java"
-    )
-    
-    # 2-р долоо хоног: Core Services & DTOs
-    "Phase2_Services" = @(
-        "backend/src/main/java/com/company/los/service/CustomerService.java",
-        "backend/src/main/java/com/company/los/service/LoanApplicationService.java",
-        "backend/src/main/java/com/company/los/service/DocumentService.java",
-        "backend/src/main/java/com/company/los/service/UserService.java",
-        "backend/src/main/java/com/company/los/service/AuthService.java",
-        "backend/src/main/java/com/company/los/service/impl/CustomerServiceImpl.java",
-        "backend/src/main/java/com/company/los/service/impl/LoanApplicationServiceImpl.java",
-        "backend/src/main/java/com/company/los/service/impl/DocumentServiceImpl.java",
-        "backend/src/main/java/com/company/los/service/impl/UserServiceImpl.java",
-        "backend/src/main/java/com/company/los/service/impl/AuthServiceImpl.java"
-    )
-    
-    "Phase2_Controllers" = @(
-        "backend/src/main/java/com/company/los/controller/CustomerController.java",
-        "backend/src/main/java/com/company/los/controller/LoanApplicationController.java",
-        "backend/src/main/java/com/company/los/controller/DocumentController.java",
-        "backend/src/main/java/com/company/los/controller/UserController.java",
-        "backend/src/main/java/com/company/los/controller/AuthController.java",
-        "backend/src/main/java/com/company/los/controller/HealthController.java",
-        "backend/src/main/java/com/company/los/security/JwtUtil.java",
-        "backend/src/main/java/com/company/los/security/SecurityConfig.java"
-    )
-    
-    "Phase2_DTOs" = @(
-        "backend/src/main/java/com/company/los/dto/CustomerDto.java",
-        "backend/src/main/java/com/company/los/dto/LoanApplicationDto.java",
-        "backend/src/main/java/com/company/los/dto/DocumentDto.java",
-        "backend/src/main/java/com/company/los/dto/DocumentTypeDto.java",
-        "backend/src/main/java/com/company/los/dto/UserDto.java",
-        "backend/src/main/java/com/company/los/dto/CreateLoanRequestDto.java",
-        "backend/src/main/java/com/company/los/dto/AuthResponseDto.java"
-    )
-    
-    # 3-р долоо хоног: Frontend суурь
-    "Phase3_FrontendSetup" = @(
-        "frontend/package.json",
-        "frontend/vite.config.ts",
-        "frontend/tsconfig.json",
-        "frontend/index.html",
-        "frontend/src/main.tsx",
-        "frontend/src/App.tsx",
-        "frontend/src/types/index.ts",
-        "frontend/src/config/api.ts"
-    )
-    
-    "Phase3_Components" = @(
-        "frontend/src/components/layout/MainLayout.tsx",
-        "frontend/src/components/layout/Header.tsx",
-        "frontend/src/components/layout/Sidebar.tsx",
-        "frontend/src/components/customer/CustomerList.tsx",
-        "frontend/src/components/customer/CustomerForm.tsx",
-        "frontend/src/components/loan/LoanApplicationForm.tsx",
-        "frontend/src/components/auth/LoginForm.tsx",
-        "frontend/src/components/common/LoadingSpinner.tsx"
-    )
-    
-    "Phase3_Pages" = @(
-        "frontend/src/pages/CustomerPage.tsx",
-        "frontend/src/pages/LoanApplicationPage.tsx",
-        "frontend/src/pages/LoginPage.tsx",
-        "frontend/src/pages/DashboardPage.tsx"
-    )
-    
-    "Phase3_Services" = @(
-        "frontend/src/services/customerService.ts",
-        "frontend/src/services/loanService.ts",
-        "frontend/src/services/authService.ts",
-        "frontend/src/contexts/AuthContext.tsx",
-        "frontend/src/types/customer.ts",
-        "frontend/src/types/loan.ts",
-        "frontend/src/types/document.ts"
-    )
-    
-    # 4-р долоо хоног: Testing & DevOps
-    "Phase4_Testing" = @(
-        "backend/src/test/java/com/company/los/controller/CustomerControllerTest.java",
-        "backend/src/test/java/com/company/los/service/CustomerServiceTest.java",
-        "backend/src/test/java/com/company/los/integration/LoanApplicationIntegrationTest.java",
-        "frontend/src/__tests__/components/CustomerForm.test.tsx",
-        "frontend/src/__tests__/services/api.test.ts"
-    )
-    
-    "Phase4_DevOps" = @(
-        "Dockerfile.frontend",
-        "docker-compose.prod.yml",
-        ".github/workflows/ci.yml",
-        "docs/API.md",
-        "docs/USER_GUIDE.md",
-        "README.md"
-    )
-}
+# ================================================================
+# ANALYSIS AND STATISTICS FUNCTIONS
+# ================================================================
 
 # Phase тутмын статистик тооцоолох
 function Get-PhaseStatistics {
@@ -942,7 +800,9 @@ function Get-PhaseStatistics {
         
         if ($phaseFiles -and $phaseFiles.Count -gt 0) {
             foreach ($file in $phaseFiles) {
-                if (Test-Path $file) {
+                $fileName = Split-Path $file -Leaf
+                $foundPath = Find-ProjectFile $fileName $file
+                if ($foundPath) {
                     $existingCount++
                 }
             }
@@ -961,165 +821,469 @@ function Get-PhaseStatistics {
     return $phases
 }
 
-# Quick check функц
-function Show-QuickProgress {
-    Write-ColoredText "⚡ ХУРДАН ПРОГРЕСС ШАЛГАЛТ" "Green"
-    Write-ColoredText "══════════════════════════" "Green"
-    
-    # Backend суурь файлууд
-    $backendCore = @("backend/pom.xml", "backend/src/main/resources/application.yml", "backend/src/main/resources/data.sql", "backend/src/main/resources/schema.sql")
-    $backendCoreCount = 0
-    
-    foreach ($file in $backendCore) {
-        if (Test-Path $file) { $backendCoreCount++ }
-    }
-    
-    Write-ColoredText "🏗️ Backend суурь файлууд: $backendCoreCount/4" "White"
-    Show-ProgressBar $backendCoreCount 4 "Backend Core"
-    
-    # Frontend суурь файлууд
-    $frontendCore = @("frontend/package.json", "frontend/src/App.tsx", "frontend/src/main.tsx")
-    $frontendCoreCount = 0
-    
-    foreach ($file in $frontendCore) {
-        if (Test-Path $file) { $frontendCoreCount++ }
-    }
-    
-    Write-ColoredText "🎨 Frontend суурь файлууд: $frontendCoreCount/3" "White"
-    Show-ProgressBar $frontendCoreCount 3 "Frontend Core"
-    
-    # Backend/Frontend серверийн статус
-    Write-ColoredText "🔧 Серверийн статус:" "Blue"
-    $backendStatus = Test-HttpEndpoint "http://localhost:8080/los/actuator/health"
-    $frontendStatus = Test-HttpEndpoint "http://localhost:3001"
-    
-    $backendIcon = if ($backendStatus.Success) { "✅" } else { "❌" }
-    $frontendIcon = if ($frontendStatus.Success) { "✅" } else { "❌" }
-    
-    Write-ColoredText "   $backendIcon Backend (8080): $(if($backendStatus.Success){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
-    Write-ColoredText "   $frontendIcon Frontend (3001): $(if($frontendStatus.Success){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
-    
-    Write-ColoredText ""
-}
-
-# Файлын статистик үзүүлэх функц
-function Show-DetailedFileStatistics {
-    Write-ColoredText "📈 ДЭЛГЭРЭНГҮЙ ФАЙЛЫН СТАТИСТИК" "Blue"
+# Migration файлуудыг шалгах
+function Show-MigrationFiles {
+    Write-ColoredText "🗃️ DATABASE MIGRATION ФАЙЛУУД" "Blue"
     Write-ColoredText "═══════════════════════════════" "Blue"
     
-    # Backend файлуудын статистик
-    if (Test-Path "backend") {
-        $javaFiles = Count-FilesInDirectory "backend/src" "*.java"
-        $ymlFiles = Count-FilesInDirectory "backend/src" "*.yml"
-        $sqlFiles = Count-FilesInDirectory "backend/src" "*.sql"
-        $xmlFiles = Count-FilesInDirectory "backend" "*.xml"
-        $bpmnFiles = Count-FilesInDirectory "backend/src" "*.bpmn"
-        $htmlFiles = Count-FilesInDirectory "backend/src" "*.html"
-        
-        Write-ColoredText "🏗️ BACKEND ФАЙЛУУД:" "Yellow"
-        Write-ColoredText "   ☕ Java файлууд:        $javaFiles" "White"
-        Write-ColoredText "   ⚙️  YAML тохиргоо:       $ymlFiles" "White"
-        Write-ColoredText "   🗄️ SQL файлууд:         $sqlFiles" "White"
-        Write-ColoredText "   📋 XML файлууд:         $xmlFiles" "White"
-        Write-ColoredText "   🔄 BPMN процессууд:     $bpmnFiles" "White"
-        Write-ColoredText "   🌐 HTML template:       $htmlFiles" "White"
-        
-        $backendSize = Get-DirectorySize "backend"
-        Write-ColoredText "   📦 Нийт хэмжээ:         $(Format-FileSize $backendSize)" "White"
+    $migrationPaths = @(
+        "backend/src/main/resources/db/migration",
+        "backend/src/main/resources/db/migrations", 
+        "backend/db/migration",
+        "src/main/resources/db/migration",
+        "database/migrations"
+    )
+    
+    $foundMigrations = @()
+    
+    foreach ($migrationPath in $migrationPaths) {
+        $fullPath = Join-Path $global:ProjectRoot $migrationPath
+        if (Test-Path $fullPath) {
+            Write-ColoredText "   📂 Migration directory олдлоо: $migrationPath" "Green"
+            
+            $migrationFiles = Get-ChildItem -Path $fullPath -Filter "V*__*.sql" -ErrorAction SilentlyContinue
+            if ($migrationFiles.Count -gt 0) {
+                Write-ColoredText "   📊 $($migrationFiles.Count) migration файл олдлоо:" "White"
+                
+                foreach ($migFile in $migrationFiles) {
+                    $fileDetails = Get-FileDetails $migFile.FullName
+                    $icon = Get-FileIcon $migFile.Extension $migFile.Name
+                    $size = Format-FileSize $fileDetails.Size
+                    $lines = if ($fileDetails.LineCount -gt 0) { ", $($fileDetails.LineCount) мөр" } else { "" }
+                    
+                    Write-ColoredText "      $icon $($migFile.Name) ($size$lines)" "White"
+                    $foundMigrations += $migFile
+                    
+                    if ($ValidateContent) {
+                        # Migration файлын агуулгыг шалгах
+                        try {
+                            $content = Get-Content $migFile.FullName -Raw -ErrorAction SilentlyContinue
+                            if ($content) {
+                                $createTableCount = ([regex]::Matches($content, "CREATE TABLE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                                $insertCount = ([regex]::Matches($content, "INSERT INTO", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                                $alterCount = ([regex]::Matches($content, "ALTER TABLE", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                                
+                                if ($createTableCount -gt 0) {
+                                    Write-ColoredText "         📋 CREATE TABLE: $createTableCount" "Gray"
+                                }
+                                if ($insertCount -gt 0) {
+                                    Write-ColoredText "         📝 INSERT INTO: $insertCount" "Gray"
+                                }
+                                if ($alterCount -gt 0) {
+                                    Write-ColoredText "         🔧 ALTER TABLE: $alterCount" "Gray"
+                                }
+                            }
+                        } catch {
+                            Write-ColoredText "         ⚠️ Агуулга уншихад алдаа" "Yellow"
+                        }
+                    }
+                }
+            } else {
+                Write-ColoredText "   ⚠️ Migration файл байхгүй" "Yellow"
+            }
+            Write-ColoredText ""
+            break
+        }
     }
     
-    # Frontend файлуудын статистик
-    if (Test-Path "frontend") {
-        $tsxFiles = Count-FilesInDirectory "frontend/src" "*.tsx"
-        $tsFiles = Count-FilesInDirectory "frontend/src" "*.ts"
-        $cssFiles = Count-FilesInDirectory "frontend/src" "*.css"
-        $jsonFiles = Count-FilesInDirectory "frontend" "*.json"
-        $jsFiles = Count-FilesInDirectory "frontend/src" "*.js"
-        
-        Write-ColoredText "🎨 FRONTEND ФАЙЛУУД:" "Cyan"
-        Write-ColoredText "   ⚛️  React компонентууд:  $tsxFiles" "White"
-        Write-ColoredText "   📘 TypeScript файлууд:  $tsFiles" "White"
-        Write-ColoredText "   🎨 CSS файлууд:         $cssFiles" "White"
-        Write-ColoredText "   📋 JSON тохиргоо:       $jsonFiles" "White"
-        Write-ColoredText "   📜 JavaScript файлууд:  $jsFiles" "White"
-        
-        $frontendSize = Get-DirectorySize "frontend"
-        Write-ColoredText "   📦 Нийт хэмжээ:         $(Format-FileSize $frontendSize)" "White"
+    if ($foundMigrations.Count -eq 0) {
+        Write-ColoredText "   ❌ Migration directory олдсонгүй" "Red"
+        Write-ColoredText "   💡 Migration үүсгэх: mkdir -p backend/src/main/resources/db/migration" "Yellow"
+        Write-ColoredText ""
+    }
+}
+
+# Docker файлуудыг шалгах
+function Show-DockerFiles {
+    Write-ColoredText "🐳 DOCKER ФАЙЛУУД" "Blue"
+    Write-ColoredText "═══════════════" "Blue"
+    
+    $dockerFiles = @(
+        "Dockerfile.backend",
+        "Dockerfile.frontend", 
+        "docker-compose.yml",
+        "docker-compose.prod.yml",
+        ".dockerignore"
+    )
+    
+    foreach ($dockerFile in $dockerFiles) {
+        $foundPath = Find-ProjectFile $dockerFile
+        if ($foundPath) {
+            $fileDetails = Get-FileDetails $foundPath
+            $icon = Get-FileIcon $fileDetails.Extension $dockerFile
+            $size = Format-FileSize $fileDetails.Size
+            $lines = if ($fileDetails.LineCount -gt 0) { ", $($fileDetails.LineCount) мөр" } else { "" }
+            
+            Write-ColoredText "   ✅ $icon $dockerFile ($size$lines)" "Green"
+            
+            if ($ValidateContent) {
+                try {
+                    $content = Get-Content $foundPath -Raw -ErrorAction SilentlyContinue
+                    if ($content) {
+                        if ($dockerFile -like "Dockerfile*") {
+                            $fromCount = ([regex]::Matches($content, "FROM", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                            $runCount = ([regex]::Matches($content, "RUN", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                            $copyCount = ([regex]::Matches($content, "COPY", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                            
+                            Write-ColoredText "      📋 FROM: $fromCount, RUN: $runCount, COPY: $copyCount" "Gray"
+                        } elseif ($dockerFile -like "docker-compose*") {
+                            $servicesCount = ([regex]::Matches($content, "services:", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                            $volumesCount = ([regex]::Matches($content, "volumes:", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                            $networksCount = ([regex]::Matches($content, "networks:", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                            
+                            Write-ColoredText "      📋 Services: $servicesCount, Volumes: $volumesCount, Networks: $networksCount" "Gray"
+                        }
+                    }
+                } catch {
+                    Write-ColoredText "      ⚠️ Агуулга уншихад алдаа" "Yellow"
+                }
+            }
+        } else {
+            Write-ColoredText "   ❌ $dockerFile" "Red"
+        }
     }
     
     Write-ColoredText ""
 }
 
-# Системийн статус шалгах
-function Show-SystemStatus {
-    Write-ColoredText "🔧 СИСТЕМИЙН ДЭЛГЭРЭНГҮЙ СТАТУС" "Blue"
-    Write-ColoredText "══════════════════════════════" "Blue"
+# CI/CD файлуудыг шалгах
+function Show-CICDFiles {
+    Write-ColoredText "🔄 CI/CD PIPELINE ФАЙЛУУД" "Blue"
+    Write-ColoredText "═══════════════════════" "Blue"
     
-    # Backend шалгах
-    Write-ColoredText "   🔍 Backend шалгаж байна..." "Gray"
-    $backendHealth = Test-HttpEndpoint "http://localhost:8080/los/actuator/health"
-    if ($backendHealth.Success) {
-        Write-ColoredText "   ✅ Backend ажиллаж байна (Port 8080)" "Green"
-        Write-ColoredText "   ⏱️  Response time: $($backendHealth.ResponseTime)ms" "White"
-        Write-ColoredText "   📊 Status code: $($backendHealth.StatusCode)" "White"
-        Write-Log "Backend is running - Response time: $($backendHealth.ResponseTime)ms"
-        
-        # Нэмэлт endpoints шалгах
-        $endpoints = @(
-            @{ Name = "Health Simple"; Url = "http://localhost:8080/los/api/v1/health/simple" },
-            @{ Name = "Swagger UI"; Url = "http://localhost:8080/los/swagger-ui.html" },
-            @{ Name = "H2 Console"; Url = "http://localhost:8080/los/h2-console" }
-        )
-        
-        foreach ($endpoint in $endpoints) {
-            $result = Test-HttpEndpoint $endpoint.Url 3
-            $icon = if ($result.Success) { "✅" } else { "⚠️" }
-            $status = if ($result.Success) { "OK ($($result.StatusCode))" } else { "Unavailable" }
-            Write-ColoredText "   $icon $($endpoint.Name): $status" "White"
-        }
-    } else {
-        Write-ColoredText "   ❌ Backend ажиллахгүй байна (Port 8080)" "Red"
-        Write-ColoredText "   💡 Backend эхлүүлэх: cd backend && .\mvnw.cmd spring-boot:run" "Yellow"
-        Write-Log "Backend is not running"
-    }
-
-    # Frontend шалгах 
-    Write-ColoredText "   🔍 Frontend шалгаж байна..." "Gray"
-    $frontendHealth = Test-HttpEndpoint "http://localhost:3001"
-    if ($frontendHealth.Success) {
-        Write-ColoredText "   ✅ Frontend ажиллаж байна (Port 3001)" "Green"
-        Write-ColoredText "   ⏱️  Response time: $($frontendHealth.ResponseTime)ms" "White"
-        Write-Log "Frontend is running"
-    } else {
-        Write-ColoredText "   ❌ Frontend ажиллахгүй байна (Port 3001)" "Red"
-        Write-ColoredText "   💡 Frontend эхлүүлэх: cd frontend && npm run dev" "Yellow"
-        Write-Log "Frontend is not running"
-    }
-
-    # Key files шалгах
-    Write-ColoredText "   📋 Түлхүүр файлуудын статус:" "Blue"
-    $keyFiles = @{
-        "Backend Main" = "backend/src/main/java/com/company/los/LoanOriginationApplication.java"
-        "POM файл" = "backend/pom.xml" 
-        "Database тохиргоо" = "backend/src/main/resources/application.yml"
-        "Data файл" = "backend/src/main/resources/data.sql"
-        "Schema файл" = "backend/src/main/resources/schema.sql"
-        "Frontend Main" = "frontend/src/App.tsx"
-        "Package.json" = "frontend/package.json"
-        "README файл" = "README.md"
-    }
-
-    foreach ($key in $keyFiles.Keys) {
-        if (Test-Path $keyFiles[$key]) {
-            $fileSize = (Get-Item $keyFiles[$key]).Length
-            $formattedSize = Format-FileSize $fileSize
-            $icon = Get-FileIcon ([System.IO.Path]::GetExtension($keyFiles[$key]))
-            Write-ColoredText "   ✅ $icon $key байна ($formattedSize)" "Green"
-        } else {
-            Write-ColoredText "   ❌ $key байхгүй" "Red"
+    $cicdFiles = @(
+        "ci.yml",
+        "build.yml",
+        "deploy.yml",
+        "test.yml"
+    )
+    
+    $foundAny = $false
+    
+    foreach ($ciFile in $cicdFiles) {
+        $foundPath = Find-ProjectFile $ciFile
+        if ($foundPath) {
+            $fileDetails = Get-FileDetails $foundPath
+            $icon = Get-FileIcon $fileDetails.Extension $ciFile
+            $size = Format-FileSize $fileDetails.Size
+            $lines = if ($fileDetails.LineCount -gt 0) { ", $($fileDetails.LineCount) мөр" } else { "" }
+            $relativePath = $foundPath.Replace($global:ProjectRoot.Path, "").TrimStart('\', '/')
+            
+            Write-ColoredText "   ✅ $icon $ciFile ($size$lines)" "Green"
+            Write-ColoredText "      📍 Байршил: $relativePath" "Gray"
+            
+            if ($ValidateContent) {
+                try {
+                    $content = Get-Content $foundPath -Raw -ErrorAction SilentlyContinue
+                    if ($content) {
+                        $jobsCount = ([regex]::Matches($content, "jobs:", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                        $stepsCount = ([regex]::Matches($content, "steps:", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                        $onCount = ([regex]::Matches($content, "on:", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                        
+                        Write-ColoredText "      📋 Jobs: $jobsCount, Steps: $stepsCount, Triggers: $onCount" "Gray"
+                    }
+                } catch {
+                    Write-ColoredText "      ⚠️ Агуулга уншихад алдаа" "Yellow"
+                }
+            }
+            
+            $foundAny = $true
         }
     }
+    
+    if (!$foundAny) {
+        Write-ColoredText "   ❌ CI/CD файл байхгүй" "Red"
+        Write-ColoredText "   💡 GitHub Actions үүсгэх: mkdir -p .github/workflows" "Yellow"
+    }
+    
+    Write-ColoredText ""
+}
 
+# Dependency шалгалт
+function Show-DependencyCheck {
+    Write-ColoredText "📦 DEPENDENCY ШАЛГАЛТ" "Blue"
+    Write-ColoredText "═══════════════════" "Blue"
+    
+    # Backend dependencies (pom.xml)
+    $pomPath = Join-Path $global:ProjectRoot "backend/pom.xml"
+    if (Test-Path $pomPath) {
+        Write-ColoredText "   ✅ Backend pom.xml олдлоо" "Green"
+        
+        if ($ValidateContent) {
+            try {
+                $pomContent = Get-Content $pomPath -Raw
+                $dependencyCount = ([regex]::Matches($pomContent, "<dependency>", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)).Count
+                Write-ColoredText "      📋 $dependencyCount dependency байна" "White"
+                
+                # Key dependencies шалгах
+                $keyDeps = @{
+                    "Spring Boot" = "spring-boot-starter"
+                    "Spring Data JPA" = "spring-boot-starter-data-jpa"
+                    "Spring Security" = "spring-boot-starter-security"
+                    "Spring Web" = "spring-boot-starter-web"
+                    "H2 Database" = "h2"
+                    "PostgreSQL" = "postgresql"
+                    "JWT" = "jjwt"
+                }
+                
+                foreach ($dep in $keyDeps.Keys) {
+                    if ($pomContent -match $keyDeps[$dep]) {
+                        Write-ColoredText "      ✅ $dep" "Green"
+                    } else {
+                        Write-ColoredText "      ❌ $dep дутуу" "Red"
+                    }
+                }
+            } catch {
+                Write-ColoredText "      ⚠️ pom.xml уншихад алдаа" "Yellow"
+            }
+        }
+    } else {
+        Write-ColoredText "   ❌ Backend pom.xml байхгүй" "Red"
+    }
+    
+    # Frontend dependencies (package.json)
+    $packagePath = Join-Path $global:ProjectRoot "frontend/package.json"
+    if (Test-Path $packagePath) {
+        Write-ColoredText "   ✅ Frontend package.json олдлоо" "Green"
+        
+        if ($ValidateContent) {
+            try {
+                $packageContent = Get-Content $packagePath -Raw | ConvertFrom-Json
+                $depCount = if ($packageContent.dependencies) { $packageContent.dependencies.PSObject.Properties.Count } else { 0 }
+                $devDepCount = if ($packageContent.devDependencies) { $packageContent.devDependencies.PSObject.Properties.Count } else { 0 }
+                
+                Write-ColoredText "      📋 $depCount dependencies, $devDepCount devDependencies" "White"
+                
+                # Key frontend dependencies шалгах
+                $keyFrontendDeps = @(
+                    "react",
+                    "react-dom", 
+                    "typescript",
+                    "vite",
+                    "@types/react"
+                )
+                
+                foreach ($dep in $keyFrontendDeps) {
+                    if ($packageContent.dependencies.$dep -or $packageContent.devDependencies.$dep) {
+                        Write-ColoredText "      ✅ $dep" "Green"
+                    } else {
+                        Write-ColoredText "      ❌ $dep дутуу" "Red"
+                    }
+                }
+            } catch {
+                Write-ColoredText "      ⚠️ package.json уншихад алдаа" "Yellow"
+            }
+        }
+    } else {
+        Write-ColoredText "   ❌ Frontend package.json байхгүй" "Red"
+    }
+    
+    Write-ColoredText ""
+}
+
+# ================================================================
+# ENHANCED DISPLAY FUNCTIONS
+# ================================================================
+
+# Дутуу файлуудыг дэлгэрэнгүй харуулах
+function Show-MissingFiles {
+    param($PhaseStats, [bool]$ShowAll = $false)
+    
+    Write-ColoredText "📋 ДУТУУ ФАЙЛУУДЫН ДЭЛГЭРЭНГҮЙ ЖАГСААЛТ" "Red"
+    Write-ColoredText "═══════════════════════════════════════" "Red"
+    
+    $totalMissing = 0
+    $global:MissingFiles = @()
+    
+    $phaseNames = @{
+        "Phase1_Infrastructure" = "Phase 1.1: Infrastructure & DevOps"
+        "Phase1_DomainModel" = "Phase 1.2: Domain Model & Database"
+        "Phase1_DataAccess" = "Phase 1.3: Data Access Layer"
+        "Phase2_Services" = "Phase 2.1: Business Logic Services"
+        "Phase2_Controllers" = "Phase 2.2: REST API Controllers"
+        "Phase2_DTOs" = "Phase 2.3: Data Transfer Objects"
+        "Phase3_FrontendSetup" = "Phase 3.1: Frontend Foundation"
+        "Phase3_Components" = "Phase 3.2: React Components"
+        "Phase3_Pages" = "Phase 3.3: Application Pages"
+        "Phase3_Services" = "Phase 3.4: Frontend Services"
+        "Phase4_Testing" = "Phase 4.1: Testing Framework"
+        "Phase4_DevOps" = "Phase 4.2: DevOps & Documentation"
+    }
+    
+    foreach ($phaseKey in $expectedFiles.Keys) {
+        $missingInPhase = @()
+        $stats = $PhaseStats[$phaseKey]
+        
+        if ($expectedFiles[$phaseKey] -and $stats.Existing -lt $stats.Total) {
+            foreach ($file in $expectedFiles[$phaseKey]) {
+                $fileName = Split-Path $file -Leaf
+                $foundPath = Find-ProjectFile $fileName $file
+                if (!$foundPath) {
+                    $missingInPhase += $file
+                    $global:MissingFiles += @{
+                        File = $file
+                        Phase = $phaseKey
+                        PhaseName = if ($phaseNames.ContainsKey($phaseKey)) { $phaseNames[$phaseKey] } else { $phaseKey }
+                        ExpectedPath = $file
+                        FileName = $fileName
+                    }
+                    $totalMissing++
+                }
+            }
+        }
+        
+        if ($missingInPhase.Count -gt 0) {
+            $phaseDisplayName = if ($phaseNames.ContainsKey($phaseKey)) { $phaseNames[$phaseKey] } else { $phaseKey }
+            Write-ColoredText "   📂 $phaseDisplayName" "Yellow"
+            Write-ColoredText "      ❌ Дутуу файлууд: $($missingInPhase.Count)" "Red"
+            
+            if ($ShowAll -or $ShowFileDetails) {
+                foreach ($file in $missingInPhase) {
+                    $fileName = Split-Path $file -Leaf
+                    $icon = Get-FileIcon ([System.IO.Path]::GetExtension($file)) $fileName
+                    $color = Get-FileColor ([System.IO.Path]::GetExtension($file))
+                    
+                    if ($ShowFilePaths) {
+                        Write-ColoredText "         $icon $fileName" $color
+                        Write-ColoredText "            📍 Төлөвлөгдсөн байршил: $file" "Gray"
+                    } else {
+                        Write-ColoredText "         $icon $fileName" $color
+                    }
+                }
+            } else {
+                $displayFiles = $missingInPhase | Select-Object -First 3
+                foreach ($file in $displayFiles) {
+                    $fileName = Split-Path $file -Leaf
+                    $icon = Get-FileIcon ([System.IO.Path]::GetExtension($file)) $fileName
+                    $color = Get-FileColor ([System.IO.Path]::GetExtension($file))
+                    Write-ColoredText "         $icon $fileName" $color
+                }
+                
+                if ($missingInPhase.Count -gt 3) {
+                    Write-ColoredText "         ... болон $($missingInPhase.Count - 3) файл дутуу" "Gray"
+                }
+            }
+            Write-ColoredText ""
+        }
+    }
+    
+    if ($totalMissing -eq 0) {
+        Write-ColoredText "   🎉 Бүх файл бэлэн байна!" "Green"
+    } else {
+        Write-ColoredText "   📊 Нийт дутуу файл: $totalMissing" "Red"
+        if (!$ShowAll) {
+            Write-ColoredText "   💡 Бүх дутуу файлыг харах: .\progress-tracker.ps1 -ShowAllFiles -ShowMissingOnly" "Yellow"
+        }
+    }
+    
+    Write-ColoredText ""
+}
+
+# Одоо байгаа файлуудыг дэлгэрэнгүй харуулах
+function Show-ExistingFiles {
+    param($PhaseStats, [bool]$ShowAll = $false)
+    
+    Write-ColoredText "✅ ОДОО БАЙГАА ФАЙЛУУДЫН ДЭЛГЭРЭНГҮЙ ЖАГСААЛТ" "Green"
+    Write-ColoredText "════════════════════════════════════════════════" "Green"
+    
+    $totalExisting = 0
+    $global:ExistingFiles = @()
+    
+    $phaseNames = @{
+        "Phase1_Infrastructure" = "Phase 1.1: Infrastructure & DevOps"
+        "Phase1_DomainModel" = "Phase 1.2: Domain Model & Database"
+        "Phase1_DataAccess" = "Phase 1.3: Data Access Layer"
+        "Phase2_Services" = "Phase 2.1: Business Logic Services"
+        "Phase2_Controllers" = "Phase 2.2: REST API Controllers"
+        "Phase2_DTOs" = "Phase 2.3: Data Transfer Objects"
+        "Phase3_FrontendSetup" = "Phase 3.1: Frontend Foundation"
+        "Phase3_Components" = "Phase 3.2: React Components"
+        "Phase3_Pages" = "Phase 3.3: Application Pages"
+        "Phase3_Services" = "Phase 3.4: Frontend Services"
+        "Phase4_Testing" = "Phase 4.1: Testing Framework"
+        "Phase4_DevOps" = "Phase 4.2: DevOps & Documentation"
+    }
+    
+    foreach ($phaseKey in $expectedFiles.Keys) {
+        $existingInPhase = @()
+        $stats = $PhaseStats[$phaseKey]
+        
+        if ($expectedFiles[$phaseKey] -and $stats.Existing -gt 0) {
+            foreach ($file in $expectedFiles[$phaseKey]) {
+                $fileName = Split-Path $file -Leaf
+                $foundPath = Find-ProjectFile $fileName $file
+                if ($foundPath) {
+                    $fileDetails = Get-FileDetails $foundPath
+                    $existingInPhase += @{
+                        ExpectedPath = $file
+                        ActualPath = $foundPath
+                        Details = $fileDetails
+                        FileName = $fileName
+                    }
+                    $global:ExistingFiles += @{
+                        File = $file
+                        Phase = $phaseKey
+                        PhaseName = if ($phaseNames.ContainsKey($phaseKey)) { $phaseNames[$phaseKey] } else { $phaseKey }
+                        ActualPath = $foundPath
+                        Details = $fileDetails
+                        FileName = $fileName
+                    }
+                    $totalExisting++
+                }
+            }
+        }
+        
+        if ($existingInPhase.Count -gt 0) {
+            $phaseDisplayName = if ($phaseNames.ContainsKey($phaseKey)) { $phaseNames[$phaseKey] } else { $phaseKey }
+            Write-ColoredText "   📂 $phaseDisplayName" "Green"
+            Write-ColoredText "      ✅ Байгаа файлууд: $($existingInPhase.Count)" "Green"
+            
+            if ($ShowAll -or $ShowFileDetails) {
+                foreach ($fileInfo in $existingInPhase) {
+                    $icon = Get-FileIcon $fileInfo.Details.Extension $fileInfo.FileName
+                    $color = Get-FileColor $fileInfo.Details.Extension
+                    $size = Format-FileSize $fileInfo.Details.Size
+                    
+                    Write-ColoredText "         $icon $($fileInfo.FileName) ($size)" $color
+                    
+                    if ($ShowFileDetails) {
+                        if ($fileInfo.Details.LineCount -gt 0) {
+                            Write-ColoredText "            📏 Мөрийн тоо: $($fileInfo.Details.LineCount)" "Gray"
+                        }
+                        Write-ColoredText "            🕐 Өөрчлөгдсөн: $($fileInfo.Details.LastModified.ToString('yyyy-MM-dd HH:mm'))" "Gray"
+                    }
+                    
+                    if ($ShowFilePaths) {
+                        $relativePath = $fileInfo.ActualPath.Replace($global:ProjectRoot.Path, "").TrimStart('\', '/')
+                        Write-ColoredText "            📍 Байршил: $relativePath" "Gray"
+                    }
+                }
+            } else {
+                $displayFiles = $existingInPhase | Select-Object -First 3
+                foreach ($fileInfo in $displayFiles) {
+                    $icon = Get-FileIcon $fileInfo.Details.Extension $fileInfo.FileName
+                    $color = Get-FileColor $fileInfo.Details.Extension
+                    $size = Format-FileSize $fileInfo.Details.Size
+                    Write-ColoredText "         $icon $($fileInfo.FileName) ($size)" $color
+                }
+                
+                if ($existingInPhase.Count -gt 3) {
+                    Write-ColoredText "         ... болон $($existingInPhase.Count - 3) файл байна" "Gray"
+                }
+            }
+            Write-ColoredText ""
+        }
+    }
+    
+    if ($totalExisting -eq 0) {
+        Write-ColoredText "   ⚠️ Одоогоор байгаа файл байхгүй байна." "Yellow"
+    } else {
+        Write-ColoredText "   📊 Нийт байгаа файл: $totalExisting" "Green"
+        if (!$ShowAll) {
+            Write-ColoredText "   💡 Бүх байгаа файлыг харах: .\progress-tracker.ps1 -ShowAllFiles -ShowExistingOnly" "Yellow"
+        }
+    }
+    
     Write-ColoredText ""
 }
 
@@ -1152,7 +1316,6 @@ function Show-PhaseProgress {
             
             Show-ProgressBar $stats.Existing $stats.Total $phaseName
             
-            # Phase статус
             if ($stats.Percentage -eq 100) {
                 Write-ColoredText "   ✅ БҮРЭН ДУУССАН" "Green"
             } elseif ($stats.Percentage -ge 80) {
@@ -1172,133 +1335,98 @@ function Show-PhaseProgress {
     }
 }
 
-# Дутуу файлуудыг харуулах
-function Show-MissingFiles {
-    param($PhaseStats, [int]$MaxShow = 5)
+# Quick check функц
+function Show-QuickProgress {
+    Write-ColoredText "⚡ ХУРДАН ПРОГРЕСС ШАЛГАЛТ" "Green"
+    Write-ColoredText "══════════════════════════" "Green"
     
-    Write-ColoredText "📋 ДУТУУ ФАЙЛУУДЫН ЖАГСААЛТ" "Red"
-    Write-ColoredText "══════════════════════════" "Red"
+    # Backend суурь файлууд
+    $backendCore = @("backend/pom.xml", "backend/src/main/resources/application.yml", "backend/src/main/resources/data.sql", "backend/src/main/resources/schema.sql")
+    $backendCoreCount = 0
     
-    $totalMissing = 0
-    
-    # Phase names mapping
-    $phaseNames = @{
-        "Phase1_Infrastructure" = "Phase 1: Infrastructure & DevOps"
-        "Phase1_DomainModel" = "Phase 1: Domain Model & Database"
-        "Phase1_DataAccess" = "Phase 1: Data Access Layer"
-        "Phase2_Services" = "Phase 2: Business Logic Services"
-        "Phase2_Controllers" = "Phase 2: REST API Controllers"
-        "Phase2_DTOs" = "Phase 2: Data Transfer Objects"
-        "Phase3_FrontendSetup" = "Phase 3: Frontend Foundation"
-        "Phase3_Components" = "Phase 3: React Components"
-        "Phase3_Pages" = "Phase 3: Application Pages"
-        "Phase3_Services" = "Phase 3: Frontend Services"
-        "Phase4_Testing" = "Phase 4: Testing Framework"
-        "Phase4_DevOps" = "Phase 4: DevOps & Documentation"
+    foreach ($file in $backendCore) {
+        if (Test-Path $file) { $backendCoreCount++ }
     }
     
-    foreach ($phaseKey in $expectedFiles.Keys) {
-        $missingFiles = @()
-        $stats = $PhaseStats[$phaseKey]
-        
-        if ($expectedFiles[$phaseKey] -and $stats.Existing -lt $stats.Total) {
-            foreach ($file in $expectedFiles[$phaseKey]) {
-                if (!(Test-Path $file)) {
-                    $missingFiles += $file
-                    $totalMissing++
-                }
-            }
-        }
-        
-        if ($missingFiles.Count -gt 0) {
-            $phaseDisplayName = if ($phaseNames.ContainsKey($phaseKey)) { $phaseNames[$phaseKey] } else { $phaseKey }
-            Write-ColoredText "   📂 $phaseDisplayName - Дутуу файлууд ($($missingFiles.Count)):" "Yellow"
-            
-            # Зөвхөн эхний файлуудыг харуулах
-            $displayFiles = if ($missingFiles.Count -gt $MaxShow) { $missingFiles[0..($MaxShow-1)] } else { $missingFiles }
-            
-            foreach ($file in $displayFiles) {
-                $icon = Get-FileIcon ([System.IO.Path]::GetExtension($file))
-                Write-ColoredText "      ❌ $icon $file" "Red"
-            }
-            
-            if ($missingFiles.Count -gt $MaxShow) {
-                Write-ColoredText "      ... болон $($missingFiles.Count - $MaxShow) файл дутуу" "Gray"
-            }
-            Write-ColoredText ""
-        }
+    Write-ColoredText "🏗️ Backend суурь файлууд: $backendCoreCount/4" "White"
+    Show-ProgressBar $backendCoreCount 4 "Backend Core"
+    
+    # Frontend суурь файлууд
+    $frontendCore = @("frontend/package.json", "frontend/src/App.tsx", "frontend/src/main.tsx")
+    $frontendCoreCount = 0
+    
+    foreach ($file in $frontendCore) {
+        if (Test-Path $file) { $frontendCoreCount++ }
     }
     
-    if ($totalMissing -eq 0) {
-        Write-ColoredText "   🎉 Бүх файл бэлэн байна!" "Green"
-    } else {
-        Write-ColoredText "   📊 Нийт дутуу файл: $totalMissing" "Red"
+    Write-ColoredText "🎨 Frontend суурь файлууд: $frontendCoreCount/3" "White"
+    Show-ProgressBar $frontendCoreCount 3 "Frontend Core"
+    
+    # Docker файлууд
+    $dockerFiles = @("docker-compose.yml", "Dockerfile.backend", "Dockerfile.frontend")
+    $dockerCount = 0
+    
+    foreach ($file in $dockerFiles) {
+        $foundPath = Find-ProjectFile $file
+        if ($foundPath) { $dockerCount++ }
     }
+    
+    Write-ColoredText "🐳 Docker файлууд: $dockerCount/3" "White"
+    Show-ProgressBar $dockerCount 3 "Docker Files"
+    
+    # Backend/Frontend серверийн статус
+    Write-ColoredText "🔧 Серверийн статус:" "Blue"
+    $backendStatus = Test-HttpEndpoint "http://localhost:8080/los/actuator/health"
+    $frontendStatus = Test-HttpEndpoint "http://localhost:3001"
+    
+    $backendIcon = if ($backendStatus.Success) { "✅" } else { "❌" }
+    $frontendIcon = if ($frontendStatus.Success) { "✅" } else { "❌" }
+    
+    Write-ColoredText "   $backendIcon Backend (8080): $(if($backendStatus.Success){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
+    Write-ColoredText "   $frontendIcon Frontend (3001): $(if($frontendStatus.Success){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
     
     Write-ColoredText ""
 }
 
-# Git статус шалгах
-function Show-GitStatus {
-    Write-ColoredText "📝 GIT СТАТУС ШАЛГАЛТ" "Blue"
-    Write-ColoredText "════════════════════" "Blue"
+# Системийн статус шалгах
+function Show-SystemStatus {
+    Write-ColoredText "🔧 СИСТЕМИЙН СТАТУС" "Blue"
+    Write-ColoredText "══════════════════" "Blue"
 
-    if (Test-Path ".git") {
-        try {
-            $branch = git rev-parse --abbrev-ref HEAD 2>$null
-            $commits = git rev-list --count HEAD 2>$null
-            $uncommitted = (git status --porcelain 2>$null | Measure-Object).Count
-            $lastCommit = git log -1 --pretty=format:"%h %s (%cr)" 2>$null
-            $remoteUrl = git config --get remote.origin.url 2>$null
-            
-            Write-ColoredText "   🌿 Branch: $branch" "White"
-            Write-ColoredText "   📦 Нийт commit: $commits" "White"
-            Write-ColoredText "   🕐 Сүүлийн commit: $lastCommit" "White"
-            if ($remoteUrl) {
-                Write-ColoredText "   🌐 Remote: $remoteUrl" "White"
-            }
-            
-            if ($uncommitted -eq 0) {
-                Write-ColoredText "   ✅ Commit хийгдээгүй өөрчлөлт байхгүй" "Green"
-            } else {
-                Write-ColoredText "   ⚠️  Commit хийгдээгүй өөрчлөлт: $uncommitted файл" "Yellow"
-                
-                # Өөрчлөгдсөн файлуудыг харуулах
-                $gitStatus = git status --porcelain 2>$null
-                if ($gitStatus) {
-                    Write-ColoredText "   📋 Өөрчлөгдсөн файлууд:" "Gray"
-                    $gitStatus | Select-Object -First 5 | ForEach-Object {
-                        $status = $_.Substring(0,2)
-                        $fileName = $_.Substring(3)
-                        $statusText = switch ($status.Trim()) {
-                            "M" { "Modified" }
-                            "A" { "Added" }
-                            "D" { "Deleted" }
-                            "??" { "Untracked" }
-                            default { $status.Trim() }
-                        }
-                        $icon = Get-FileIcon ([System.IO.Path]::GetExtension($fileName))
-                        Write-ColoredText "      $statusText`: $icon $fileName" "Gray"
-                    }
-                    if ($uncommitted -gt 5) {
-                        Write-ColoredText "      ... болон $($uncommitted - 5) файл" "Gray"
-                    }
-                }
-                
-                Write-ColoredText "   💡 Git commit хийх: git add . && git commit -m 'Progress update'" "Yellow"
-            }
-            
-            Write-Log "Git: Branch=$branch, Commits=$commits, Uncommitted=$uncommitted"
-        } catch {
-            Write-ColoredText "   ⚠️  Git command алдаа: $($_.Exception.Message)" "Yellow"
-        }
-    } else {
-        Write-ColoredText "   ❌ Git repository биш" "Red"
-        Write-ColoredText "   💡 Git эхлүүлэх: git init" "Yellow"
-    }
+    $backendHealth = Test-HttpEndpoint "http://localhost:8080/los/actuator/health" 3
+    $frontendHealth = Test-HttpEndpoint "http://localhost:3001" 3
 
+    $backendIcon = if ($backendHealth.Success) { "✅" } else { "❌" }
+    $frontendIcon = if ($frontendHealth.Success) { "✅" } else { "❌" }
+
+    Write-ColoredText "   $backendIcon Backend (8080): $(if($backendHealth.Success){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
+    Write-ColoredText "   $frontendIcon Frontend (3001): $(if($frontendHealth.Success){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
     Write-ColoredText ""
 }
+
+# Performance мэдээлэл харуулах
+function Show-PerformanceInfo {
+    $endTime = Get-Date
+    $duration = $endTime - $global:StartTime
+    
+    Write-ColoredText "⏱️ ГҮЙЦЭТГЭЛИЙН МЭДЭЭЛЭЛ" "Blue"
+    Write-ColoredText "═══════════════════════" "Blue"
+    Write-ColoredText "   📊 Шалгалтын хугацаа: $($duration.TotalSeconds.ToString('F2')) секунд" "White"
+    Write-ColoredText ("   📁 Шалгасан файл: {0}" -f ($global:TotalFilesExpected ?? 0)) "White"
+    Write-ColoredText ("   ✅ Олдсон файл: {0}" -f ($global:TotalFilesFound ?? 0)) "White"
+    Write-ColoredText "   📈 Нийт прогресс: $(if ($global:TotalFilesExpected -gt 0) { [math]::Round(($global:TotalFilesFound/$global:TotalFilesExpected)*100,1) } else { 0 })%" "White"
+    
+    $psVersion = $PSVersionTable.PSVersion.ToString()
+    $osVersion = [Environment]::OSVersion.VersionString
+    Write-ColoredText "   🖥️ PowerShell: $psVersion" "Gray"
+    Write-ColoredText "   💻 OS: $osVersion" "Gray"
+    
+    Write-ColoredText ""
+}
+
+# ================================================================
+# UTILITY AND HELPER FUNCTIONS
+# ================================================================
 
 # API Testing функц
 function Test-BackendAPIs {
@@ -1344,6 +1472,66 @@ function Test-BackendAPIs {
     Write-ColoredText ""
 }
 
+# Git статус шалгах
+function Show-GitStatus {
+    Write-ColoredText "📝 GIT СТАТУС ШАЛГАЛТ" "Blue"
+    Write-ColoredText "════════════════════" "Blue"
+
+    if (Test-Path ".git") {
+        try {
+            $branch = git rev-parse --abbrev-ref HEAD 2>$null
+            $commits = git rev-list --count HEAD 2>$null
+            $uncommitted = (git status --porcelain 2>$null | Measure-Object).Count
+            $lastCommit = git log -1 --pretty=format:"%h %s (%cr)" 2>$null
+            $remoteUrl = git config --get remote.origin.url 2>$null
+            
+            Write-ColoredText "   🌿 Branch: $branch" "White"
+            Write-ColoredText "   📦 Нийт commit: $commits" "White"
+            Write-ColoredText "   🕐 Сүүлийн commit: $lastCommit" "White"
+            if ($remoteUrl) {
+                Write-ColoredText "   🌐 Remote: $remoteUrl" "White"
+            }
+            
+            if ($uncommitted -eq 0) {
+                Write-ColoredText "   ✅ Commit хийгдээгүй өөрчлөлт байхгүй" "Green"
+            } else {
+                Write-ColoredText "   ⚠️  Commit хийгдээгүй өөрчлөлт: $uncommitted файл" "Yellow"
+                
+                # Өөрчлөгдсөн файлуудыг харуулах
+                $gitStatus = git status --porcelain 2>$null
+                if ($gitStatus) {
+                    Write-ColoredText "   📋 Өөрчлөгдсөн файлууд:" "Gray"
+                    $gitStatus | Select-Object -First 5 | ForEach-Object {
+                        $status = $_.Substring(0,2)
+                        $fileName = $_.Substring(3)
+                        $statusText = switch ($status.Trim()) {
+                            "M" { "Modified" }
+                            "A" { "Added" }
+                            "D" { "Deleted" }
+                            "??" { "Untracked" }
+                            default { $status.Trim() }
+                        }
+                        $icon = Get-FileIcon ([System.IO.Path]::GetExtension($fileName)) $fileName
+                        Write-ColoredText "      $statusText`: $icon $fileName" "Gray"
+                    }
+                    if ($uncommitted -gt 5) {
+                        Write-ColoredText "      ... болон $($uncommitted - 5) файл" "Gray"
+                    }
+                }
+                
+                Write-ColoredText "   💡 Git commit хийх: git add . && git commit -m 'Progress update'" "Yellow"
+            }
+        } catch {
+            Write-ColoredText "   ⚠️  Git command алдаа: $($_.Exception.Message)" "Yellow"
+        }
+    } else {
+        Write-ColoredText "   ❌ Git repository биш" "Red"
+        Write-ColoredText "   💡 Git эхлүүлэх: git init" "Yellow"
+    }
+
+    Write-ColoredText ""
+}
+
 # Хөгжүүлэлтийн зөвлөмж өгөх функц
 function Show-DevelopmentRecommendations {
     param($PhaseStats, $TotalPercentage)
@@ -1358,18 +1546,21 @@ function Show-DevelopmentRecommendations {
         $recommendations += "🏗️ Backend суурь архитектур эхлүүлэх (Entity классууд, Repository)"
         $recommendations += "🗄️ Database schema болон sample data сайжруулах"
         $recommendations += "⚙️ Spring Boot application тохиргоо бүрэн хийх"
+        $recommendations += "🐳 Docker файлууд үүсгэх"
     } elseif ($TotalPercentage -lt 50) {
         $recommendations += "⚙️ Service болон Repository классуудыг бичих"
         $recommendations += "🌐 REST Controller классуудыг үүсгэх"
         $recommendations += "🔒 Security (JWT, authentication) тохируулах"
+        $recommendations += "🗃️ Database migration файлууд нэмэх"
     } elseif ($TotalPercentage -lt 75) {
         $recommendations += "🎨 Frontend компонентуудыг хөгжүүлэх"
         $recommendations += "🔗 Backend-Frontend API холболт хийх"
         $recommendations += "📱 User interface сайжруулах"
+        $recommendations += "🔄 CI/CD pipeline тохируулах"
     } else {
         $recommendations += "🧪 Unit тест болон Integration тест бичих"
-        $recommendations += "🐳 Docker болон CI/CD тохиргоо"
         $recommendations += "📚 Documentation болон API docs үүсгэх"
+        $recommendations += "🚀 Production deployment бэлтгэх"
     }
 
     # Системийн статус зөвлөмж
@@ -1384,160 +1575,38 @@ function Show-DevelopmentRecommendations {
         $recommendations += "🚨 Frontend эхлүүлэх: cd frontend && npm install && npm run dev"
     }
 
-    # Файлын статус зөвлөмж
-    if (!(Test-Path "backend/src/main/resources/data.sql")) {
-        $recommendations += "👤 Database-д анхны өгөгдөл (admin user, sample data) нэмэх"
+    # Docker файл шалгалт
+    $dockerCompose = Find-ProjectFile "docker-compose.yml"
+    if (!$dockerCompose) {
+        $recommendations += "🐳 Docker Compose файл үүсгэх"
     }
     
-    if (!(Test-Path "frontend/package.json")) {
-        $recommendations += "📦 Frontend төсөл эхлүүлэх: npm create react-app"
+    # CI/CD шалгалт
+    $ciFile = Find-ProjectFile "ci.yml"
+    if (!$ciFile) {
+        $recommendations += "🔄 GitHub Actions CI/CD pipeline үүсгэх"
     }
-
-    # Phase тутмын зөвлөмж
-    foreach ($phaseKey in $expectedFiles.Keys) {
-        $stats = $PhaseStats[$phaseKey]
-        if ($stats.Percentage -gt 0 -and $stats.Percentage -lt 100) {
-            $phaseName = $phaseKey -replace "Phase(\d+)_", ""
-            $recommendations += "📝 $phaseName phase дуусгах ($($stats.Existing)/$($stats.Total) файл бэлэн болсон)"
-        }
+    
+    # Migration шалгалт
+    $migrationFile = Find-ProjectFile "V1__init.sql"
+    if (!$migrationFile) {
+        $recommendations += "🗃️ Database migration файлууд үүсгэх"
     }
 
     # Зөвлөмжийг харуулах
     if ($recommendations.Count -eq 0) {
         Write-ColoredText "   🎉 Бүх зүйл сайн байна! Дараагийн feature руу шилжиж болно!" "Green"
     } else {
-        $displayRecommendations = $recommendations | Select-Object -First 8
+        $displayRecommendations = $recommendations | Select-Object -First 10
         foreach ($rec in $displayRecommendations) {
             Write-ColoredText "   $rec" "Yellow"
         }
-        if ($recommendations.Count -gt 8) {
-            Write-ColoredText "   ... болон $($recommendations.Count - 8) зөвлөмж" "Gray"
+        if ($recommendations.Count -gt 10) {
+            Write-ColoredText "   ... болон $($recommendations.Count - 10) зөвлөмж" "Gray"
         }
     }
 
     Write-ColoredText ""
-}
-
-# Performance мэдээлэл харуулах
-function Show-PerformanceInfo {
-    $endTime = Get-Date
-    $duration = $endTime - $global:StartTime
-    
-    Write-ColoredText "⏱️ ГҮЙЦЭТГЭЛИЙН МЭДЭЭЛЭЛ" "Blue"
-    Write-ColoredText "═══════════════════════" "Blue"
-    Write-ColoredText "   📊 Шалгалтын хугацаа: $($duration.TotalSeconds.ToString('F2')) секунд" "White"
-    Write-ColoredText ("   📁 Шалгасан файл: {0}" -f ($global:TotalFilesExpected ?? 0)) "White"
-    Write-ColoredText ("   ✅ Олдсон файл: {0}" -f ($global:TotalFilesFound ?? 0)) "White"
-    Write-ColoredText "   📈 Нийт прогресс: $(if ($global:TotalFilesExpected -gt 0) { [math]::Round(($global:TotalFilesFound/$global:TotalFilesExpected)*100,1) } else { 0 })%" "White"
-    
-    # Системийн мэдээлэл
-    $psVersion = $PSVersionTable.PSVersion.ToString()
-    $osVersion = [Environment]::OSVersion.VersionString
-    Write-ColoredText "   🖥️ PowerShell: $psVersion" "Gray"
-    Write-ColoredText "   💻 OS: $osVersion" "Gray"
-    
-    Write-ColoredText ""
-}
-
-# Export функцууд
-function Export-ProgressReport {
-    param($Format, $PhaseStats, $TotalPercentage)
-    
-    switch ($Format.ToLower()) {
-        "json" {
-            $report = @{
-                Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                TotalProgress = $TotalPercentage
-                TotalFiles = @{
-                    Expected = $global:TotalFilesExpected
-                    Found = $global:TotalFilesFound
-                }
-                PhaseProgress = $PhaseStats
-                SystemStatus = @{
-                    Backend = (Test-HttpEndpoint "http://localhost:8080/los/actuator/health" 2).Success
-                    Frontend = (Test-HttpEndpoint "http://localhost:3001" 2).Success
-                }
-            }
-            
-            $jsonFile = "los-progress-report.json"
-            $report | ConvertTo-Json -Depth 5 | Out-File -FilePath $jsonFile -Encoding UTF8
-            Write-ColoredText "📋 JSON report exported: $jsonFile" "Green"
-        }
-        
-        "csv" {
-            $csvData = @()
-            foreach ($phaseKey in $expectedFiles.Keys) {
-                $stats = $PhaseStats[$phaseKey]
-                $csvData += [PSCustomObject]@{
-                    Phase = $phaseKey
-                    TotalFiles = $stats.Total
-                    ExistingFiles = $stats.Existing
-                    Percentage = $stats.Percentage
-                    Status = if ($stats.Percentage -eq 100) { "Complete" } elseif ($stats.Percentage -ge 50) { "In Progress" } else { "Not Started" }
-                }
-            }
-            
-            $csvFile = "los-progress-report.csv"
-            $csvData | Export-Csv -Path $csvFile -NoTypeInformation -Encoding UTF8
-            Write-ColoredText "📋 CSV report exported: $csvFile" "Green"
-        }
-        
-        "html" {
-            $htmlFile = "los-progress-report.html"
-            $html = @"
-<!DOCTYPE html>
-<html>
-<head>
-    <title>LOS Progress Report</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .progress-bar { width: 100%; height: 20px; background-color: #f0f0f0; border-radius: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background-color: #4CAF50; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .complete { color: green; }
-        .in-progress { color: orange; }
-        .not-started { color: red; }
-    </style>
-</head>
-<body>
-    <h1>🏦 LOS Progress Report</h1>
-    <p>Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")</p>
-    <h2>Overall Progress: $TotalPercentage%</h2>
-    <div class="progress-bar">
-        <div class="progress-fill" style="width: $TotalPercentage%;"></div>
-    </div>
-    <h2>Phase Details</h2>
-    <table>
-        <tr><th>Phase</th><th>Files</th><th>Progress</th><th>Status</th></tr>
-"@
-            
-            foreach ($phaseKey in $expectedFiles.Keys) {
-                $stats = $PhaseStats[$phaseKey]
-                $statusClass = if ($stats.Percentage -eq 100) { "complete" } elseif ($stats.Percentage -ge 50) { "in-progress" } else { "not-started" }
-                $status = if ($stats.Percentage -eq 100) { "Complete" } elseif ($stats.Percentage -ge 50) { "In Progress" } else { "Not Started" }
-                
-                $html += @"
-        <tr>
-            <td>$phaseKey</td>
-            <td>$($stats.Existing)/$($stats.Total)</td>
-            <td>$($stats.Percentage)%</td>
-            <td class="$statusClass">$status</td>
-        </tr>
-"@
-            }
-            
-            $html += @"
-    </table>
-</body>
-</html>
-"@
-            
-            $html | Out-File -FilePath $htmlFile -Encoding UTF8
-            Write-ColoredText "📋 HTML report exported: $htmlFile" "Green"
-        }
-    }
 }
 
 # Дутуу файлууд үүсгэх функц
@@ -1554,12 +1623,16 @@ function Create-MissingFiles {
         
         if ($expectedFiles[$phaseKey] -and $stats.Existing -lt $stats.Total) {
             foreach ($file in $expectedFiles[$phaseKey]) {
-                if (!(Test-Path $file)) {
+                $fileName = Split-Path $file -Leaf
+                $foundPath = Find-ProjectFile $fileName $file
+                
+                if (!$foundPath) {
                     try {
                         # Директор үүсгэх
                         $dir = Split-Path $file -Parent
-                        if ($dir -and !(Test-Path $dir)) {
-                            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+                        $fullDir = Join-Path $global:ProjectRoot $dir
+                        if ($dir -and !(Test-Path $fullDir)) {
+                            New-Item -ItemType Directory -Path $fullDir -Force | Out-Null
                         }
                         
                         # Файлын төрлөөр агуулга үүсгэх
@@ -1617,9 +1690,24 @@ export {};
 "@
                             }
                             ".sql" {
-                                $content = @"
+                                if ($fileName -like "V*__*.sql") {
+                                    $content = @"
+-- Liquibase/Flyway Migration
+-- Changeset: $fileName
+-- TODO: Add migration SQL statements
+
+-- Example:
+-- CREATE TABLE example_table (
+--     id BIGINT PRIMARY KEY AUTO_INCREMENT,
+--     name VARCHAR(255) NOT NULL,
+--     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- );
+"@
+                                } else {
+                                    $content = @"
 -- TODO: Add SQL statements
 "@
+                                }
                             }
                             ".md" {
                                 $content = @"
@@ -1665,14 +1753,28 @@ TODO: Add documentation content
 </root>
 "@
                             }
+                            ".dockerfile" {
+                                $content = @"
+# TODO: Add Dockerfile instructions
+FROM openjdk:17-jre-slim
+
+# TODO: Add build steps
+COPY . /app
+WORKDIR /app
+
+# TODO: Add run command
+CMD ["java", "-jar", "app.jar"]
+"@
+                            }
                             default {
                                 $content = "// TODO: Add file content"
                             }
                         }
                         
                         # Файл үүсгэх
-                        Set-Content -Path $file -Value $content -Encoding UTF8
-                        $icon = Get-FileIcon $extension
+                        $fullFilePath = Join-Path $global:ProjectRoot $file
+                        Set-Content -Path $fullFilePath -Value $content -Encoding UTF8
+                        $icon = Get-FileIcon $extension $fileName
                         Write-ColoredText "   ✅ $icon Үүсгэсэн: $file" "Green"
                         $createdCount++
                         
@@ -1687,7 +1789,6 @@ TODO: Add documentation content
     if ($createdCount -gt 0) {
         Write-ColoredText ""
         Write-ColoredText "🎉 $createdCount файл амжилттай үүсгэгдлээ!" "Green"
-        Write-Log "$createdCount files created" "INFO"
     } else {
         Write-ColoredText "ℹ️ Үүсгэх шаардлагатай файл байхгүй." "Blue"
     }
@@ -1695,9 +1796,152 @@ TODO: Add documentation content
     Write-ColoredText ""
 }
 
-# ===============================
+# Export функцууд
+function Export-ProgressReport {
+    param($Format, $PhaseStats, $TotalPercentage)
+    
+    switch ($Format.ToLower()) {
+        "json" {
+            $report = @{
+                Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                Version = "5.0"
+                TotalProgress = $TotalPercentage
+                TotalFiles = @{
+                    Expected = $global:TotalFilesExpected
+                    Found = $global:TotalFilesFound
+                }
+                PhaseProgress = $PhaseStats
+                SystemStatus = @{
+                    Backend = (Test-HttpEndpoint "http://localhost:8080/los/actuator/health" 2).Success
+                    Frontend = (Test-HttpEndpoint "http://localhost:3001" 2).Success
+                }
+                ExistingFiles = $global:ExistingFiles
+                MissingFiles = $global:MissingFiles
+            }
+            
+            $jsonFile = "los-progress-report-v5.json"
+            $report | ConvertTo-Json -Depth 10 | Out-File -FilePath $jsonFile -Encoding UTF8
+            Write-ColoredText "📋 JSON report exported: $jsonFile" "Green"
+        }
+        
+        "csv" {
+            $csvData = @()
+            foreach ($phaseKey in $expectedFiles.Keys) {
+                $stats = $PhaseStats[$phaseKey]
+                $csvData += [PSCustomObject]@{
+                    Phase = $phaseKey
+                    TotalFiles = $stats.Total
+                    ExistingFiles = $stats.Existing
+                    Percentage = $stats.Percentage
+                    Status = if ($stats.Percentage -eq 100) { "Complete" } elseif ($stats.Percentage -ge 50) { "In Progress" } else { "Not Started" }
+                }
+            }
+            
+            $csvFile = "los-progress-report-v5.csv"
+            $csvData | Export-Csv -Path $csvFile -NoTypeInformation -Encoding UTF8
+            Write-ColoredText "📋 CSV report exported: $csvFile" "Green"
+        }
+        
+        "html" {
+            $htmlFile = "los-progress-report-v5.html"
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LOS Progress Report v5.0</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .progress-bar { width: 100%; height: 25px; background-color: #e0e0e0; border-radius: 12px; overflow: hidden; margin: 10px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #4CAF50, #45a049); transition: width 0.3s ease; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; font-weight: 600; }
+        .complete { color: #28a745; font-weight: bold; }
+        .in-progress { color: #ffc107; font-weight: bold; }
+        .not-started { color: #dc3545; font-weight: bold; }
+        .stats { display: flex; justify-content: space-around; margin: 20px 0; }
+        .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+        .stat-number { font-size: 2em; font-weight: bold; color: #007bff; }
+        .phase-section { margin: 20px 0; }
+        .emoji { font-size: 1.2em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏦 LOS Progress Report v5.0</h1>
+            <p>Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")</p>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">$TotalPercentage%</div>
+                <div>Overall Progress</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">$global:TotalFilesFound</div>
+                <div>Files Found</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">$global:TotalFilesExpected</div>
+                <div>Total Expected</div>
+            </div>
+        </div>
+        
+        <div class="phase-section">
+            <h2>📊 Overall Progress</h2>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: $TotalPercentage%;"></div>
+            </div>
+        </div>
+        
+        <h2>📋 Phase Details</h2>
+        <table>
+            <tr><th>Phase</th><th>Files</th><th>Progress</th><th>Status</th><th>Percentage</th></tr>
+"@
+            
+            foreach ($phaseKey in $expectedFiles.Keys) {
+                $stats = $PhaseStats[$phaseKey]
+                $statusClass = if ($stats.Percentage -eq 100) { "complete" } elseif ($stats.Percentage -ge 50) { "in-progress" } else { "not-started" }
+                $status = if ($stats.Percentage -eq 100) { "✅ Complete" } elseif ($stats.Percentage -ge 50) { "🟡 In Progress" } else { "⚫ Not Started" }
+                
+                $html += @"
+        <tr>
+            <td>$phaseKey</td>
+            <td>$($stats.Existing)/$($stats.Total)</td>
+            <td><div class="progress-bar"><div class="progress-fill" style="width: $($stats.Percentage)%;"></div></div></td>
+            <td class="$statusClass">$status</td>
+            <td>$($stats.Percentage)%</td>
+        </tr>
+"@
+            }
+            
+            $html += @"
+        </table>
+        
+        <div class="phase-section">
+            <h2>🔧 System Information</h2>
+            <p><strong>PowerShell Version:</strong> $($PSVersionTable.PSVersion)</p>
+            <p><strong>OS Version:</strong> $([Environment]::OSVersion.VersionString)</p>
+            <p><strong>Project Root:</strong> $($global:ProjectRoot)</p>
+        </div>
+    </div>
+</body>
+</html>
+"@
+            
+            $html | Out-File -FilePath $htmlFile -Encoding UTF8
+            Write-ColoredText "📋 HTML report exported: $htmlFile" "Green"
+        }
+    }
+}
+
+# ================================================================
 # MAIN SCRIPT EXECUTION
-# ===============================
+# ================================================================
 
 Clear-Host
 
@@ -1802,16 +2046,39 @@ if ($ShowStructure) {
 }
 
 Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
-Write-ColoredText "🏦 LOS ТӨСЛИЙН ДЭЛГЭРЭНГҮЙ ПРОГРЕСС ШАЛГАГЧ v3.0" "Yellow"
+Write-ColoredText "🏦 LOS ТӨСЛИЙН ДЭЛГЭРЭНГҮЙ ПРОГРЕСС ШАЛГАГЧ v5.0" "Yellow"
 Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
 Write-ColoredText "📅 Огноо: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "White"
 Write-ColoredText "📂 Ажиллаж буй директор: $(Get-Location)" "White"
-Write-ColoredText "🔧 Анхны progress-tracker.ps1 + file_counter.ps1 сайн функцуудтайгаар" "White"
-Write-ColoredText "⚡ 180+ файлын мэдээлэл + Дэлгэрэнгүй логтой" "White"
+Write-ColoredText "🔧 Enhanced LOS Progress Tracker - Бүрэн нэгтгэсэн хувилбар" "White"
+Write-ColoredText "⚡ Docker, CI/CD, Migration файлуудын дэмжлэгтэй" "White"
 Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
 Write-ColoredText ""
 
-Write-Log "LOS Enhanced Progress tracking v3.0 started at $(Get-Location)" "INFO"
+# Зөвхөн дутуу файлууд харуулах
+if ($ShowMissingOnly) {
+    $phaseStats = Get-PhaseStatistics
+    Show-MissingFiles $phaseStats $true
+    Show-PerformanceInfo
+    return
+}
+
+# Зөвхөн байгаа файлууд харуулах
+if ($ShowExistingOnly) {
+    $phaseStats = Get-PhaseStatistics
+    Show-ExistingFiles $phaseStats $true
+    Show-PerformanceInfo
+    return
+}
+
+# Migration файлууд харуулах
+if ($ShowMigrations) {
+    Show-MigrationFiles
+    Show-DockerFiles
+    Show-CICDFiles
+    Show-PerformanceInfo
+    return
+}
 
 # Quick check горим
 if ($QuickCheck) {
@@ -1821,64 +2088,10 @@ if ($QuickCheck) {
     return
 }
 
-# Файлын структур харуулах (параметрээр)
-if ($ShowStructure) {
-    Show-ProjectStructure -MaxDepth $MaxDepth -ShowAll:$Detailed
-    Show-FileStatus
-    
-    # Лог файлуудыг дуусгах
-    if (!$FrontendOnly -and $BackendLogFile -and (Test-Path $BackendLogFile)) {
-        $footer = @"
-
-═══════════════════════════════════════════════════════════════════
-📊 BACKEND СТАТИСТИК:
-   ☕ Java файлууд: $(Count-FilesInDirectory "backend/src" "*.java")
-   ⚙️ YAML файлууд: $(Count-FilesInDirectory "backend/src" "*.yml")
-   🗄️ SQL файлууд: $(Count-FilesInDirectory "backend/src" "*.sql")
-   📝 XML файлууд: $(Count-FilesInDirectory "backend" "*.xml")
-   🔄 BPMN файлууд: $(Count-FilesInDirectory "backend/src" "*.bpmn")
-   🌐 HTML файлууд: $(Count-FilesInDirectory "backend/src" "*.html")
-   📦 Нийт хэмжээ: $(Format-FileSize (Get-DirectorySize "backend"))
-═══════════════════════════════════════════════════════════════════
-🏁 Backend шинжилгээ дууссан: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-═══════════════════════════════════════════════════════════════════
-"@
-        Add-Content -Path $BackendLogFile -Value $footer -Encoding UTF8
-        Write-ColoredText "🏗️ Backend мэдээлэл хадгалагдлаа: $BackendLogFile" "Green"
-    }
-    
-    if (!$BackendOnly -and $FrontendLogFile -and (Test-Path $FrontendLogFile)) {
-        $footer = @"
-
-═══════════════════════════════════════════════════════════════════
-📊 FRONTEND СТАТИСТИК:
-   ⚛️ React компонентууд: $(Count-FilesInDirectory "frontend/src" "*.tsx")
-   📘 TypeScript файлууд: $(Count-FilesInDirectory "frontend/src" "*.ts")
-   🎨 CSS файлууд: $(Count-FilesInDirectory "frontend/src" "*.css")
-   📋 JSON файлууд: $(Count-FilesInDirectory "frontend" "*.json")
-   📦 Нийт хэмжээ: $(Format-FileSize (Get-DirectorySize "frontend"))
-═══════════════════════════════════════════════════════════════════
-🏁 Frontend шинжилгээ дууссан: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
-═══════════════════════════════════════════════════════════════════
-"@
-        Add-Content -Path $FrontendLogFile -Value $footer -Encoding UTF8
-        Write-ColoredText "🎨 Frontend мэдээлэл хадгалагдлаа: $FrontendLogFile" "Green"
-    }
-    
-    Show-PerformanceInfo
-    
-    Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
-    Write-ColoredText "🔄 Дахин шалгахын тулд: .\progress-tracker.ps1" "Gray"
-    Write-ColoredText "🏗️ Backend структур: .\progress-tracker.ps1 -ShowStructure -BackendOnly" "Yellow"
-    Write-ColoredText "🎨 Frontend структур: .\progress-tracker.ps1 -ShowStructure -FrontendOnly" "Yellow"
-    Write-ColoredText "📖 Дэлгэрэнгүй структур: .\progress-tracker.ps1 -ShowStructure -Detailed" "Gray"
-    return
-}
-
-# 1. Phase тутмын прогресс тооцоолох
+# Phase тутмын прогресс тооцоолох
 $phaseStats = Get-PhaseStatistics
 
-# Нийт прогресс - Zero Division Protection
+# Нийт прогресс
 $totalPercentage = if ($global:TotalFilesExpected -gt 0) { 
     [math]::Round(($global:TotalFilesFound / $global:TotalFilesExpected) * 100, 1) 
 } else { 0 }
@@ -1893,23 +2106,36 @@ Write-ColoredText "   📁 Байгаа файлууд: $global:TotalFilesFound 
 Write-ColoredText "   📊 Гүйцэтгэл: $totalPercentage%" "White"
 Write-ColoredText ""
 
-Write-Log "Total progress: $global:TotalFilesFound/$global:TotalFilesExpected files ($totalPercentage%)" "INFO"
-
-# 2. Дэлгэрэнгүй файлын статистик
-Show-DetailedFileStatistics
-
-# 3. Системийн статус шалгах
-Show-SystemStatus
-
-# 4. Дутуу файлуудыг харуулах (Detailed mode-д эсвэл файл цөөн байхад)
-if ($Detailed -or $totalPercentage -lt 80) {
-    Show-MissingFiles $phaseStats
+# Файлуудын дэлгэрэнгүй мэдээлэл
+if ($ShowAllFiles) {
+    Show-ExistingFiles $phaseStats $true
+    Show-MissingFiles $phaseStats $true
+} else {
+    Show-ExistingFiles $phaseStats $false
+    Show-MissingFiles $phaseStats $false
 }
 
-# 5. Git статус
+# Docker файлууд шалгах
+Show-DockerFiles
+
+# Migration файлууд шалгах 
+Show-MigrationFiles
+
+# CI/CD файлууд шалгах
+Show-CICDFiles
+
+# Dependency шалгалт
+if ($CheckDependencies) {
+    Show-DependencyCheck
+}
+
+# Системийн статус
+Show-SystemStatus
+
+# Git статус
 Show-GitStatus
 
-# 6. API Testing (TestMode-д)
+# API Testing (TestMode-д)
 if ($TestMode) {
     $backendHealth = Test-HttpEndpoint "http://localhost:8080/los/actuator/health" 3
     if ($backendHealth.Success) {
@@ -1920,25 +2146,22 @@ if ($TestMode) {
     }
 }
 
-# 7. Хөгжүүлэлтийн зөвлөмж
+# Хөгжүүлэлтийн зөвлөмж
 Show-DevelopmentRecommendations $phaseStats $totalPercentage
 
-# 8. Хэрэгтэй командууд
-Write-ColoredText "🛠️ ХЭРЭГТЭЙ КОМАНДУУД" "Blue"
-Write-ColoredText "══════════════════" "Blue"
-Write-ColoredText "   Backend эхлүүлэх:       cd backend && .\mvnw.cmd spring-boot:run" "White"
-Write-ColoredText "   Frontend эхлүүлэх:      cd frontend && npm install && npm run dev" "White"
-Write-ColoredText "   Backend тест:           cd backend && .\mvnw.cmd test" "White"
-Write-ColoredText "   Frontend тест:          cd frontend && npm test" "White"
-Write-ColoredText "   Docker build:           docker-compose up -d" "White"
-Write-ColoredText "   Git commit:             git add . && git commit -m 'Progress update'" "White"
-Write-ColoredText "   Дахин шалгах:           .\progress-tracker.ps1" "White"
-Write-ColoredText "   Структур харах:         .\progress-tracker.ps1 -ShowStructure" "Yellow"
-Write-ColoredText "   API тест:               .\progress-tracker.ps1 -TestMode" "Yellow"
-Write-ColoredText "   Хурдан шалгалт:        .\progress-tracker.ps1 -QuickCheck" "Green"
-Write-ColoredText ""
+# Export хийх (хэрэв parameter өгсөн бол)
+if ($ExportFormat -ne "console") {
+    Export-ProgressReport $ExportFormat $phaseStats $totalPercentage
+}
 
-# 9. Нэвтрэх заавар
+# Performance мэдээлэл
+Show-PerformanceInfo
+
+# ================================================================
+# FINAL OUTPUT AND INSTRUCTIONS
+# ================================================================
+
+# Нэвтрэх заавар
 Write-ColoredText "🔑 СИСТЕМД НЭВТРЭХ ЗААВАР" "Green"
 Write-ColoredText "════════════════════════" "Green"
 Write-ColoredText "   👤 Админ эрх:           admin / admin123" "White"
@@ -1953,34 +2176,84 @@ Write-ColoredText "   📋 H2 Username:         sa" "White"
 Write-ColoredText "   📋 H2 Password:         (хоосон)" "White"
 Write-ColoredText ""
 
-# 10. Export хийх (хэрэв parameter өгсөн бол)
-if ($ExportFormat -ne "console") {
-    Export-ProgressReport $ExportFormat $phaseStats $totalPercentage
-}
-
-# 11. Performance мэдээлэл
-Show-PerformanceInfo
-
-# 12. Төгсгөл
-Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
-Write-ColoredText "✨ ДЭЛГЭРЭНГҮЙ ПРОГРЕСС ШАЛГАЛТ ДУУССАН!" "Green"
+# Хэрэгтэй командууд
+Write-ColoredText "🛠️ ХЭРЭГТЭЙ КОМАНДУУД" "Blue"
+Write-ColoredText "══════════════════" "Blue"
+Write-ColoredText "   Backend эхлүүлэх:       cd backend && .\mvnw.cmd spring-boot:run" "White"
+Write-ColoredText "   Frontend эхлүүлэх:      cd frontend && npm install && npm run dev" "White"
+Write-ColoredText "   Backend тест:           cd backend && .\mvnw.cmd test" "White"
+Write-ColoredText "   Frontend тест:          cd frontend && npm test" "White"
+Write-ColoredText "   Docker build:           docker-compose up -d" "White"
+Write-ColoredText "   Docker production:      docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d" "White"
+Write-ColoredText "   Git commit:             git add . && git commit -m 'Progress update'" "White"
 Write-ColoredText ""
-Write-ColoredText "📊 ОДООГИЙН СТАТУС:" "White"
-Write-ColoredText "   📁 Байгаа файлууд:      $global:TotalFilesFound / $global:TotalFilesExpected" "White"
-Write-ColoredText "   📈 Гүйцэтгэл:          $totalPercentage%" "White"
+
+# Төгсгөл
+Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
+Write-ColoredText "🔄 ШАЛГАЛТЫН КОМАНДУУД:" "Blue"
+Write-ColoredText "══════════════════════" "Blue"
+Write-ColoredText "🚀 Дахин шалгах:               .\progress-tracker.ps1" "Gray"
+Write-ColoredText "📖 Дэлгэрэнгүй харах:          .\progress-tracker.ps1 -Detailed" "Gray"
+Write-ColoredText "🌳 Файлын структур:            .\progress-tracker.ps1 -ShowStructure" "Yellow"
+Write-ColoredText "⚡ Хурдан шалгалт:             .\progress-tracker.ps1 -QuickCheck" "Green"
+Write-ColoredText "🧪 API тест хийх:              .\progress-tracker.ps1 -TestMode" "Cyan"
+Write-ColoredText "🔧 Дутуу файл үүсгэх:          .\progress-tracker.ps1 -CreateMissing" "Magenta"
+Write-ColoredText "🗃️ Migration шалгах:           .\progress-tracker.ps1 -ShowMigrations" "Blue"
+Write-ColoredText "📦 Dependency шалгах:          .\progress-tracker.ps1 -CheckDependencies" "Blue"
+Write-ColoredText "✅ Агуулга шалгах:             .\progress-tracker.ps1 -ValidateContent" "Blue"
+Write-ColoredText ""
+Write-ColoredText "📋 ФАЙЛЫН ДЭЛГЭРЭНГҮЙ МЭДЭЭЛЭЛ:" "Blue"
+Write-ColoredText "════════════════════════════════" "Blue"
+Write-ColoredText "✅ Зөвхөн байгаа файлууд:         .\progress-tracker.ps1 -ShowExistingOnly" "Green"
+Write-ColoredText "❌ Зөвхөн дутуу файлууд:          .\progress-tracker.ps1 -ShowMissingOnly" "Red"
+Write-ColoredText "📋 Бүх файлын дэлгэрэнгүй:        .\progress-tracker.ps1 -ShowAllFiles" "Yellow"
+Write-ColoredText "📍 Файлын байршил харуулах:      .\progress-tracker.ps1 -ShowFilePaths" "White"
+Write-ColoredText "📝 Файлын дэлгэрэнгүй мэдээлэл:  .\progress-tracker.ps1 -ShowFileDetails" "White"
+Write-ColoredText "🔍 Бүх мэдээлэл нэгэн зэрэг:     .\progress-tracker.ps1 -ShowAllFiles -ShowFileDetails -ShowFilePaths" "Cyan"
+Write-ColoredText "🛠️ Дебаг мэдээлэл:               .\progress-tracker.ps1 -DebugMode" "Gray"
+Write-ColoredText ""
+Write-ColoredText "🎯 PHASE ТУТМЫН ШАЛГАЛТ:" "Blue"
+Write-ColoredText "═══════════════════════" "Blue"
+Write-ColoredText "📝 Phase 1 шалгах:             .\progress-tracker.ps1 -Phase 1" "Gray"
+Write-ColoredText "📝 Phase 2 шалгах:             .\progress-tracker.ps1 -Phase 2" "Gray"
+Write-ColoredText "📝 Phase 3 шалгах:             .\progress-tracker.ps1 -Phase 3" "Gray"
+Write-ColoredText "📝 Phase 4 шалгах:             .\progress-tracker.ps1 -Phase 4" "Gray"
+Write-ColoredText ""
+Write-ColoredText "📅 ДОЛОО ХОНОГ ТУТМЫН ШАЛГАЛТ:" "Blue"
+Write-ColoredText "════════════════════════════" "Blue"
+Write-ColoredText "📝 1-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 1" "Gray"
+Write-ColoredText "📝 2-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 2" "Gray"
+Write-ColoredText "📝 3-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 3" "Gray"
+Write-ColoredText "📝 4-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 4" "Gray"
+Write-ColoredText ""
+Write-ColoredText "📊 EXPORT ХИЙХ:" "Blue"
+Write-ColoredText "══════════════" "Blue"
+Write-ColoredText "📊 JSON export:                .\progress-tracker.ps1 -ExportFormat json" "White"
+Write-ColoredText "📊 CSV export:                 .\progress-tracker.ps1 -ExportFormat csv" "White"
+Write-ColoredText "📊 HTML report:                .\progress-tracker.ps1 -ExportFormat html" "White"
+Write-ColoredText ""
+
+Write-ColoredText "🎉 LOS төслийн дэлгэрэнгүй прогресс шалгалт дууссан! 💪" "Green"
+Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
 
 # Backend/Frontend статус
 $backendIcon = if ((Test-HttpEndpoint "http://localhost:8080/los/actuator/health" 2).Success) { "✅" } else { "❌" }
 $frontendIcon = if ((Test-HttpEndpoint "http://localhost:3001" 2).Success) { "✅" } else { "❌" }
 
+Write-ColoredText "📊 ОДООГИЙН СТАТУС:" "White"
+Write-ColoredText "   📁 Байгаа файлууд:      $global:TotalFilesFound / $global:TotalFilesExpected" "White"
+Write-ColoredText "   📈 Гүйцэтгэл:          $totalPercentage%" "White"
 Write-ColoredText "   🏗️  Backend статус:     $backendIcon $(if($backendIcon -eq '✅'){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
 Write-ColoredText "   🎨 Frontend статус:    $frontendIcon $(if($frontendIcon -eq '✅'){'Ажиллаж байна'}else{'Ажиллахгүй байна'})" "White"
 
 # Файлын статистик with icons
 $javaFiles = Count-FilesInDirectory "backend/src" "*.java"
 $tsxFiles = Count-FilesInDirectory "frontend/src" "*.tsx"
+$dockerFiles = @("docker-compose.yml", "Dockerfile.backend", "Dockerfile.frontend") | ForEach-Object { if (Find-ProjectFile $_) { 1 } else { 0 } } | Measure-Object -Sum | Select-Object -ExpandProperty Sum
+
 Write-ColoredText "   ☕ Java файл:          $javaFiles" "White"
 Write-ColoredText "   ⚛️  React файл:         $tsxFiles" "White"
+Write-ColoredText "   🐳 Docker файл:        $dockerFiles" "White"
 
 Write-ColoredText ""
 
@@ -1991,31 +2264,32 @@ if ($totalPercentage -lt 25) {
     Write-ColoredText "   • Entity классууд үүсгэх (Customer, LoanApplication, Document)" "Gray"
     Write-ColoredText "   • Repository интерфейсүүд бичих" "Gray"
     Write-ColoredText "   • Database schema сайжруулах" "Gray"
+    Write-ColoredText "   • Docker файлууд үүсгэх" "Gray"
 } elseif ($totalPercentage -lt 50) {
     Write-ColoredText "💡 ДАРААГИЙН АЛХАМ: Service классууд болон REST API нэмэх" "Yellow"
     Write-ColoredText "   📋 Хийх ёстой:" "Gray"
     Write-ColoredText "   • Service implementation классууд бичих" "Gray"
     Write-ColoredText "   • REST Controller-үүд үүсгэх" "Gray"
     Write-ColoredText "   • Security тохиргоо хийх" "Gray"
+    Write-ColoredText "   • Database migration файлууд нэмэх" "Gray"
 } elseif ($totalPercentage -lt 75) {
     Write-ColoredText "💡 ДАРААГИЙН АЛХАМ: Frontend компонентууд болон API холболт хийх" "Yellow"
     Write-ColoredText "   📋 Хийх ёстой:" "Gray"
     Write-ColoredText "   • React компонентууд үүсгэх" "Gray"
     Write-ColoredText "   • API service классууд бичих" "Gray"
     Write-ColoredText "   • User interface сайжруулах" "Gray"
+    Write-ColoredText "   • CI/CD pipeline тохируулах" "Gray"
 } else {
     Write-ColoredText "💡 ДАРААГИЙН АЛХАМ: Testing, documentation болон deployment бэлтгэх" "Yellow"
     Write-ColoredText "   📋 Хийх ёстой:" "Gray"
     Write-ColoredText "   • Unit болон Integration тестүүд бичих" "Gray"
     Write-ColoredText "   • API documentation үүсгэх" "Gray"
-    Write-ColoredText "   • Docker болон CI/CD тохируулах" "Gray"
+    Write-ColoredText "   • Production deployment тохируулах" "Gray"
 }
 
-Write-ColoredText "═══════════════════════════════════════════════════════════════════" "Cyan"
+Write-ColoredText ""
 
-Write-Log "Enhanced progress tracking v3.0 completed. Total: $global:TotalFilesFound/$global:TotalFilesExpected ($totalPercentage%)" "INFO"
-
-# Log файлуудын мэдээлэл
+# Лог файлуудын мэдээлэл
 if ($LogFile -and (Test-Path $LogFile)) {
     Write-ColoredText "📋 Лог файл үүсгэгдсэн: $LogFile" "Gray"
 }
@@ -2029,40 +2303,6 @@ if ($FrontendLogFile -and (Test-Path $FrontendLogFile)) {
 }
 
 Write-ColoredText ""
-Write-ColoredText "🔄 ШАЛГАЛТЫН КОМАНДУУД:" "Blue"
-Write-ColoredText "══════════════════════" "Blue"
-Write-ColoredText "🚀 Дахин шалгах:               .\progress-tracker.ps1" "Gray"
-Write-ColoredText "📖 Дэлгэрэнгүй харах:          .\progress-tracker.ps1 -Detailed" "Gray"
-Write-ColoredText "🌳 Файлын структур:            .\progress-tracker.ps1 -ShowStructure" "Yellow"
-Write-ColoredText "🏗️ Backend структур:           .\progress-tracker.ps1 -ShowStructure -BackendOnly" "Yellow"
-Write-ColoredText "🎨 Frontend структур:          .\progress-tracker.ps1 -ShowStructure -FrontendOnly" "Yellow"
-Write-ColoredText "⚡ Хурдан шалгалт:             .\progress-tracker.ps1 -QuickCheck" "Green"
-Write-ColoredText "🧪 API тест хийх:              .\progress-tracker.ps1 -TestMode" "Cyan"
-Write-ColoredText "🔧 Дутуу файл үүсгэх:          .\progress-tracker.ps1 -CreateMissing" "Magenta"
-Write-ColoredText "📊 JSON export:                .\progress-tracker.ps1 -ExportFormat json" "White"
-Write-ColoredText "📊 CSV export:                 .\progress-tracker.ps1 -ExportFormat csv" "White"
-Write-ColoredText "📊 HTML report:                .\progress-tracker.ps1 -ExportFormat html" "White"
-Write-ColoredText "📋 Custom лог файлууд:         .\progress-tracker.ps1 -ShowStructure -BackendLogFile 'my-backend.log' -FrontendLogFile 'my-frontend.log'" "Gray"
-
-# Тодорхой phase шалгах
-Write-ColoredText ""
-Write-ColoredText "🎯 PHASE ТУТМЫН ШАЛГАЛТ:" "Blue"
-Write-ColoredText "═══════════════════════" "Blue"
-Write-ColoredText "📝 Phase 1 шалгах:             .\progress-tracker.ps1 -Phase 1" "Gray"
-Write-ColoredText "📝 Phase 2 шалгах:             .\progress-tracker.ps1 -Phase 2" "Gray"
-Write-ColoredText "📝 Phase 3 шалгах:             .\progress-tracker.ps1 -Phase 3" "Gray"
-Write-ColoredText "📝 Phase 4 шалгах:             .\progress-tracker.ps1 -Phase 4" "Gray"
-
-# Долоо хоног тутмын шалгалт
-Write-ColoredText ""
-Write-ColoredText "📅 ДОЛОО ХОНОГ ТУТМЫН ШАЛГАЛТ:" "Blue"
-Write-ColoredText "════════════════════════════" "Blue"
-Write-ColoredText "📝 1-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 1" "Gray"
-Write-ColoredText "📝 2-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 2" "Gray"
-Write-ColoredText "📝 3-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 3" "Gray"
-Write-ColoredText "📝 4-р долоо хоног шалгах:     .\progress-tracker.ps1 -Week 4" "Gray"
-
-Write-ColoredText ""
 Write-ColoredText "📞 ТУСЛАМЖ АВАХ:" "Green"
 Write-ColoredText "════════════════" "Green"
 Write-ColoredText "📧 Email: los-dev-team@company.com" "White"
@@ -2071,11 +2311,12 @@ Write-ColoredText "📖 Wiki: https://company.sharepoint.com/los-project" "White
 Write-ColoredText "🐛 Issues: https://github.com/company/los/issues" "White"
 
 Write-ColoredText ""
-Write-ColoredText "🎉 LOS төслийн амжилттай хөгжүүлэлт! 💪" "Green"
+Write-ColoredText "🎉 LOS төслийн амжилттай хөгжүүлэлт хүлээж байна! 💪" "Green"
+Write-ColoredText "🔧 Enhanced Progress Tracker v5.0 - Docker, CI/CD, Migration дэмжлэгтэй" "Green"
+Write-ColoredText ""
 
 # Автомат дуусгахгүй - PowerShell ISE/VS Code-д ажиллах боломж
-if ($Host.Name -eq "ConsoleHost" -and !$QuickCheck) {
-    Write-ColoredText ""
+if ($Host.Name -eq "ConsoleHost" -and !$QuickCheck -and !$ShowMissingOnly -and !$ShowExistingOnly -and !$ShowMigrations) {
     Write-ColoredText "Дурын товч дарж гарна уу..." "Gray"
     $null = Read-Host
 }

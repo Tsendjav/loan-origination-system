@@ -1,4 +1,4 @@
-// frontend/src/config/api.tsx - ЗАСВАРЛАСАН
+// frontend/src/config/api.tsx - ENHANCED DEBUG VERSION
 import axios, { AxiosInstance, AxiosResponse, AxiosError, AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios';
 import { message } from 'antd';
 
@@ -45,6 +45,20 @@ export interface AuthToken {
   tokenType: string;
 }
 
+// ⭐ LOGIN REQUEST INTERFACE ⭐
+export interface LoginRequest {
+  username: string;
+  password: string;
+  rememberMe?: boolean;
+  deviceInfo?: string;
+  userAgent?: string;
+  ipAddress?: string;
+  timestamp?: number;
+  clientVersion?: string;
+  timezone?: string;
+  platform?: string;
+}
+
 // API Client Class
 class ApiClient {
   private client: AxiosInstance;
@@ -55,8 +69,9 @@ class ApiClient {
       baseURL: API_CONFIG.BASE_URL,
       timeout: API_CONFIG.TIMEOUT,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json;charset=UTF-8', // ⭐ CHARSET НЭМЭГДСЭН ⭐
         'Accept': 'application/json',
+        'Accept-Charset': 'UTF-8', // ⭐ НЭМЭГДСЭН ⭐
       },
     });
 
@@ -72,10 +87,15 @@ class ApiClient {
           config.headers['Authorization'] = `Bearer ${token}`;
         }
 
+        // ⭐ ENHANCED REQUEST LOGGING ⭐
+        console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        console.log('   Headers:', config.headers);
+        console.log('   Data:', config.data);
+        console.log('   Content-Type:', config.headers['Content-Type']);
+
         // Add request timestamp for debugging - using type assertion
         (config as ExtendedAxiosRequestConfig).metadata = { startTime: new Date() };
 
-        console.log(`📤 API Request: ${config.method?.toUpperCase()} ${config.url}`);
         return config;
       },
       (error) => {
@@ -90,14 +110,25 @@ class ApiClient {
         // Calculate request duration
         const configExt = response.config as ExtendedAxiosRequestConfig;
         const duration = new Date().getTime() - (configExt.metadata?.startTime?.getTime() || 0);
+        
+        // ⭐ ENHANCED RESPONSE LOGGING ⭐
         console.log(`✅ API Response: ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
+        console.log('   Status:', response.status);
+        console.log('   Headers:', response.headers);
+        console.log('   Data:', response.data);
 
         return response;
       },
       async (error: AxiosError) => {
         const configExt = error.config as ExtendedAxiosRequestConfig;
         const duration = new Date().getTime() - (configExt?.metadata?.startTime?.getTime() || 0);
-        console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} (${duration}ms)`, error.response?.status);
+        
+        // ⭐ ENHANCED ERROR LOGGING ⭐
+        console.error(`❌ API Error: ${error.config?.method?.toUpperCase()} ${error.config?.url} (${duration}ms)`);
+        console.error('   Status:', error.response?.status);
+        console.error('   Response data:', error.response?.data);
+        console.error('   Request data:', error.config?.data);
+        console.error('   Request headers:', error.config?.headers);
 
         // Handle token refresh for 401 errors
         if (error.response?.status === 401 && error.config && !(configExt?.__isRetryRequest)) {
@@ -173,6 +204,7 @@ class ApiClient {
         status: response?.status,
         data: response?.data,
         message: error.message,
+        config: error.config,
       });
     }
 
@@ -181,12 +213,16 @@ class ApiClient {
       const responseData = response?.data as any;
       if (responseData?.message) {
         message.error(responseData.message);
+      } else if (responseData?.error) {
+        message.error(responseData.error);
       } else if (response?.status === 500) {
         message.error('Серверийн алдаа гарлаа. Дахин оролдоно уу.');
       } else if (response?.status === 404) {
         message.error('Хүссэн мэдээлэл олдсонгүй.');
       } else if (response?.status === 403) {
         message.error('Энэ үйлдлийг хийх эрхгүй байна.');
+      } else if (response?.status === 400) {
+        message.error('Илгээсэн мэдээлэл буруу байна.');
       } else if (error.code === 'ECONNABORTED') {
         message.error('Хүсэлтийн хугацаа дууссан. Дахин оролдоно уу.');
       } else if (!navigator.onLine) {
@@ -232,6 +268,36 @@ class ApiClient {
     return response.data;
   }
 
+  // ⭐ ENHANCED LOGIN METHOD ⭐
+  async login(credentials: { username: string; password: string }): Promise<any> {
+    console.log('🔐 Login attempt:', { username: credentials.username });
+    
+    // ⭐ BACKEND ТООМЖТОЙ LOGIN REQUEST OBJECT ҮҮСГЭХ ⭐
+    const loginRequest: LoginRequest = {
+      username: credentials.username,
+      password: credentials.password,
+      rememberMe: false,
+      platform: 'WEB',
+      timestamp: Date.now(),
+      clientVersion: '1.0.0',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Ulaanbaatar',
+      userAgent: navigator.userAgent,
+      deviceInfo: `${navigator.platform} - ${navigator.userAgent.split(' ')[0]}`
+    };
+
+    console.log('📤 Sending login request:', loginRequest);
+
+    const response = await this.client.post('/auth/login', loginRequest, {
+      headers: {
+        'Content-Type': 'application/json;charset=UTF-8', // ⭐ CHARSET EXPLICIT ⭐
+        'Accept': 'application/json',
+      }
+    });
+
+    console.log('📥 Login response:', response.data);
+    return response.data;
+  }
+
   // Файл upload
   async uploadFile(url: string, file: File, onProgress?: (progress: number) => void): Promise<any> {
     const formData = new FormData();
@@ -258,6 +324,41 @@ class ApiClient {
     return this.get('/health');
   }
 
+  // ⭐ DEBUG METHODS ⭐
+  async debugLogin(credentials: { username: string; password: string }): Promise<any> {
+    console.log('🐛 Debug login attempt:', credentials);
+    
+    const debugRequest = {
+      username: credentials.username,
+      password: credentials.password,
+      timestamp: Date.now(),
+      debug: true
+    };
+
+    console.log('📤 Debug request:', debugRequest);
+
+    try {
+      const response = await this.client.post('/auth/debug-json', debugRequest);
+      console.log('📥 Debug response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Debug error:', error);
+      throw error;
+    }
+  }
+
+  async testValidation(credentials: { username: string; password: string }): Promise<any> {
+    console.log('🧪 Test validation:', credentials);
+    
+    const response = await this.client.post('/auth/test-validation', {
+      username: credentials.username,
+      password: credentials.password
+    });
+
+    console.log('📥 Validation test response:', response.data);
+    return response.data;
+  }
+
   // Raw client-т хандах (шаардлагатай үед)
   getRawClient(): AxiosInstance {
     return this.client;
@@ -267,12 +368,18 @@ class ApiClient {
 // Singleton instance
 export const apiClient = new ApiClient();
 
-// Convenience functions
+// ⭐ ENHANCED API CONVENIENCE FUNCTIONS ⭐
 export const api = {
   // Auth
   auth: {
     login: (credentials: { username: string; password: string }) =>
-      apiClient.post<AuthToken>('/auth/login', credentials),
+      apiClient.login(credentials), // ⭐ ENHANCED LOGIN METHOD АШИГЛАХ ⭐
+
+    debugLogin: (credentials: { username: string; password: string }) =>
+      apiClient.debugLogin(credentials),
+
+    testValidation: (credentials: { username: string; password: string }) =>
+      apiClient.testValidation(credentials),
 
     logout: () => apiClient.post('/auth/logout'),
 
@@ -280,6 +387,10 @@ export const api = {
       apiClient.post<AuthToken>('/auth/refresh', { refreshToken }),
 
     getCurrentUser: () => apiClient.get<any>('/auth/me'),
+
+    test: () => apiClient.get<any>('/auth/test'),
+
+    health: () => apiClient.get<any>('/auth/health'),
   },
 
   // Customers

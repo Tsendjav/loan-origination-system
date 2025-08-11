@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, createContext, useContext } from 'react';
 import { 
   Card, 
   Row, 
@@ -14,7 +14,8 @@ import {
   Tabs,
   Input,
   message,
-  Tag
+  Tag,
+  Divider
 } from 'antd';
 import { 
   CheckCircleOutlined, 
@@ -29,13 +30,15 @@ import {
   LoginOutlined,
   LogoutOutlined,
   EyeInvisibleOutlined,
-  EyeTwoTone
+  EyeTwoTone,
+  SecurityScanOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
 
-// TypeScript Interfaces
+// ⭐ ENHANCED TYPESCRIPT INTERFACES ⭐
 interface User {
   id: string | number;
   username: string;
@@ -43,13 +46,30 @@ interface User {
   name: string;
   email?: string;
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  roles?: Array<{ name: string; description?: string }>;
+  permissions?: string[];
+  isActive?: boolean;
 }
 
 interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
+  token: string | null;
   loading: boolean;
   error: string | null;
+}
+
+interface LoginRequest {
+  username: string;
+  password: string;
+  rememberMe?: boolean;
+  timestamp?: number;
+  platform?: string;
+  deviceInfo?: string;
+  clientVersion?: string;
+  timezone?: string;
 }
 
 interface ConnectionTest {
@@ -82,23 +102,117 @@ interface BackendStatus {
   components?: BackendComponents;
 }
 
-// Configuration
-const API_BASE_URL = 'http://localhost:8080/los/api/v1';
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
 
-// Enhanced API Client with backend compatibility
+interface AuthContextType {
+  state: AuthState;
+  login: (data: LoginRequest) => Promise<void>;
+  logout: () => Promise<void>;
+  hasPermission: (permission: string) => boolean;
+  hasRole: (role: string) => boolean;
+}
+
+interface LoginComponentProps {
+  onLoginSuccess: (user: User) => void;
+}
+
+// ⭐ ERROR BOUNDARY COMPONENT ⭐
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    console.error('🚨 ErrorBoundary caught an error:', error, errorInfo);
+  }
+
+  render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div style={{ 
+          padding: 20, 
+          textAlign: 'center', 
+          minHeight: '100vh', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center' 
+        }}>
+          <Alert
+            message="Системийн алдаа"
+            description={
+              <div>
+                <p>Системд алдаа гарлаа. Хуудсыг дахин ачаалнуу.</p>
+                <p><small>{this.state.error?.message}</small></p>
+                <Button 
+                  type="primary" 
+                  onClick={() => window.location.reload()}
+                  style={{ marginTop: 16 }}
+                  icon={<ReloadOutlined />}
+                >
+                  Хуудас ачаалах
+                </Button>
+              </div>
+            }
+            type="error"
+            showIcon
+            icon={<ExclamationCircleOutlined />}
+          />
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// ⭐ AUTH CONTEXT ⭐
+const AuthContext = createContext<AuthContextType | null>(null);
+
+const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+};
+
+// Configuration - Safe environment variable access
+const API_BASE_URL = (typeof process !== 'undefined' && process.env?.REACT_APP_API_BASE_URL) || 'http://localhost:8080/los/api/v1';
+
+// ⭐ ENHANCED API CLIENT WITH PROPER TYPES ⭐
 class SimpleApiClient {
   private baseURL: string;
+  private abortController: AbortController | null = null;
 
   constructor(baseURL: string) {
     this.baseURL = baseURL;
   }
 
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
+    // Cancel previous request if exists
+    if (this.abortController) {
+      this.abortController.abort();
+    }
+    
+    this.abortController = new AbortController();
+    
     const url = `${this.baseURL}${endpoint}`;
     
     const config: RequestInit = {
       mode: 'cors',
       credentials: 'omit',
+      signal: this.abortController.signal,
       headers: {
         'Content-Type': 'application/json;charset=UTF-8',
         'Accept': 'application/json;charset=UTF-8',
@@ -149,7 +263,11 @@ class SimpleApiClient {
         console.log(`📄 Response text:`, textData);
         return textData;
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('Request was aborted');
+        return null;
+      }
       console.error(`❌ API Error: ${url}`, error);
       throw error;
     }
@@ -165,6 +283,13 @@ class SimpleApiClient {
       body: data ? JSON.stringify(data) : undefined,
     });
   }
+
+  cancelRequests(): void {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+  }
 }
 
 // Create API client instance
@@ -177,21 +302,169 @@ const TEST_USERS = [
   { username: 'loan_officer', password: 'loan123', role: 'LOAN_OFFICER', name: 'Зээлийн мэргэжилтэн' }
 ];
 
-// Login Component
-interface LoginComponentProps {
-  onLoginSuccess: (user: User) => void;
-}
+// ⭐ AUTH PROVIDER WITH ENHANCED FUNCTIONALITY ⭐
+const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [state, setState] = useState<AuthState>(() => {
+    // Initialize from localStorage if available
+    const storedToken = localStorage.getItem('los_token');
+    const storedUser = localStorage.getItem('los_user');
+    
+    let initialUser: User | null = null;
+    if (storedToken && storedUser) {
+      try {
+        initialUser = JSON.parse(storedUser);
+      } catch (error) {
+        console.warn('Failed to parse stored user:', error);
+        localStorage.removeItem('los_token');
+        localStorage.removeItem('los_user');
+      }
+    }
 
+    return {
+      isAuthenticated: !!initialUser,
+      user: initialUser,
+      token: storedToken,
+      loading: false,
+      error: null,
+    };
+  });
+
+  // ⭐ TYPED LOGIN FUNCTION WITH ENHANCED ERROR HANDLING ⭐
+  const login = useCallback(async (loginData: LoginRequest): Promise<void> => {
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    
+    try {
+      console.log('🔐 Starting auth login process...');
+      
+      const response = await apiClient.post('/auth/login', loginData);
+      
+      if (response && response.success && response.token && response.user) {
+        // Normalize user data to match our interface
+        const normalizedUser: User = {
+          id: response.user.id,
+          username: response.user.username,
+          role: response.user.role || (response.user.roles && response.user.roles[0] && response.user.roles[0].name) || 'USER',
+          name: response.user.fullName || response.user.name || response.user.username,
+          email: response.user.email,
+          fullName: response.user.fullName,
+          firstName: response.user.firstName,
+          lastName: response.user.lastName,
+          roles: response.user.roles || [{ name: response.user.role || 'USER' }],
+          permissions: response.user.permissions || [],
+          isActive: response.user.isActive !== false,
+        };
+
+        // Save to localStorage for persistence
+        localStorage.setItem('los_token', response.token);
+        localStorage.setItem('los_user', JSON.stringify(normalizedUser));
+        
+        setState({
+          isAuthenticated: true,
+          user: normalizedUser,
+          token: response.token,
+          loading: false,
+          error: null,
+        });
+
+        console.log('✅ Auth login successful:', normalizedUser);
+      } else {
+        throw new Error(response?.message || response?.error || 'Нэвтрэх амжилтгүй боллоо');
+      }
+    } catch (error: unknown) {
+      console.error('❌ Auth login error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Сервертэй холбогдоход алдаа гарлаа';
+      setState(prev => ({
+        ...prev,
+        isAuthenticated: false,
+        user: null,
+        token: null,
+        loading: false,
+        error: errorMessage,
+      }));
+      throw error;
+    }
+  }, []);
+
+  // ⭐ ENHANCED LOGOUT FUNCTION ⭐
+  const logout = useCallback(async (): Promise<void> => {
+    console.log('🚪 Starting logout process...');
+    
+    try {
+      if (state.token) {
+        await apiClient.post('/auth/logout', {});
+      }
+    } catch (error) {
+      console.warn('Logout endpoint failed, proceeding with local logout:', error);
+    } finally {
+      // Clear local storage and state
+      localStorage.removeItem('los_token');
+      localStorage.removeItem('los_user');
+      
+      setState({
+        isAuthenticated: false,
+        user: null,
+        token: null,
+        loading: false,
+        error: null,
+      });
+      
+      console.log('✅ Logout completed');
+    }
+  }, [state.token]);
+
+  // ⭐ PERMISSION CHECKING FUNCTIONS ⭐
+  const hasPermission = useCallback((permission: string): boolean => {
+    if (!state.user || !state.isAuthenticated) return false;
+    return state.user.permissions?.includes(permission) || false;
+  }, [state.user, state.isAuthenticated]);
+
+  const hasRole = useCallback((roleName: string): boolean => {
+    if (!state.user || !state.isAuthenticated) return false;
+    
+    // Check main role
+    if (state.user.role === roleName) return true;
+    
+    // Check roles array
+    return state.user.roles?.some(role => role.name === roleName) || false;
+  }, [state.user, state.isAuthenticated]);
+
+  // ⭐ MEMOIZED CONTEXT VALUE ⭐
+  const contextValue = useMemo<AuthContextType>(() => ({
+    state,
+    login,
+    logout,
+    hasPermission,
+    hasRole,
+  }), [state, login, logout, hasPermission, hasRole]);
+
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// ⭐ ENHANCED LOGIN COMPONENT ⭐
 const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
-  const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState<string>('admin');
+  const [password, setPassword] = useState<string>('admin123');
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [debugMode, setDebugMode] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
+  const [debugMode, setDebugMode] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+
+  const { login: authLogin, state: authState } = useAuth();
+
+  // Watch for auth state changes and call onLoginSuccess
+  useEffect(() => {
+    if (authState.isAuthenticated && authState.user) {
+      console.log('🎉 Auth state changed - user logged in');
+      onLoginSuccess(authState.user);
+    }
+  }, [authState.isAuthenticated, authState.user, onLoginSuccess]);
 
   // Validation that matches backend LoginRequestDto.Validator exactly
-  const validateForm = (): string | null => {
+  const validateForm = useCallback((): string | null => {
     if (!username || !username.trim()) {
       return 'Хэрэглэгчийн нэр заавал оруулна уу';
     }
@@ -224,10 +497,10 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
     }
     
     return null;
-  };
+  }, [username, password]);
 
   // Backend validation test
-  const testValidation = async () => {
+  const testValidation = useCallback(async (): Promise<void> => {
     try {
       const testRequest = {
         username: username || 'test',
@@ -242,19 +515,19 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
       
       console.log('📊 Backend validation result:', response);
       
-      if (response.valid) {
+      if (response && response.valid) {
         message.success('Validation амжилттай! Backend-тай тохирч байна.');
       } else {
-        message.error(`Validation алдаа: ${response.error}`);
+        message.error(`Validation алдаа: ${response?.error || 'Unknown error'}`);
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Validation test failed:', error);
       message.warning('Backend validation test хийх боломжгүй. Энгийн frontend validation ашигласан.');
     }
-  };
+  }, [username, password]);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
 
@@ -268,7 +541,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
       }
 
       // Create login request that exactly matches backend LoginRequestDto structure
-      const loginRequest = {
+      const loginRequest: LoginRequest = {
         username: username.trim(),
         password: password.trim(),
         rememberMe: false,
@@ -279,53 +552,32 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
 
-      console.log('📤 Sending login request to backend...');
-      console.log('📋 Login request structure:', {
-        username: loginRequest.username,
-        password: '[HIDDEN]',
-        rememberMe: loginRequest.rememberMe,
-        platform: loginRequest.platform,
-        timestamp: loginRequest.timestamp
-      });
+      console.log('📤 Calling auth context login...');
       
-      const response = await apiClient.post('/auth/login', loginRequest);
+      await authLogin(loginRequest);
 
-      console.log('✅ Login response received:', response);
-
-      if (response.success && response.token && response.user) {
-        const normalizedUser: User = {
-          id: response.user.id,
-          username: response.user.username,
-          role: response.user.role || (response.user.roles && response.user.roles[0] && response.user.roles[0].name) || 'USER',
-          name: response.user.fullName || response.user.name || response.user.username,
-          email: response.user.email,
-          fullName: response.user.fullName
-        };
-
-        message.success(response.message || 'Амжилттай нэвтэрлээ!');
-        onLoginSuccess(normalizedUser);
-        
-        // Reset form
-        setUsername('');
-        setPassword('');
-      } else {
-        throw new Error(response.message || response.error || 'Нэвтрэхэд алдаа гарлаа');
-      }
-    } catch (err: any) {
+      message.success('Амжилттай нэвтэрлээ!');
+      
+      // Reset form
+      setUsername('');
+      setPassword('');
+      
+    } catch (err: unknown) {
       console.error('❌ Login error:', err);
       let errorMessage = 'Нэвтрэх үед алдаа гарлаа';
       
-      // Parse backend error messages
-      if (err.message.includes('401')) {
-        errorMessage = 'Хэрэглэгчийн нэр эсвэл нууц үг буруу байна';
-      } else if (err.message.includes('400')) {
-        errorMessage = 'Нэвтрэх мэдээлэл буруу байна';
-      } else if (err.message.includes('403')) {
-        errorMessage = 'Хандах эрхгүй байна';
-      } else if (err.message.includes('500')) {
-        errorMessage = 'Серверийн алдаа гарлаа. Дахин оролдоно уу';
-      } else if (err.message) {
-        errorMessage = err.message;
+      if (err instanceof Error) {
+        if (err.message?.includes('401')) {
+          errorMessage = 'Хэрэглэгчийн нэр эсвэл нууц үг буруу байна';
+        } else if (err.message?.includes('400')) {
+          errorMessage = 'Нэвтрэх мэдээлэл буруу байна';
+        } else if (err.message?.includes('403')) {
+          errorMessage = 'Хандах эрхгүй байна';
+        } else if (err.message?.includes('500')) {
+          errorMessage = 'Серверийн алдаа гарлаа. Дахин оролдоно уу';
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
       }
       
       setError(errorMessage);
@@ -333,22 +585,22 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [username, password, validateForm, authLogin]);
 
-  const handleQuickLogin = (testUsername: string, testPassword: string) => {
+  const handleQuickLogin = useCallback((testUsername: string, testPassword: string): void => {
     setUsername(testUsername);
     setPassword(testPassword);
     // Auto-submit after setting values
     setTimeout(() => {
       handleLogin();
     }, 100);
-  };
+  }, [handleLogin]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent): void => {
     if (e.key === 'Enter') {
       handleLogin();
     }
-  };
+  }, [handleLogin]);
 
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -365,6 +617,16 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
           />
         )}
 
+        {authState.error && (
+          <Alert
+            message="Authentication алдаа"
+            description={authState.error}
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+          />
+        )}
+
         <div style={{ marginBottom: 24 }}>
           <div style={{ marginBottom: 16 }}>
             <Text strong>Хэрэглэгчийн нэр</Text>
@@ -375,6 +637,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
               onChange={(e) => setUsername(e.target.value)}
               onKeyPress={handleKeyPress}
               style={{ marginTop: 4 }}
+              disabled={loading || authState.loading}
             />
           </div>
 
@@ -389,6 +652,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyPress={handleKeyPress}
                 style={{ marginTop: 4 }}
+                disabled={loading || authState.loading}
                 suffix={
                   <Button
                     type="text"
@@ -405,18 +669,18 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
             <Button 
               type="primary" 
               onClick={handleLogin}
-              loading={loading} 
+              loading={loading || authState.loading} 
               size="large"
               style={{ minWidth: 120 }}
             >
-              {loading ? 'Нэвтрэж байна...' : 'Нэвтрэх'}
+              {(loading || authState.loading) ? 'Нэвтрэж байна...' : 'Нэвтрэх'}
             </Button>
 
             <Space>
               <Button 
                 onClick={testValidation}
                 size="large"
-                disabled={loading}
+                disabled={loading || authState.loading}
               >
                 🧪 Validation шалгах
               </Button>
@@ -443,7 +707,7 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
               key={index}
               block 
               onClick={() => handleQuickLogin(user.username, user.password)}
-              disabled={loading}
+              disabled={loading || authState.loading}
               type="default"
             >
               👤 {user.username} / {user.password} ({user.name})
@@ -453,10 +717,18 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
 
         {debugMode && (
           <div style={{ marginTop: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-            <Text strong>Backend Compatibility Debug:</Text>
+            <Text strong>Enhanced Debug Info:</Text>
             <pre style={{ fontSize: 11, margin: '8px 0 0 0' }}>
               {JSON.stringify({
                 apiBaseUrl: API_BASE_URL,
+                authState: {
+                  isAuthenticated: authState.isAuthenticated,
+                  hasUser: !!authState.user,
+                  loading: authState.loading,
+                  error: authState.error,
+                  userRole: authState.user?.role,
+                  userPermissions: authState.user?.permissions?.length || 0
+                },
                 currentValues: { 
                   username, 
                   password: password ? '[HIDDEN]' : '',
@@ -471,17 +743,12 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
                   platform: 'string (optional)',
                   deviceInfo: 'string (optional)'
                 },
-                corsConfig: {
-                  allowedOrigins: 'http://localhost:3001',
-                  credentials: 'omit',
-                  mode: 'cors'
-                },
-                timestamp: new Date().toISOString(),
-                testUsers: TEST_USERS.length,
-                validationRules: {
-                  usernamePattern: '^[a-zA-Z0-9._@-]+$',
-                  usernameLength: '3-50',
-                  passwordLength: '6-100'
+                features: {
+                  authContext: 'enabled',
+                  errorBoundary: 'enabled',
+                  typeScript: 'enabled',
+                  localStorage: 'enabled',
+                  permissionSystem: 'enabled'
                 }
               }, null, 2)}
             </pre>
@@ -492,26 +759,44 @@ const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
   );
 };
 
-// Main App Component
-function App() {
-  // State declarations with proper TypeScript syntax and types
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: false,
-    user: null,
-    loading: false,
-    error: null
-  });
+// ⭐ MAIN APP CONTENT WITH ENHANCED FEATURES ⭐
+const AppContent: React.FC = () => {
+  const { state: authState, logout: authLogout, hasPermission, hasRole } = useAuth();
   
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
-  const [systemLoading, setSystemLoading] = useState(true);
+  const [systemLoading, setSystemLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [connectionTest, setConnectionTest] = useState<ConnectionTest | null>(null);
   const [apiEndpoints, setApiEndpoints] = useState<Record<string, boolean>>({});
-  const [activeTabKey, setActiveTabKey] = useState('dashboard');
-  const [logoutLoading, setLogoutLoading] = useState(false);
+  const [activeTabKey, setActiveTabKey] = useState<string>('dashboard');
+  const [logoutLoading, setLogoutLoading] = useState<boolean>(false);
+
+  // Handle login success
+  const handleLoginSuccess = useCallback((user: User): void => {
+    console.log('🎉 Login success, user:', user);
+    setActiveTabKey('dashboard');
+    message.success(`Сайн байна уу, ${user.fullName || user.name || user.username}!`);
+  }, []);
+
+  // Handle logout
+  const handleLogout = useCallback(async (): Promise<void> => {
+    try {
+      setLogoutLoading(true);
+      
+      await authLogout();
+      
+      setActiveTabKey('dashboard');
+      message.success('Амжилттай гарлаа');
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      message.error('Гарахад алдаа гарлаа');
+    } finally {
+      setLogoutLoading(false);
+    }
+  }, [authLogout]);
 
   // Fetch system status
-  const fetchSystemStatus = async () => {
+  const fetchSystemStatus = useCallback(async (): Promise<void> => {
     try {
       setSystemLoading(true);
       setError(null);
@@ -530,22 +815,23 @@ function App() {
       });
 
       console.log('✅ System status fetched successfully');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('❌ System status fetch failed:', err);
-      setError(err.message || 'Системийн статус авахад алдаа гарлаа');
+      const errorMessage = err instanceof Error ? err.message : 'Системийн статус авахад алдаа гарлаа';
+      setError(errorMessage);
       setBackendStatus(null);
       setConnectionTest({
         success: false,
-        message: err.message || 'Backend холбогдохгүй байна',
+        message: errorMessage,
         responseTime: 0
       });
     } finally {
       setSystemLoading(false);
     }
-  };
+  }, []);
 
   // Test API endpoints that match backend AuthController
-  const testApiEndpoints = async () => {
+  const testApiEndpoints = useCallback(async (): Promise<Record<string, boolean>> => {
     const endpoints = [
       { name: 'health', path: '/health', method: 'GET' },
       { name: 'auth-health', path: '/auth/health', method: 'GET' },
@@ -567,11 +853,12 @@ function App() {
         
         results[endpoint.name] = true;
         console.log(`✅ ${endpoint.name} endpoint OK`);
-      } catch (error: any) {
-        console.log(`❌ ${endpoint.name} endpoint failed:`, error.message);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.log(`❌ ${endpoint.name} endpoint failed:`, errorMessage);
         
         // Don't consider auth-related errors as endpoint failures
-        if (error.message.includes('401') || error.message.includes('403')) {
+        if (errorMessage.includes('401') || errorMessage.includes('403')) {
           results[endpoint.name] = true; // Endpoint exists but requires auth
           console.log(`⚠️ ${endpoint.name} endpoint requires auth (but working)`);
         } else {
@@ -582,58 +869,29 @@ function App() {
 
     setApiEndpoints(results);
     return results;
-  };
-
-  // Handle login success
-  const handleLoginSuccess = (user: User) => {
-    console.log('🎉 Login success, user:', user);
-    setAuthState({
-      isAuthenticated: true,
-      user: user,
-      loading: false,
-      error: null
-    });
-    setActiveTabKey('dashboard');
-  };
-
-  // Handle logout
-  const handleLogout = async () => {
-    try {
-      setLogoutLoading(true);
-      
-      // Try backend logout
-      try {
-        await apiClient.post('/auth/logout');
-      } catch (error) {
-        console.warn('Backend logout failed, proceeding with local logout');
-      }
-
-      // Clear auth state
-      setAuthState({
-        isAuthenticated: false,
-        user: null,
-        loading: false,
-        error: null
-      });
-      
-      setActiveTabKey('dashboard');
-      message.success('Амжилттай гарлаа');
-    } catch (error: any) {
-      console.error('❌ Logout error:', error);
-      message.error('Гарахад алдаа гарлаа');
-    } finally {
-      setLogoutLoading(false);
-    }
-  };
+  }, []);
 
   // Initialize on mount
   useEffect(() => {
-    fetchSystemStatus();
-    testApiEndpoints();
-  }, []);
+    let isMounted = true;
+    
+    const initializeApp = async (): Promise<void> => {
+      if (isMounted) {
+        await fetchSystemStatus();
+        await testApiEndpoints();
+      }
+    };
+
+    initializeApp();
+
+    return () => {
+      isMounted = false;
+      apiClient.cancelRequests();
+    };
+  }, [fetchSystemStatus, testApiEndpoints]);
 
   // Menu items
-  const menuItems = [
+  const menuItems = useMemo(() => [
     {
       key: 'dashboard',
       icon: <DashboardOutlined />,
@@ -649,15 +907,15 @@ function App() {
       icon: <FileTextOutlined />,
       label: 'Зээлийн хүсэлт',
     },
-  ];
+  ], []);
 
   // Helper functions
-  const getStatusColor = (status?: string) => {
+  const getStatusColor = useCallback((status?: string): 'success' | 'error' | 'info' => {
     if (!status) return 'info';
     return status === 'UP' ? 'success' : 'error';
-  };
+  }, []);
 
-  const renderApiEndpointStatus = () => {
+  const renderApiEndpointStatus = useCallback((): React.ReactNode => {
     const entries = Object.entries(apiEndpoints);
     if (entries.length === 0) return null;
 
@@ -673,10 +931,10 @@ function App() {
         </div>
       </div>
     );
-  };
+  }, [apiEndpoints]);
 
   // Tab items
-  const tabItems = [
+  const tabItems = useMemo(() => [
     {
       key: 'dashboard',
       label: (
@@ -860,25 +1118,34 @@ function App() {
           </Row>
 
           {/* Main Content */}
-          <Card title="🎉 Зээлийн хүсэлтийн системд тавтай морил!">
+          <Card title="🎉 Зээлийн хүсэлтийн системд тавтай морил!" extra={
+            authState.isAuthenticated && (
+              <Tag color="green" icon={<CheckCircleOutlined />}>
+                Нэвтэрсэн
+              </Tag>
+            )
+          }>
             <div style={{ textAlign: 'left' }}>
-              <Title level={4}>✅ Системийн төлөв (Backend Compatible):</Title>
+              <Title level={4}>✅ Системийн төлөв (Enhanced TypeScript Ready):</Title>
 
               <ul>
                 <li>Backend API: {connectionTest?.success ? '✅ Ажиллаж байна' : '❌ Холбогдохгүй байна'} (Spring Boot + Spring Security)</li>
-                <li>Frontend: ✅ Ажиллаж байна (React app with backend compatibility)</li>
+                <li>Frontend: ✅ Ажиллаж байна (React + TypeScript + AuthContext + Error Boundary)</li>
                 <li>Database: {backendStatus?.components?.database?.status === 'UP' ? '✅ Холбогдсон' : '⚠️ Тодорхойгүй'} ({backendStatus?.components?.database?.type || 'H2'})</li>
                 <li>API endpoints: {Object.values(apiEndpoints).filter(Boolean).length}/{Object.keys(apiEndpoints).length} ✅</li>
                 <li>CORS Configuration: ✅ Frontend (localhost:3001) зөвшөөрөгдсөн</li>
-                <li>Authentication: ✅ JWT + Test Users багц бэлэн</li>
-                <li>Validation: ✅ Frontend backend LoginRequestDto-тай тохирч байна</li>
+                <li>Authentication: ✅ JWT + AuthContext + LocalStorage persistence</li>
+                <li>Authorization: ✅ Role-based + Permission-based access control</li>
+                <li>Error Handling: ✅ Error Boundary + Proper TypeScript error handling</li>
+                <li>Type Safety: ✅ Full TypeScript support with proper interfaces</li>
+                <li>State Management: ✅ React Context + useCallback/useMemo optimization</li>
               </ul>
 
               <Title level={5}>🔗 Хандах холбоосууд:</Title>
               <ul>
-                <li><a href="http://localhost:8080/los/api/v1/health" target="_blank" rel="noopener noreferrer">Backend Health Check</a></li>
-                <li><a href="http://localhost:8080/los/api/v1/auth/health" target="_blank" rel="noopener noreferrer">Auth Service Health</a></li>
-                <li><a href="http://localhost:8080/los/api/v1/auth/test" target="_blank" rel="noopener noreferrer">Auth Test Endpoint</a></li>
+                <li><a href={`${API_BASE_URL}/health`} target="_blank" rel="noopener noreferrer">Backend Health Check</a></li>
+                <li><a href={`${API_BASE_URL}/auth/health`} target="_blank" rel="noopener noreferrer">Auth Service Health</a></li>
+                <li><a href={`${API_BASE_URL}/auth/test`} target="_blank" rel="noopener noreferrer">Auth Test Endpoint</a></li>
                 <li><a href="http://localhost:8080/los/swagger-ui.html" target="_blank" rel="noopener noreferrer">API Documentation</a></li>
                 <li><a href="http://localhost:8080/los/h2-console" target="_blank" rel="noopener noreferrer">H2 Database Console</a></li>
               </ul>
@@ -892,16 +1159,28 @@ function App() {
 
               {authState.isAuthenticated && authState.user && (
                 <Alert
-                  message={`Сайн байна уу, ${authState.user.name || authState.user.username}!`}
+                  message={`Сайн байна уу, ${authState.user.fullName || authState.user.name || authState.user.username}!`}
                   description={
                     <div>
                       <p>Та амжилттай нэвтэрсэн байна. Одоо системийн бүх функцийг ашиглах боломжтой.</p>
-                      <p><strong>Эрх:</strong> {authState.user.role}</p>
+                      <p><strong>Үндсэн эрх:</strong> {authState.user.role}</p>
+                      <p><strong>Бүх эрхүүд:</strong> {authState.user.roles?.map(r => r.name).join(', ') || authState.user.role}</p>
                       <p><strong>ID:</strong> {authState.user.id}</p>
+                      <p><strong>Email:</strong> {authState.user.email || 'Тодорхойгүй'}</p>
+                      <p><strong>Зөвшөөрлүүд:</strong> {authState.user.permissions?.length || 0} зөвшөөрөл</p>
+                      <Divider style={{ margin: '12px 0' }} />
+                      <p><strong>🔍 Эрхийн шалгалт:</strong></p>
+                      <ul style={{ margin: '4px 0 0 20px' }}>
+                        <li>Loan approve эрх: {hasPermission('loan:approve') ? '✅ Байна' : '❌ Байхгүй'}</li>
+                        <li>Customer view эрх: {hasPermission('customer:view') ? '✅ Байна' : '❌ Байхгүй'}</li>
+                        <li>Super Admin эрх: {hasRole('SUPER_ADMIN') ? '✅ Байна' : '❌ Байхгүй'}</li>
+                        <li>Manager эрх: {hasRole('MANAGER') ? '✅ Байна' : '❌ Байхгүй'}</li>
+                      </ul>
                     </div>
                   }
                   type="info"
                   showIcon
+                  icon={<SecurityScanOutlined />}
                   style={{ marginTop: 16 }}
                 />
               )}
@@ -929,13 +1208,27 @@ function App() {
         </span>
       ),
       children: (
-        <Card title="Харилцагчийн удирдлага">
+        <Card title="👥 Харилцагчийн удирдлага" extra={
+          authState.isAuthenticated && (
+            <Tag color={hasPermission('customer:view') ? 'green' : 'red'}>
+              {hasPermission('customer:view') ? 'Эрх байна' : 'Эрх байхгүй'}
+            </Tag>
+          )
+        }>
           <Paragraph>Харилцагчийн удирдлагын хэсэг удахгүй нэмэгдэнэ...</Paragraph>
           {!authState.isAuthenticated && (
             <Alert
               message="Эхлээд нэвтэрнэ үү"
               description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
               type="warning"
+              showIcon
+            />
+          )}
+          {authState.isAuthenticated && (
+            <Alert
+              message="Development Phase"
+              description={`Энэ хэсэг одоогоор хөгжүүлэлтийн шатанд байна. ${hasPermission('customer:view') ? 'Танд харах эрх байна!' : 'Танд харах эрх байхгүй.'}`}
+              type="info"
               showIcon
             />
           )}
@@ -951,7 +1244,13 @@ function App() {
         </span>
       ),
       children: (
-        <Card title="Зээлийн хүсэлт">
+        <Card title="📋 Зээлийн хүсэлт" extra={
+          authState.isAuthenticated && (
+            <Tag color={hasPermission('loan:view') ? 'green' : 'red'}>
+              {hasPermission('loan:view') ? 'Эрх байна' : 'Эрх байхгүй'}
+            </Tag>
+          )
+        }>
           <Paragraph>Зээлийн хүсэлтийн хэсэг удахгүй нэмэгдэнэ...</Paragraph>
           {!authState.isAuthenticated && (
             <Alert
@@ -961,10 +1260,32 @@ function App() {
               showIcon
             />
           )}
+          {authState.isAuthenticated && (
+            <Alert
+              message="Development Phase"
+              description={`Энэ хэсэг одоогоор хөгжүүлэлтийн шатанд байна. ${hasPermission('loan:view') ? 'Танд харах эрх байна!' : 'Танд харах эрх байхгүй.'}`}
+              type="info"
+              showIcon
+            />
+          )}
         </Card>
       )
     }
-  ];
+  ], [
+    systemLoading,
+    error,
+    connectionTest,
+    backendStatus,
+    apiEndpoints,
+    authState,
+    hasPermission,
+    hasRole,
+    fetchSystemStatus,
+    testApiEndpoints,
+    handleLoginSuccess,
+    getStatusColor,
+    renderApiEndpointStatus
+  ]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -992,14 +1313,29 @@ function App() {
           />
         </div>
 
-        {/* Auth Section */}
+        {/* Enhanced Auth Section */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           {authState.isAuthenticated && authState.user ? (
             <Space>
               <Text style={{ color: 'white' }}>
-                Сайн байна уу, {authState.user.name || authState.user.username}!
+                Сайн байна уу, {authState.user.fullName || authState.user.name || authState.user.username}!
               </Text>
-              <Tag color="green">{authState.user.role}</Tag>
+              {authState.user.roles?.map(role => (
+                <Tag key={role.name} color="blue">{role.name}</Tag>
+              )) || (
+                <Tag color="green">{authState.user.role}</Tag>
+              )}
+              <Divider type="vertical" style={{ borderColor: 'rgba(255,255,255,0.3)' }} />
+              <Button 
+                type="text" 
+                icon={<SecurityScanOutlined />}
+                style={{ color: 'white' }}
+                onClick={() => {
+                  message.info('Тохиргооны хэсэг удахгүй нэмэгдэнэ');
+                }}
+              >
+                Тохиргоо
+              </Button>
               <Button 
                 type="text" 
                 icon={<LogoutOutlined />}
@@ -1011,14 +1347,19 @@ function App() {
               </Button>
             </Space>
           ) : (
-            <Button 
-              type="text" 
-              icon={<LoginOutlined />}
-              style={{ color: 'white' }}
-              onClick={() => setActiveTabKey('auth')}
-            >
-              Нэвтрэх
-            </Button>
+            <Space>
+              {authState.loading && (
+                <Spin size="small" style={{ color: 'white' }} />
+              )}
+              <Button 
+                type="text" 
+                icon={<LoginOutlined />}
+                style={{ color: 'white' }}
+                onClick={() => setActiveTabKey('auth')}
+              >
+                Нэвтрэх
+              </Button>
+            </Space>
           )}
         </div>
       </Header>
@@ -1035,25 +1376,32 @@ function App() {
       </Content>
 
       <Footer style={{ textAlign: 'center', background: '#f0f2f5' }}>
-        <Space>
-          <Text>🏦 Зээлийн хүсэлтийн систем 2025 - v5.0</Text>
-          <span>|</span>
-          <Text type="success">✅ Backend Compatible</Text>
-          <span>|</span>
+        <Space split={<Divider type="vertical" />}>
+          <Text>🏦 Зээлийн хүсэлтийн систем 2025 - v12.0 (Enhanced TypeScript)</Text>
+          <Text type="success">✅ Full TypeScript + AuthContext + Error Boundary</Text>
           <a href="http://localhost:8080/los/swagger-ui.html" target="_blank" rel="noopener noreferrer">
             API баримт бичиг
           </a>
-          <span>|</span>
           <a href="http://localhost:8080/los/h2-console" target="_blank" rel="noopener noreferrer">
             Өгөгдлийн сан
           </a>
-          <span>|</span>
-          <a href="http://localhost:8080/los/api/v1/auth/test-users" target="_blank" rel="noopener noreferrer">
+          <a href={`${API_BASE_URL}/auth/test-users`} target="_blank" rel="noopener noreferrer">
             Test Users
           </a>
         </Space>
       </Footer>
     </Layout>
+  );
+};
+
+// ⭐ MAIN APP WITH ERROR BOUNDARY AND AUTH PROVIDER ⭐
+function App(): React.ReactElement {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
