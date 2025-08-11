@@ -260,11 +260,27 @@ function Find-ProjectFile {
     
     # Docker файлуудын тусгай хайлт
     if ($FileName -match "^(Dockerfile|docker-compose)") {
-        $dockerPaths = @(
-            (Join-Path $global:ProjectRoot $FileName),
-            (Join-Path $global:ProjectRoot "docker/$FileName"),
-            (Join-Path $global:ProjectRoot "scripts/$FileName")
-        )
+        $dockerPaths = @()
+        
+        # .dockerfile extension-тай болон extension-гүй хоёулаа хайх
+        if ($FileName -like "Dockerfile.*" -and $FileName -notlike "*.dockerfile") {
+            # Dockerfile.backend -> Dockerfile.backend.dockerfile-ийг ч хайх
+            $dockerfileVariant = "$FileName.dockerfile"
+            $dockerPaths += @(
+                (Join-Path $global:ProjectRoot $FileName),
+                (Join-Path $global:ProjectRoot $dockerfileVariant),
+                (Join-Path $global:ProjectRoot "docker/$FileName"),
+                (Join-Path $global:ProjectRoot "docker/$dockerfileVariant"),
+                (Join-Path $global:ProjectRoot "scripts/$FileName"),
+                (Join-Path $global:ProjectRoot "scripts/$dockerfileVariant")
+            )
+        } else {
+            $dockerPaths += @(
+                (Join-Path $global:ProjectRoot $FileName),
+                (Join-Path $global:ProjectRoot "docker/$FileName"),
+                (Join-Path $global:ProjectRoot "scripts/$FileName")
+            )
+        }
         
         foreach ($path in $dockerPaths) {
             if ($DebugMode) {
@@ -512,8 +528,8 @@ $expectedFiles = @{
         "backend/src/main/java/com/company/los/config/SwaggerConfig.java",
         "backend/src/main/java/com/company/los/config/DatabaseConfig.java",
         "backend/src/main/java/com/company/los/config/JpaConfig.java",
-        "Dockerfile.backend",
-        "Dockerfile.frontend", 
+        "Dockerfile.backend.dockerfile",
+        "Dockerfile.frontend.dockerfile", 
         "docker-compose.yml",
         "docker-compose.prod.yml",
         ".gitignore",
@@ -596,7 +612,7 @@ $expectedFiles = @{
         "frontend/src/main.tsx",
         "frontend/src/App.tsx",
         "frontend/src/types/index.ts",
-        "frontend/src/config/api.ts"
+        "frontend/src/config/api.tsx"
     )
     
     # Phase 3.2: React Components
@@ -899,8 +915,8 @@ function Show-DockerFiles {
     Write-ColoredText "═══════════════" "Blue"
     
     $dockerFiles = @(
-        "Dockerfile.backend",
-        "Dockerfile.frontend", 
+        "Dockerfile.backend.dockerfile",
+        "Dockerfile.frontend.dockerfile", 
         "docker-compose.yml",
         "docker-compose.prod.yml",
         ".dockerignore"
@@ -1363,7 +1379,7 @@ function Show-QuickProgress {
     Show-ProgressBar $frontendCoreCount 3 "Frontend Core"
     
     # Docker файлууд
-    $dockerFiles = @("docker-compose.yml", "Dockerfile.backend", "Dockerfile.frontend")
+    $dockerFiles = @("docker-compose.yml", "Dockerfile.backend.dockerfile", "Dockerfile.frontend.dockerfile")
     $dockerCount = 0
     
     foreach ($file in $dockerFiles) {
