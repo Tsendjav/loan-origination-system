@@ -35,6 +35,9 @@ import {
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 
+import CustomerSection from './components/customer/CustomerSection';
+import LoanApplicationSection from './components/loan/LoanApplicationSection';
+
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
 
@@ -209,13 +212,15 @@ class SimpleApiClient {
     
     const url = `${this.baseURL}${endpoint}`;
     
+    // Тэмдэглэл: credentials-ийг хасахгүй (same-origin cookie preview/proxy-д хэрэгтэй).
+    // `credentials: 'omit'` байсан нь cloud preview дээр 403 өгч, нэвтрэлтийг блоклож байсан.
+    const token = localStorage.getItem('los_token');
     const config: RequestInit = {
-      mode: 'cors',
-      credentials: 'omit',
       signal: this.abortController.signal,
       headers: {
         'Content-Type': 'application/json;charset=UTF-8',
         'Accept': 'application/json;charset=UTF-8',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,
@@ -1207,31 +1212,16 @@ const AppContent: React.FC = () => {
           Харилцагчид
         </span>
       ),
-      children: (
-        <Card title="👥 Харилцагчийн удирдлага" extra={
-          authState.isAuthenticated && (
-            <Tag color={hasPermission('customer:view') ? 'green' : 'red'}>
-              {hasPermission('customer:view') ? 'Эрх байна' : 'Эрх байхгүй'}
-            </Tag>
-          )
-        }>
-          <Paragraph>Харилцагчийн удирдлагын хэсэг удахгүй нэмэгдэнэ...</Paragraph>
-          {!authState.isAuthenticated && (
-            <Alert
-              message="Эхлээд нэвтэрнэ үү"
-              description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
-              type="warning"
-              showIcon
-            />
-          )}
-          {authState.isAuthenticated && (
-            <Alert
-              message="Development Phase"
-              description={`Энэ хэсэг одоогоор хөгжүүлэлтийн шатанд байна. ${hasPermission('customer:view') ? 'Танд харах эрх байна!' : 'Танд харах эрх байхгүй.'}`}
-              type="info"
-              showIcon
-            />
-          )}
+      children: authState.isAuthenticated ? (
+        <CustomerSection />
+      ) : (
+        <Card title="👥 Харилцагчийн удирдлага">
+          <Alert
+            message="Эхлээд нэвтэрнэ үү"
+            description="Харилцагчдын жагсаалтыг харахын тулд системд нэвтэрнэ үү."
+            type="warning"
+            showIcon
+          />
         </Card>
       )
     },
@@ -1243,31 +1233,16 @@ const AppContent: React.FC = () => {
           Зээлийн хүсэлт
         </span>
       ),
-      children: (
-        <Card title="📋 Зээлийн хүсэлт" extra={
-          authState.isAuthenticated && (
-            <Tag color={hasPermission('loan:view') ? 'green' : 'red'}>
-              {hasPermission('loan:view') ? 'Эрх байна' : 'Эрх байхгүй'}
-            </Tag>
-          )
-        }>
-          <Paragraph>Зээлийн хүсэлтийн хэсэг удахгүй нэмэгдэнэ...</Paragraph>
-          {!authState.isAuthenticated && (
-            <Alert
-              message="Эхлээд нэвтэрнэ үү"
-              description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
-              type="warning"
-              showIcon
-            />
-          )}
-          {authState.isAuthenticated && (
-            <Alert
-              message="Development Phase"
-              description={`Энэ хэсэг одоогоор хөгжүүлэлтийн шатанд байна. ${hasPermission('loan:view') ? 'Танд харах эрх байна!' : 'Танд харах эрх байхгүй.'}`}
-              type="info"
-              showIcon
-            />
-          )}
+      children: authState.isAuthenticated ? (
+        <LoanApplicationSection />
+      ) : (
+        <Card title="📋 Зээлийн хүсэлт">
+          <Alert
+            message="Эхлээд нэвтэрнэ үү"
+            description="Зээлийн хүсэлтүүдийг харах болон шийдвэрлэхийн тулд системд нэвтэрнэ үү."
+            type="warning"
+            showIcon
+          />
         </Card>
       )
     }

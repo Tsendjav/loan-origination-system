@@ -86,7 +86,9 @@ public class JwtUtil {
                 .setSubject(subject)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                // HS512 шаардлагатай 512+ бит key-тэй тохирохгүй (анхдагч secret 352 бит)
+                // тул HS256 ашиглана. HS256-д 256+ бит key хангалттай.
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
@@ -102,6 +104,23 @@ public class JwtUtil {
      */
     public String getUsernameFromToken(String token) {
         return extractUsername(token);
+    }
+
+    /**
+     * Token доторх "roles" claim-ийг унших
+     */
+    @SuppressWarnings("unchecked")
+    public java.util.List<String> getRoles(String token) {
+        java.util.List<String> result = new java.util.ArrayList<>();
+        Object roles = getClaimFromToken(token, claims -> claims.get("roles"));
+        if (roles instanceof java.util.List<?> list) {
+            for (Object role : list) {
+                if (role != null) {
+                    result.add(String.valueOf(role));
+                }
+            }
+        }
+        return result;
     }
 
     /**

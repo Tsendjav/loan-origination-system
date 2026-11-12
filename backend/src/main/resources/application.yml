@@ -58,14 +58,19 @@ spring:
         web-allow-others: true
         trace: false
 
-  # ⭐ SQL Initialization - ЗАСВАРЛАСАН ⭐
+  # ⭐ SQL Initialization - ХАСАГДСАН ⭐
+  # schema.sql/data.sql нь entity-үүдийн баганатай тохирохгүй байсан
+  # (date_of_birth vs birth_date, дутуу баганууд, UUID/VARCHAR зөрүү) тул
+  # хүснэгтийг Hibernate үүсгэж, эхний өгөгдлийг DataInitializer оруулна.
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      data-locations: classpath:data.sql
-      continue-on-error: false
-      encoding: UTF-8
+      mode: never
+
+  # ⭐ JPA - Hibernate схем үүсгэнэ ⭐
+  jpa:
+    hibernate:
+      ddl-auto: create
+    open-in-view: false
 
   # Disable Flyway for H2 database
   flyway:

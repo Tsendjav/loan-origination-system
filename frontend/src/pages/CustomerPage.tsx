@@ -277,8 +277,6 @@ const CustomerPage: React.FC = () => {
       setShowForm(false);
       setSelectedCustomer(null);
       loadCustomers();
-    } catch (error: any) {
-      throw error; // Let CustomerForm handle the error display
     } finally {
       setIsSubmitting(false);
     }

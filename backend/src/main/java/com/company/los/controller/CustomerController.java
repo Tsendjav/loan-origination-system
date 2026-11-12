@@ -52,7 +52,7 @@ public class CustomerController {
      * GET /api/v1/customers
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('customer:view')")
+    @PreAuthorize("hasAnyAuthority('customer:view', 'CUSTOMER_READ') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','DOCUMENT_REVIEWER','CUSTOMER_SERVICE','AUDITOR','VIEWER')")
     public ResponseEntity<ApiResponse<Page<CustomerDto>>> getAllCustomers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -84,7 +84,7 @@ public class CustomerController {
      * GET /api/v1/customers/{id}
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('customer:view')")
+    @PreAuthorize("hasAnyAuthority('customer:view', 'CUSTOMER_READ') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','DOCUMENT_REVIEWER','CUSTOMER_SERVICE','AUDITOR','VIEWER')")
     public ResponseEntity<ApiResponse<CustomerDto>> getCustomer(@PathVariable UUID id) {
         logger.debug("👤 Getting customer: {}", id);
 
@@ -128,7 +128,7 @@ public class CustomerController {
      * POST /api/v1/customers
      */
     @PostMapping
-    @PreAuthorize("hasAuthority('customer:create')")
+    @PreAuthorize("hasAnyAuthority('customer:create', 'CUSTOMER_CREATE') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER')")
     public ResponseEntity<ApiResponse<CustomerDto>> createCustomer(
             @Valid @RequestBody CustomerRequestDto customerRequest,
             BindingResult bindingResult) {
@@ -185,7 +185,7 @@ public class CustomerController {
      * PUT /api/v1/customers/{id}
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('customer:update')")
+    @PreAuthorize("hasAnyAuthority('customer:update', 'CUSTOMER_UPDATE') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','CUSTOMER_SERVICE')")
     public ResponseEntity<ApiResponse<CustomerDto>> updateCustomer(
             @PathVariable UUID id,
             @Valid @RequestBody CustomerRequestDto customerRequest,
@@ -234,7 +234,7 @@ public class CustomerController {
      * DELETE /api/v1/customers/{id}
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('customer:delete')")
+    @PreAuthorize("hasAnyAuthority('customer:delete', 'CUSTOMER_DELETE') or hasAnyRole('SUPER_ADMIN','ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteCustomer(@PathVariable UUID id) {
         logger.info("🗑️ Deleting customer: {}", id);
 
@@ -273,7 +273,7 @@ public class CustomerController {
      * GET /api/v1/customers/search
      */
     @GetMapping("/search")
-    @PreAuthorize("hasAuthority('customer:view')")
+    @PreAuthorize("hasAnyAuthority('customer:view', 'CUSTOMER_READ') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','DOCUMENT_REVIEWER','CUSTOMER_SERVICE','AUDITOR','VIEWER')")
     public ResponseEntity<ApiResponse<Page<CustomerDto>>> searchCustomers(
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
@@ -309,7 +309,7 @@ public class CustomerController {
      * POST /api/v1/customers/validate
      */
     @PostMapping("/validate")
-    @PreAuthorize("hasAuthority('customer:view')")
+    @PreAuthorize("hasAnyAuthority('customer:view', 'CUSTOMER_READ') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','DOCUMENT_REVIEWER','CUSTOMER_SERVICE','AUDITOR','VIEWER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> validateCustomer(
             @RequestBody Map<String, String> validation) {
 
@@ -351,7 +351,7 @@ public class CustomerController {
      * PUT /api/v1/customers/{id}/status
      */
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasAuthority('customer:update')")
+    @PreAuthorize("hasAnyAuthority('customer:update', 'CUSTOMER_UPDATE') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','CUSTOMER_SERVICE')")
     public ResponseEntity<ApiResponse<CustomerDto>> updateCustomerStatus(
             @PathVariable UUID id,
             @RequestParam CustomerStatus status) {
@@ -397,7 +397,7 @@ public class CustomerController {
      * PUT /api/v1/customers/{id}/kyc-status
      */
     @PutMapping("/{id}/kyc-status")
-    @PreAuthorize("hasAuthority('customer:kyc')")
+    @PreAuthorize("hasAnyAuthority('customer:kyc', 'CUSTOMER_UPDATE') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','DOCUMENT_REVIEWER')")
     public ResponseEntity<ApiResponse<CustomerDto>> updateKycStatus(
             @PathVariable UUID id,
             @RequestParam KYCStatus kycStatus) {
@@ -445,7 +445,7 @@ public class CustomerController {
      * GET /api/v1/customers/statistics
      */
     @GetMapping("/statistics")
-    @PreAuthorize("hasAuthority('customer:view')")
+    @PreAuthorize("hasAnyAuthority('customer:view', 'CUSTOMER_READ') or hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','DOCUMENT_REVIEWER','CUSTOMER_SERVICE','AUDITOR','VIEWER')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getCustomerStatistics() {
         logger.debug("📊 Getting customer statistics");
 

@@ -17,6 +17,7 @@ import com.company.los.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -55,6 +56,32 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     private final LoanProductRepository loanProductRepository;
     private final DocumentService documentService; // Баримт сервис
     private final NotificationService notificationService; // Мэдэгдлийн сервис
+
+    // ==================== АВТОМАТ ШИЙДВЭРИЙН ТОХИРГОО ====================
+
+    @Value("${app.loan.auto-approval.enabled:true}")
+    private boolean autoApprovalEnabled;
+
+    @Value("${app.loan.auto-approval.max-amount:10000000}")
+    private BigDecimal autoApprovalMaxAmount;
+
+    @Value("${app.loan.auto-approval.max-term-months:60}")
+    private int autoApprovalMaxTermMonths;
+
+    @Value("${app.loan.auto-approval.min-credit-score:650}")
+    private int autoApprovalMinCreditScore;
+
+    @Value("${app.loan.interest-rates.personal-loan:18.5}")
+    private BigDecimal personalLoanRate;
+
+    @Value("${app.loan.interest-rates.mortgage:12.0}")
+    private BigDecimal mortgageRate;
+
+    @Value("${app.loan.interest-rates.business-loan:15.0}")
+    private BigDecimal businessLoanRate;
+
+    @Value("${app.loan.interest-rates.car-loan:14.5}")
+    private BigDecimal carLoanRate;
 
     /**
      * Бүх зээлийн хүсэлтийг хуудаслаж авах.
@@ -147,7 +174,16 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         }
         
         LoanApplication savedApplication = loanApplicationRepository.save(loanApplication);
-        
+
+        // ⭐ АВТОМАТ ШИЙДВЭР: хүсэлт хүлээн авах үед шалгуур хангагдвал автоматаар шийднэ ⭐
+        if (savedApplication.getStatus() == LoanApplication.ApplicationStatus.SUBMITTED) {
+            savedApplication = applyAutoDecision(savedApplication);
+            savedApplication.setUpdatedAt(LocalDateTime.now());
+            savedApplication = loanApplicationRepository.save(savedApplication);
+            logger.info("Auto decision applied to {}: status={}",
+                    savedApplication.getApplicationNumber(), savedApplication.getStatus());
+        }
+
         logger.info("Loan application created successfully with ID: {}", savedApplication.getId());
 
         // Notification service дуудах
@@ -363,6 +399,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     @Override
+    @Transactional
     public LoanApplicationDto submitLoanApplication(UUID id) {
         logger.info("Submitting loan application: {}", id);
 
@@ -387,6 +424,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     @Override
+    @Transactional
     public LoanApplicationDto approveLoanApplication(UUID id, BigDecimal approvedAmount,
                                                     Integer approvedTermMonths, BigDecimal approvedRate,
                                                     String reason) {
@@ -411,6 +449,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     }
 
     @Override
+    @Transactional
     public LoanApplicationDto rejectLoanApplication(UUID id, String reason) {
         logger.info("Rejecting loan application: {}", id);
 
@@ -1014,14 +1053,115 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
 
     @Override
     public boolean checkAutoApprovalEligibility(UUID id) {
-        // ⭐ PLACEHOLDER: Автомат батлах боломжтой эсэхийг шалгах логик нэмэх ⭐
-        return false;
+        LoanApplication application = loanApplicationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Loan application not found with ID: " + id));
+        return isEligibleForAutoApproval(application);
     }
 
     @Override
+    @Transactional
     public LoanApplicationDto processAutoApproval(UUID id) {
-        // ⭐ PLACEHOLDER: Автомат батлах логик нэмэх ⭐
-        return getLoanApplicationById(id);
+        LoanApplication application = loanApplicationRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Loan application not found with ID: " + id));
+
+        if (!canBeApproved(application)) {
+            throw new IllegalStateException("Loan application cannot be decided in current status: " + application.getStatus());
+        }
+
+        LoanApplication decided = applyAutoDecision(application);
+        decided.setUpdatedAt(LocalDateTime.now());
+
+        LoanApplication saved = loanApplicationRepository.save(decided);
+        logger.info("Auto approval processed for {}: {}", id, saved.getStatus());
+        return LoanApplicationDto.fromEntity(saved);
+    }
+
+    /**
+     * Автомат шийдвэрийн дүрэм:
+     * - дүн <= app.loan.auto-approval.max-amount
+     * - хугацаа <= app.loan.auto-approval.max-term-months
+     * - кредит оноо >= app.loan.auto-approval.min-credit-score
+     * - харилцагч KYC дууссан, идэвхтэй
+     * Хангагдвал зөвшөөрч, хүүг зээлийн төрлөөр тогтооно. Үгүй бол гараар хянуулахаар
+     * UNDER_REVIEW төлөвт шилжүүлнэ.
+     */
+    private LoanApplication applyAutoDecision(LoanApplication application) {
+        if (!autoApprovalEnabled) {
+            // Автомат шийдвэр идэвхгүй бол хүсэлт хүлээн авсан төлөвөөрөө үлдэж, гараар шийдэгдэнэ
+            logger.debug("Auto approval disabled — leaving application in status {}", application.getStatus());
+            return application;
+        }
+
+        if (!canBeApproved(application)) {
+            return application;
+        }
+
+        if (!isEligibleForAutoApproval(application)) {
+            application.setStatus(LoanApplication.ApplicationStatus.UNDER_REVIEW);
+            application.setDecisionReason(buildAutoDecisionRejectionReason(application));
+            return application;
+        }
+
+        // Хүү нь entity дээр бутархай (0.0 - 1.0) хэлбэрээр хадгалагдана
+        BigDecimal ratePercent = resolveInterestRate(application.getLoanType());
+        BigDecimal rateFraction = ratePercent.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+
+        application.setInterestRate(rateFraction);
+        application.approve("AUTO_DECISION", application.getRequestedAmount(),
+                application.getRequestedTermMonths(), rateFraction);
+        application.setDecisionReason("Автомат шийдвэр: бүх шалгуур хангагдсан тул зөвшөөрөгдлөө");
+
+        // calculateMonthlyPayment нь жилийн хүүг хувиар (жишээ нь 18.5) хүлээж авдаг
+        BigDecimal monthlyPayment = calculateMonthlyPayment(
+                application.getRequestedAmount(), application.getRequestedTermMonths(), ratePercent);
+        application.setMonthlyPayment(monthlyPayment);
+        return application;
+    }
+
+    private boolean isEligibleForAutoApproval(LoanApplication application) {
+        if (!autoApprovalEnabled || application == null) {
+            return false;
+        }
+        if (application.getRequestedAmount() == null || application.getRequestedTermMonths() == null) {
+            return false;
+        }
+        if (autoApprovalMaxAmount != null
+                && application.getRequestedAmount().compareTo(autoApprovalMaxAmount) > 0) {
+            return false;
+        }
+        if (application.getRequestedTermMonths() > autoApprovalMaxTermMonths) {
+            return false;
+        }
+        Customer customer = application.getCustomer();
+        if (customer == null || !canCustomerApplyForLoan(customer)) {
+            return false;
+        }
+        BigDecimal score = calculateCreditScore(customer.getId());
+        return score != null && score.compareTo(BigDecimal.valueOf(autoApprovalMinCreditScore)) >= 0;
+    }
+
+    private String buildAutoDecisionRejectionReason(LoanApplication application) {
+        if (application.getRequestedAmount() != null && autoApprovalMaxAmount != null
+                && application.getRequestedAmount().compareTo(autoApprovalMaxAmount) > 0) {
+            return "Автомат хязгаараас их дүн — гараар хянана";
+        }
+        if (application.getRequestedTermMonths() != null
+                && application.getRequestedTermMonths() > autoApprovalMaxTermMonths) {
+            return "Автомат хязгаараас урт хугацаа — гараар хянана";
+        }
+        return "Автомат шийдвэрийн шалгуур хангагдаагүй — гараар хянана";
+    }
+
+    private BigDecimal resolveInterestRate(LoanApplication.LoanType loanType) {
+        if (loanType == null) {
+            return personalLoanRate;
+        }
+        return switch (loanType) {
+            case MORTGAGE -> mortgageRate;
+            case BUSINESS -> businessLoanRate;
+            case CAR_LOAN -> carLoanRate;
+            default -> personalLoanRate;
+        };
     }
 
     public Map<String, Object> reviewLoanApplication(UUID id) {

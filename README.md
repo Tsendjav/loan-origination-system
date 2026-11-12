@@ -15,6 +15,24 @@
 .\scripts\start.bat
 ```
 
+## 🐳 Docker-оор бүтэн stack ажиллуулах
+
+```bash
+# Backend + Frontend образ build → compose stack асаах → smoke тест → цэвэрлэх
+bash scripts/docker-verify.sh
+
+# Stack-ыг асаалттай үлдээх
+bash scripts/docker-verify.sh --keep
+```
+
+Скрипт нь `docker compose config` шалгаж, образ build хийж, Postgres/Redis/MinIO/Backend/Frontend
+асааж, health хүлээгээд нэвтрэлт, харилцагч, автомат шийдвэр (APPROVED/UNDER_REVIEW),
+шийдвэрийн эрх (403/200) зэргийг API-аар шалгана. Дэлгэрэнгүй: [docs/DOCKER.md](docs/DOCKER.md).
+
+CI: `.github/workflows/docker-verify.yml` (push/PR бүрт Ubuntu runner дээр дээрх шалгалтыг ажиллуулна).
+Deploy: `.github/workflows/deploy.yml` — зөвхөн гараар (`workflow_dispatch`), staging/production
+орчин, rollback болон read-only smoke тесттэй. Тохиргоо: [docs/DOCKER.md#7-deploy-staging--production](docs/DOCKER.md).
+
 ## 🗄️ Database тохиргоо
 
 ### Development (одоогийн)

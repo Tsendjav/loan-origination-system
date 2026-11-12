@@ -35,6 +35,11 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { hasPermission, hasRole } = useAuth();
   const location = useLocation();
+
+  // Дэд цэсийн нээлттэй төлөвийг энд барина — render callback дотор useState дуудахгүйн тулд
+  const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({});
+  const toggleSubMenu = (name: string, fallback: boolean) =>
+    setOpenSubMenus((prev) => ({ ...prev, [name]: !(prev[name] ?? fallback) }));
   // ИСПРАВЛЕНО: Убрали неиспользуемые переменные expandedGroups и setExpandedGroups
 
   // Define menu structure
@@ -280,7 +285,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
                     const hasSubItems = item.subItems && item.subItems.length > 0;
                     const isItemActive = isActive(item.href);
-                    const [isSubMenuOpen, setIsSubMenuOpen] = useState(isItemActive);
+                    const isSubMenuOpen = openSubMenus[item.name] ?? isItemActive;
 
                     return (
                       <div key={item.name}>
@@ -288,7 +293,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         <div className="relative group">
                           {hasSubItems ? (
                             <button
-                              onClick={() => setIsSubMenuOpen(!isSubMenuOpen)}
+                              onClick={() => toggleSubMenu(item.name, isItemActive)}
                               className={`
                                 w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-150
                                 ${isItemActive

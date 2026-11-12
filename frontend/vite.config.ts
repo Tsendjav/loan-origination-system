@@ -18,6 +18,12 @@ export default defineConfig({
     port: 3001,
     host: '0.0.0.0', // Allow external connections
     strictPort: true, // Fail if port is already in use
+    // Extra hostnames allowed to reach the dev server (comma separated),
+    // e.g. a cloud preview domain. Set via VITE_ALLOWED_HOSTS at startup.
+    allowedHosts: (process.env.VITE_ALLOWED_HOSTS || '')
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean),
     
     // ⭐ BACKEND PROXY CONFIGURATION - САЙЖРУУЛСАН ⭐
     proxy: {
@@ -32,6 +38,12 @@ export default defineConfig({
             console.error('❌ Proxy error:', err);
           });
           proxy.on('proxyReq', (proxyReq, req, res) => {
+            // Энэ proxy нь frontend болон backend-ийг нэг origin болгоно.
+            // Browser POST/GET дээр Origin header илгээдэг бөгөөд backend-ийн
+            // CORS зөвхөн localhost:3001/3000-ыг зөвшөөрдөг тул бусад host
+            // (жишээ нь cloud preview) дээр "Invalid CORS request" 403 гардаг.
+            // Proxy-с дамжуулахдаа Origin-ыг хасна.
+            proxyReq.removeHeader('origin');
             console.log(`📤 Proxy request: ${req.method} ${req.url}`);
           });
           proxy.on('proxyRes', (proxyRes, req, res) => {
@@ -45,7 +57,10 @@ export default defineConfig({
         target: "http://localhost:8080/los",
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path.replace(/^\/api/, '/api')
+        rewrite: (path) => path.replace(/^\/api/, '/api'),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => proxyReq.removeHeader('origin'));
+        }
       },
       
       // Health check proxy
@@ -123,6 +138,14 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     __BUILD_ENV__: JSON.stringify(process.env.NODE_ENV || 'development'),
+    // CRA-style access to process.env is used across the app, but `process`
+    // does not exist in the browser. Provide a defined object so it never
+    // throws, and point the API at the same-origin proxy path (/los).
+    'process.env': JSON.stringify({
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      REACT_APP_API_URL: '/los/api/v1',
+      REACT_APP_API_BASE_URL: '/los/api/v1',
+    }),
   },
   
   // CSS configuration

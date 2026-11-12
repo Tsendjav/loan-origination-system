@@ -225,9 +225,14 @@ public class LoginRequestDto implements Serializable {
 
     /**
      * Username эсэхийг шалгах
+     *
+     * ⭐ АНХААР: "isUsername" гэж нэрлэвэл Jackson үүнийг "username" property-ийн
+     * boolean getter гэж үзэж, @JsonIgnore-той тул username талбарыг бүхэлд нь
+     * (setter-тайгаа хамт) ignore хийдэг. Иймд login дээр username null болж
+     * validation унадаг байсан. Property-той мөргөлдөхгүй нэр ашиглана.
      */
     @JsonIgnore
-    public boolean isUsername() {
+    public boolean isUsernameLogin() {
         return !isEmail();
     }
 

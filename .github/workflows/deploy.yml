@@ -1,0 +1,168 @@
+name: Deploy
+
+# Зөвхөн гараар (workflow_dispatch) ажиллана.
+# Урьдчилсан тохиргоо: GitHub → Settings → Environments дээр `staging`, `production`
+# орчин үүсгэж, доорх secret/variable-уудыг бүртгэнэ (docs/DOCKER.md-ийн "Deploy" хэсэг).
+#
+# Secrets (орчин тус бүрт):
+#   DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH, GHCR_READ_TOKEN
+# Variables (орчин тус бүрт):
+#   DEPLOY_URL   жишээ: https://los.example.com
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy target'
+        required: true
+        type: choice
+        options: [staging, production]
+        default: staging
+      image_tag:
+        description: 'Образын tag (хоосон бол одоогийн commit; rollback-д өмнөх tag бичнэ)'
+        required: false
+        default: ''
+        type: string
+      build_images:
+        description: 'Образыг дахин build хийж push хийх'
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  TAG: ${{ inputs.image_tag != '' && inputs.image_tag || github.sha }}
+
+jobs:
+  build-and-push:
+    name: Build & push images
+    if: ${{ inputs.build_images }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: tag
+        run: echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.backend.dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/backend:${{ env.TAG }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.frontend.dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            VITE_API_URL=/los/api/v1
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/frontend:${{ env.TAG }}
+            ${{ env.REGISTRY }}/${{ github.repository }}/frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    needs: [build-and-push]
+    if: ${{ always() && (needs.build-and-push.result == 'success' || inputs.build_images == false) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.DEPLOY_URL }}
+    steps:
+      - name: Checkout code (smoke script-д)
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: GHCR_READ_TOKEN,TAG
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+
+            echo "$GHCR_READ_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            docker pull "${{ env.REGISTRY }}/${{ github.repository }}/backend:$TAG"
+            docker pull "${{ env.REGISTRY }}/${{ github.repository }}/frontend:$TAG"
+
+            docker tag "${{ env.REGISTRY }}/${{ github.repository }}/backend:$TAG" los-backend:latest
+            docker tag "${{ env.REGISTRY }}/${{ github.repository }}/frontend:$TAG" los-frontend:latest
+
+            docker compose -f docker-compose.yml up -d --no-build --remove-orphans
+            docker image prune -f
+
+      - name: Wait for backend health
+        run: |
+          set -euo pipefail
+          url="${{ vars.DEPLOY_URL }}/los/actuator/health"
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 10
+          done
+          echo "Backend health ${url} 200 болсонгүй" >&2
+          exit 1
+
+      - name: Read-only smoke tests
+        env:
+          BACKEND_URL: ${{ vars.DEPLOY_URL }}/los
+          FRONTEND_URL: ${{ vars.DEPLOY_URL }}
+          SMOKE_READ_ONLY: '1'
+        run: bash scripts/docker-verify.sh --smoke-only
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Deploy: ${{ inputs.environment }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image tag | \`${TAG}\` |"
+            echo "| URL | ${{ vars.DEPLOY_URL }} |"
+            echo "| Build executed | ${{ inputs.build_images }} |"
+            echo "| Status | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
