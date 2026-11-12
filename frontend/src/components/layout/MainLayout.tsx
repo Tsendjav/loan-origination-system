@@ -1,360 +1,325 @@
-import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
-import Header from './Header';
-import Sidebar from './Sidebar';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useMemo, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Avatar,
+  Badge,
+  Breadcrumb,
+  Button,
+  Drawer,
+  Dropdown,
+  Grid,
+  Layout,
+  List,
+  Menu,
+  Popover,
+  Space,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
+} from 'antd';
+import type { MenuProps } from 'antd';
+import {
+  AuditOutlined,
+  BankOutlined,
+  BarChartOutlined,
+  BellOutlined,
+  DashboardOutlined,
+  DownOutlined,
+  FileTextOutlined,
+  FolderOpenOutlined,
+  LogoutOutlined,
+  MenuOutlined,
+  SettingOutlined,
+  SwapOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import { INSTITUTION_SHORT_LABEL, useInstitution } from '../../contexts/InstitutionContext';
+import { ROLE_LABELS, useSession } from '../../contexts/SessionContext';
+import { useLosStore } from '../../services/demoStore';
+import { initialsOf } from '../../utils/format';
 
-interface MainLayoutProps {
-  children?: React.ReactNode;
+const { Header, Sider, Content, Footer } = Layout;
+
+interface RouteMeta {
+  title: string;
+  description: string;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
-  const { state } = useAuth();
-  const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  // Close sidebar on mobile when route changes
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname]);
-
-  // Handle responsive behavior
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setSidebarOpen(false); // On desktop, sidebar is always visible
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial check
-
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
-  const toggleSidebarCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
-  };
-
-  // Loading state
-  if (state.isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600">Системийг ачаалж байна...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Unauthenticated state
-  if (!state.isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {children || <Outlet />}
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <Header 
-        onToggleSidebar={toggleSidebar} 
-        sidebarOpen={sidebarOpen}
-        sidebarCollapsed={sidebarCollapsed}
-      />
-
-      <div className="flex h-screen pt-16"> {/* pt-16 to account for fixed header */}
-        {/* Sidebar */}
-        <Sidebar
-          isOpen={sidebarOpen}
-          isCollapsed={sidebarCollapsed}
-          onToggleCollapse={toggleSidebarCollapse}
-          onClose={() => setSidebarOpen(false)}
-        />
-
-        {/* Mobile overlay */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        {/* Main content */}
-        <main
-          className={`
-            flex-1 overflow-auto transition-all duration-300 ease-in-out
-            ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}
-          `}
-        >
-          <div className="p-6">
-            {/* Breadcrumbs */}
-            <div className="mb-6">
-              <Breadcrumbs />
-            </div>
-
-            {/* Page content */}
-            <div className="bg-white rounded-lg shadow-sm min-h-[calc(100vh-12rem)]">
-              {children || <Outlet />}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      {/* Notification Toast Container */}
-      <div id="toast-container" className="fixed top-20 right-4 z-50 space-y-4">
-        {/* Toasts will be rendered here */}
-      </div>
-
-      {/* Global Loading Overlay */}
-      <GlobalLoadingOverlay />
-    </div>
-  );
+const PAGE_META: Record<string, RouteMeta> = {
+  '/dashboard': { title: 'Хяналтын самбар', description: 'Өдөр тутмын ажлын тойм' },
+  '/customers': { title: 'Харилцагчид', description: 'Харилцагчийн бүртгэл ба KYC' },
+  '/loans': { title: 'Зээлийн хүсэлтүүд', description: 'Хүсэлт бүртгэх, шийдвэрлэх, олгох' },
+  '/documents': { title: 'Баримт бичиг', description: 'Баримтын бүрэн бүтэн байдал' },
+  '/reports': { title: 'Тайлан', description: 'Портфелийн үзүүлэлтүүд' },
+  '/audit': { title: 'Аудит лог', description: 'Системийн үйл ажиллагааны түүх' },
+  '/settings': { title: 'Тохиргоо', description: 'Байгууллага ба эрхийн тохиргоо' },
 };
 
-// Breadcrumbs component
-const Breadcrumbs: React.FC = () => {
-  const location = useLocation();
-  
-  const getBreadcrumbs = (pathname: string) => {
-    const paths = pathname.split('/').filter(Boolean);
-    const breadcrumbs = [
-      { name: 'Үндсэн хуудас', href: '/dashboard', current: false }
-    ];
+interface NavEntry {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  permission?: string;
+}
 
-    const pathMap: Record<string, string> = {
-      'dashboard': 'Хяналтын самбар',
-      'customers': 'Харилцагчид',
-      'loans': 'Зээлийн хүсэлтүүд',
-      'documents': 'Баримт бичгүүд',
-      'reports': 'Тайлангууд',
-      'settings': 'Тохиргоо',
-      'profile': 'Хувийн мэдээлэл',
-      'users': 'Хэрэглэгчид',
-      'roles': 'Эрхүүд',
-      'audit': 'Аудит',
-    };
+const NAV_ENTRIES: NavEntry[] = [
+  { key: '/dashboard', label: 'Хяналтын самбар', icon: <DashboardOutlined /> },
+  { key: '/customers', label: 'Харилцагчид', icon: <TeamOutlined />, permission: 'customer:view' },
+  { key: '/loans', label: 'Зээлийн хүсэлтүүд', icon: <FileTextOutlined />, permission: 'loan:view' },
+  { key: '/documents', label: 'Баримт бичиг', icon: <FolderOpenOutlined />, permission: 'document:view' },
+  { key: '/reports', label: 'Тайлан', icon: <BarChartOutlined />, permission: 'report:view' },
+  { key: '/audit', label: 'Аудит лог', icon: <AuditOutlined />, permission: 'audit:view' },
+  { key: '/settings', label: 'Тохиргоо', icon: <SettingOutlined />, permission: 'settings:manage' },
+];
 
-    let currentPath = '';
-    paths.forEach((path, index) => {
-      currentPath += `/${path}`;
-      const isLast = index === paths.length - 1;
-      
-      breadcrumbs.push({
-        name: pathMap[path] || path,
-        href: currentPath,
-        current: isLast,
-      });
-    });
-
-    return breadcrumbs;
-  };
-
-  const breadcrumbs = getBreadcrumbs(location.pathname);
-
-  return (
-    <nav className="flex" aria-label="Breadcrumb">
-      <ol className="flex items-center space-x-4">
-        {breadcrumbs.map((breadcrumb, index) => (
-          <li key={breadcrumb.href}>
-            <div className="flex items-center">
-              {index > 0 && (
-                <svg
-                  className="h-5 w-5 text-gray-400 mr-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                  aria-hidden="true"
-                >
-                  <path d="M5.555 17.776l8-16 .894.448-8 16-.894-.448z" />
-                </svg>
-              )}
-              {breadcrumb.current ? (
-                <span className="text-sm font-medium text-gray-500">
-                  {breadcrumb.name}
-                </span>
-              ) : (
-                <a
-                  href={breadcrumb.href}
-                  className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-                >
-                  {breadcrumb.name}
-                </a>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
-    </nav>
-  );
+const TOAST_BY_TYPE = {
+  success: message.success,
+  error: message.error,
+  warning: message.warning,
+  info: message.info,
 };
 
-// Global loading overlay component
-const GlobalLoadingOverlay: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    // Listen for global loading events
-    const handleStartLoading = () => setIsLoading(true);
-    const handleStopLoading = () => setIsLoading(false);
-
-    window.addEventListener('app:loading:start', handleStartLoading);
-    window.addEventListener('app:loading:stop', handleStopLoading);
-
-    return () => {
-      window.removeEventListener('app:loading:start', handleStartLoading);
-      window.removeEventListener('app:loading:stop', handleStopLoading);
-    };
-  }, []);
-
-  if (!isLoading) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-      <div className="bg-white rounded-lg p-6 shadow-xl flex flex-col items-center space-y-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p className="text-gray-700 font-medium">Боловсруулж байна...</p>
-      </div>
-    </div>
-  );
-};
-
-// Utility functions for global loading
-export const showGlobalLoading = () => {
-  window.dispatchEvent(new CustomEvent('app:loading:start'));
-};
-
-export const hideGlobalLoading = () => {
-  window.dispatchEvent(new CustomEvent('app:loading:stop'));
-};
-
-// Toast notification system
-interface ToastProps {
+export const showToast = ({
+  message: text,
+  type,
+}: {
   message: string;
   type: 'success' | 'error' | 'warning' | 'info';
-  duration?: number;
-}
-
-export const showToast = ({ message, type, duration = 5000 }: ToastProps) => {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-
-  const toast = document.createElement('div');
-  toast.className = `
-    px-4 py-3 rounded-lg shadow-lg max-w-sm w-full transform transition-all duration-300 ease-in-out
-    ${type === 'success' ? 'bg-green-500 text-white' : ''}
-    ${type === 'error' ? 'bg-red-500 text-white' : ''}
-    ${type === 'warning' ? 'bg-yellow-500 text-white' : ''}
-    ${type === 'info' ? 'bg-blue-500 text-white' : ''}
-  `;
-
-  toast.innerHTML = `
-    <div class="flex items-center justify-between">
-      <span class="text-sm font-medium">${message}</span>
-      <button onclick="this.parentElement.parentElement.remove()" class="ml-3 text-white hover:text-gray-200">
-        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
-    </div>
-  `;
-
-  container.appendChild(toast);
-
-  // Animate in
-  requestAnimationFrame(() => {
-    toast.style.transform = 'translateX(0)';
-    toast.style.opacity = '1';
-  });
-
-  // Auto remove
-  setTimeout(() => {
-    toast.style.transform = 'translateX(100%)';
-    toast.style.opacity = '0';
-    setTimeout(() => {
-      toast.remove();
-    }, 300);
-  }, duration);
+}): void => {
+  TOAST_BY_TYPE[type](text);
 };
 
-// Error boundary for layout
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-}
+export const showGlobalLoading = (): void => {
+  message.loading({ content: 'Боловсруулж байна...', key: 'global-loading' });
+};
 
-class LayoutErrorBoundary extends React.Component<
-  React.PropsWithChildren<{}>,
-  ErrorBoundaryState
-> {
-  constructor(props: React.PropsWithChildren<{}>) {
-    super(props);
-    this.state = { hasError: false };
-  }
+export const hideGlobalLoading = (): void => {
+  message.destroy('global-loading');
+};
 
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
+const MainLayout: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.lg;
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('Layout Error:', error, errorInfo);
-  }
+  const { user, logout, hasPermission } = useSession();
+  const { profile } = useInstitution();
+  const { activities } = useLosStore();
 
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
-            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
-              <svg
-                className="h-6 w-6 text-red-600"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+  const [collapsed, setCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const meta = PAGE_META[location.pathname] ?? { title: 'LOS', description: '' };
+
+  const navEntries = useMemo(
+    () => NAV_ENTRIES.filter((entry) => !entry.permission || hasPermission(entry.permission)),
+    [hasPermission],
+  );
+
+  const menuItems: MenuProps['items'] = navEntries.map((entry) => ({
+    key: entry.key,
+    icon: entry.icon,
+    label: entry.label,
+  }));
+
+  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+    navigate(key);
+    setDrawerOpen(false);
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    message.success('Системээс амжилттай гарлаа');
+    navigate('/login', { replace: true });
+  };
+
+  const userMenuItems: MenuProps['items'] = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: 'Байгууллагын тохиргоо',
+      disabled: !hasPermission('settings:manage'),
+    },
+    { type: 'divider' },
+    { key: 'logout', icon: <LogoutOutlined />, label: 'Системээс гарах', danger: true },
+  ];
+
+  const brand = (
+    <div className={`app-brand ${collapsed && !isMobile ? 'app-brand--collapsed' : ''}`}>
+      <span className="app-brand__mark">
+        <BankOutlined />
+      </span>
+      {(!collapsed || isMobile) && (
+        <span className="app-brand__text">
+          <strong>{profile.shortName} · LOS</strong>
+          <small>{INSTITUTION_SHORT_LABEL[profile.type]} зээлийн систем</small>
+        </span>
+      )}
+    </div>
+  );
+
+  const navigation = (
+    <>
+      {brand}
+      <Menu
+        mode="inline"
+        selectedKeys={[location.pathname]}
+        items={menuItems}
+        onClick={handleMenuClick}
+        className="app-nav"
+      />
+      <div className="app-nav__foot">
+        <span className="app-nav__version">LOS v2.0</span>
+        {(!collapsed || isMobile) && (
+          <span className="app-nav__hint">Банк · Банк бус СФБ-д тохирсон</span>
+        )}
+      </div>
+    </>
+  );
+
+  const notifications = activities.slice(0, 5);
+
+  return (
+    <Layout className="app-layout">
+      {!isMobile && (
+        <Sider
+          width={252}
+          collapsedWidth={80}
+          collapsed={collapsed}
+          onCollapse={setCollapsed}
+          theme="light"
+          className="app-sider"
+        >
+          {navigation}
+        </Sider>
+      )}
+
+      {isMobile && (
+        <Drawer
+          placement="left"
+          width={272}
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          closable={false}
+          styles={{ body: { padding: 0, display: 'flex', flexDirection: 'column' } }}
+        >
+          {navigation}
+        </Drawer>
+      )}
+
+      <Layout>
+        <Header className="app-header">
+          <div className="app-header__left">
+            {isMobile ? (
+              <Button
+                type="text"
+                icon={<MenuOutlined />}
+                onClick={() => setDrawerOpen(true)}
+                aria-label="Цэс нээх"
+              />
+            ) : (
+              <Tooltip title={collapsed ? 'Цэс дэлгэх' : 'Цэс хураах'}>
+                <Button
+                  type="text"
+                  icon={<MenuOutlined />}
+                  onClick={() => setCollapsed((value) => !value)}
+                  aria-label="Цэс"
                 />
-              </svg>
+              </Tooltip>
+            )}
+            <div>
+              <Breadcrumb
+                items={[{ title: 'LOS' }, { title: meta.title }]}
+                className="app-breadcrumb"
+              />
+              <Typography.Title level={4} className="app-header__title">
+                {meta.title}
+              </Typography.Title>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Алдаа гарлаа
-            </h3>
-            <p className="text-sm text-gray-500 mb-4">
-              Системд алдаа гарсан байна. Хуудсыг дахин ачаална уу.
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Дахин ачаалах
-            </button>
           </div>
-        </div>
-      );
-    }
 
-    return this.props.children;
-  }
-}
+          <div className="app-header__right">
+            {meta.description && !isMobile && (
+              <Typography.Text type="secondary" className="app-header__desc">
+                {meta.description}
+              </Typography.Text>
+            )}
+            <Tag color="geekblue" icon={<BankOutlined />} className="app-tag">
+              {INSTITUTION_SHORT_LABEL[profile.type]}
+            </Tag>
+            <Tag color={profile.type === 'BANK' ? 'blue' : 'purple'} className="app-tag app-tag--outline">
+              <SwapOutlined /> {profile.branch}
+            </Tag>
+            <Popover
+              trigger="click"
+              placement="bottomRight"
+              title="Сүүлийн үйл ажиллагаа"
+              content={
+                <List
+                  size="small"
+                  className="app-notifications"
+                  dataSource={notifications}
+                  locale={{ emptyText: 'Мэдээлэл байхгүй' }}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={item.action}
+                        description={<span className="app-notifications__meta">{item.target}</span>}
+                      />
+                    </List.Item>
+                  )}
+                />
+              }
+            >
+              <Badge count={notifications.filter((item) => item.type === 'loan').length} size="small">
+                <Button type="text" icon={<BellOutlined />} aria-label="Мэдэгдэл" />
+              </Badge>
+            </Popover>
 
-// Wrapped MainLayout with error boundary
-const MainLayoutWithErrorBoundary: React.FC<MainLayoutProps> = (props) => (
-  <LayoutErrorBoundary>
-    <MainLayout {...props} />
-  </LayoutErrorBoundary>
-);
+            <Dropdown
+              trigger={['click']}
+              placement="bottomRight"
+              menu={{
+                items: userMenuItems,
+                onClick: ({ key }) => {
+                  if (key === 'logout') void handleLogout();
+                  if (key === 'profile') navigate('/settings');
+                },
+              }}
+            >
+              <button type="button" className="app-user">
+                <Avatar style={{ background: '#1d4ed8' }} size={34}>
+                  {initialsOf(user?.name ?? 'Хэрэглэгч')}
+                </Avatar>
+                <span className="app-user__meta">
+                  <strong>{user?.name ?? 'Хэрэглэгч'}</strong>
+                  <small>{user ? ROLE_LABELS[user.role] : ''}</small>
+                </span>
+                <DownOutlined className="app-user__caret" />
+              </button>
+            </Dropdown>
+          </div>
+        </Header>
 
-export default MainLayoutWithErrorBoundary;
+        <Content className="app-content">
+          <div key={location.pathname} className="page-transition">
+            <Outlet />
+          </div>
+        </Content>
+
+        <Footer className="app-footer">
+          <Space split="·" wrap>
+            <span>© {new Date().getFullYear()} {profile.name}</span>
+            <span>Лиценз: {profile.licenseNo}</span>
+            <span>Зээлийн хүсэлтийн систем v2.0</span>
+          </Space>
+        </Footer>
+      </Layout>
+    </Layout>
+  );
+};
+
+export default MainLayout;

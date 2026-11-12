@@ -1,214 +1,274 @@
-// frontend/src/pages/LoginPage.tsx - ЗАСВАРЛАСАН
-import React, { useState, useEffect } from 'react';
-import authService, { TEST_USERS } from '../services/authService';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Alert, Button, Checkbox, Divider, Form, Input, Segmented, Tag, message } from 'antd';
+import {
+  ApiOutlined,
+  ArrowRightOutlined,
+  BankOutlined,
+  CloudServerOutlined,
+  LockOutlined,
+  SafetyCertificateOutlined,
+  ThunderboltOutlined,
+} from '@ant-design/icons';
+import { DEMO_ACCOUNTS, ROLE_LABELS, useSession } from '../contexts/SessionContext';
+import { INSTITUTION_LABEL, useInstitution } from '../contexts/InstitutionContext';
+import { apiRequest } from '../services/http';
 import './LoginPage.css';
 
-interface LoginFormData {
+interface LoginValues {
   username: string;
   password: string;
+  remember?: boolean;
 }
 
-interface ConnectionStatus {
-  success: boolean;
-  message: string;
-  endpoint?: string;
-}
+type ServerState = 'checking' | 'online' | 'offline';
 
 const LoginPage: React.FC = () => {
-  const [formData, setFormData] = useState<LoginFormData>({
-    username: '',
-    password: ''
-  });
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useSession();
+  const { profile, switchInstitutionType } = useInstitution();
+  const [form] = Form.useForm<LoginValues>();
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
+  const [serverState, setServerState] = useState<ServerState>('checking');
 
-  // Backend холболт шалгах
   useEffect(() => {
-    const checkConnection = async () => {
-      console.log('🔍 Checking backend connection...');
-      const isConnected = await authService.testConnection();
-      console.log('🔗 Connection status:', isConnected);
-      setConnectionStatus(isConnected);
+    let active = true;
+    apiRequest('/health', { timeoutMs: 2500 })
+      .then(() => {
+        if (active) setServerState('online');
+      })
+      .catch(() => {
+        if (active) setServerState('offline');
+      });
+    return () => {
+      active = false;
     };
-
-    checkConnection();
   }, []);
 
-  // Form input өөрчлөх
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-
-    // Алдаа цэвэрлэх
-    if (error) {
-      setError(null);
-    }
-  };
-
-  // Нэвтрэх үйлдэл
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.username || !formData.password) {
-      setError('Хэрэглэгчийн нэр болон нууц үгээ оруулна уу');
-      return;
-    }
-
-    setLoading(true);
+  const doLogin = async (username: string, password: string): Promise<void> => {
+    setSubmitting(true);
     setError(null);
-
     try {
-      console.log('🚀 Starting login process...');
-      const response = await authService.login(formData);
-
-      if (response.success) {
-        console.log('✅ Login successful, redirecting...');
-        // Амжилттай нэвтэрсэн - dashboard луу шилжих
-        window.location.href = '/dashboard';
-      } else {
-        setError(response.message || 'Нэвтрэх амжилтгүй');
-      }
-    } catch (error: any) {
-      console.error('❌ Login error:', error);
-      setError(error.message || 'Серверт холбогдох алдаа гарлаа');
+      const session = await login(username, password);
+      message.success(`Тавтай морил, ${session.name}`);
+      navigate('/dashboard', { replace: true });
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Нэвтрэх үед алдаа гарлаа');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  // Тест хэрэглэгчээр нэвтрэх
-  const handleTestLogin = async (testUser: typeof TEST_USERS[0]) => {
-    console.log('🧪 Test login with:', testUser.username);
-
-    setFormData({
-      username: testUser.username,
-      password: testUser.password
-    });
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await authService.login({
-        username: testUser.username,
-        password: testUser.password
-      });
-
-      if (response.success) {
-        console.log('✅ Test login successful');
-        window.location.href = '/dashboard';
-      } else {
-        setError(response.message || 'Тест нэвтрэлт амжилтгүй');
-      }
-    } catch (error: any) {
-      console.error('❌ Test login failed:', error);
-      setError(error.message || 'Тест нэвтрэлтэд алдаа гарлаа');
-    } finally {
-      setLoading(false);
+  const handleFinish = async (values: LoginValues): Promise<void> => {
+    if (values.remember) {
+      localStorage.setItem('los_remember_username', values.username.trim());
+    } else {
+      localStorage.removeItem('los_remember_username');
     }
+    await doLogin(values.username, values.password);
   };
+
+  const handleDemo = (username: string, password: string): void => {
+    form.setFieldsValue({ username, password });
+    void doLogin(username, password);
+  };
+
+  const serverBadge =
+    serverState === 'online' ? (
+      <Tag color="green" icon={<CloudServerOutlined />}>Сервер холбогдсон</Tag>
+    ) : serverState === 'offline' ? (
+      <Tag color="orange" icon={<ApiOutlined />}>Демо горим</Tag>
+    ) : (
+      <Tag icon={<CloudServerOutlined />}>Холболт шалгаж байна...</Tag>
+    );
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <div className="login-header">
-          <h1>🏦 LOS Систем</h1>
-          <h2>Нэвтрэх</h2>
+    <div className="login-page">
+      <aside className="login-brand">
+        <div className="login-brand__top">
+          <span className="login-brand__logo">
+            <BankOutlined />
+          </span>
+          <div>
+            <strong>LOS · Зээлийн хүсэлтийн систем</strong>
+            <small>Loan Origination System</small>
+          </div>
         </div>
 
-        {/* Backend холболтын статус */}
-        <div className={`connection-status ${connectionStatus?.success ? 'connected' : 'disconnected'}`}>
-          {connectionStatus === null ? (
-            <span>🔄 Холболт шалгаж байна...</span>
-          ) : connectionStatus.success ? (
-            <span>✅ Backend холбогдсон</span>
-          ) : (
-            <span>❌ Backend холбогдоогүй (http://localhost:8080)</span>
-          )}
+        <div className="login-brand__body">
+          <p className="login-brand__eyebrow">Банк · Банк бус санхүүгийн байгууллага</p>
+          <h1>Зээлийн шийдвэрийг нэг дороос удирдаарай</h1>
+          <p className="login-brand__lead">
+            Харилцагчийн бүртгэл, KYC, зээлийн хүсэлт, баримт бичиг, шийдвэр болон
+            олголтын урсгалыг нэг дор нэгтгэсэн платформ.
+          </p>
+
+          <ul className="login-brand__features">
+            <li>
+              <SafetyCertificateOutlined />
+              <span><strong>Эрхэд суурилсан хандалт</strong> — үүрэг тус бүрээр тусгаарлагдсан үйлдэл</span>
+            </li>
+            <li>
+              <ThunderboltOutlined />
+              <span><strong>Хурдан шийдвэр</strong> — зээлийн хороо, менежер, мэргэжилтний нэг урсгал</span>
+            </li>
+            <li>
+              <LockOutlined />
+              <span><strong>Аудит бүртгэл</strong> — үйлдэл бүр түүхэнд хадгалагдана</span>
+            </li>
+          </ul>
         </div>
 
-        {/* Login форм */}
-        <form onSubmit={handleSubmit} className="login-form">
-          {error && (
-            <div className="error-message">
-              <span className="error-icon">❌</span>
-              {error}
+        <div className="login-brand__footer">
+          <span>Мэдээллийн нууцлал</span>
+          <span>·</span>
+          <span>Хандалтын хяналт</span>
+          <span>·</span>
+          <span>Аудитын бүртгэл</span>
+        </div>
+      </aside>
+
+      <main className="login-panel">
+        <div className="login-card">
+          <div className="login-card__head">
+            <div>
+              <span className="login-card__eyebrow">Байгууллагын төрөл</span>
+              <Segmented
+                block
+                value={profile.type}
+                onChange={(value) => switchInstitutionType(value as 'BANK' | 'NBFI')}
+                options={[
+                  { label: 'Банк', value: 'BANK' },
+                  { label: 'Банк бус СФБ', value: 'NBFI' },
+                ]}
+              />
+              <p className="login-card__org">
+                {profile.name} · {INSTITUTION_LABEL[profile.type]}
+              </p>
             </div>
+            {serverBadge}
+          </div>
+
+          <h2 className="login-card__title">Системд нэвтрэх</h2>
+          <p className="login-card__sub">
+            Ажлын үргэлжлэлд хэрэглэгчийн нэр, нууц үгээ оруулна уу.
+          </p>
+
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              closable
+              onClose={() => setError(null)}
+              className="login-card__alert"
+            />
           )}
 
-          <div className="form-group">
-            <label htmlFor="username">Хэрэглэгчийн нэр:</label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              value={formData.username}
-              onChange={handleInputChange}
-              placeholder="admin"
-              disabled={loading}
-              autoComplete="username"
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="password">Нууц үг:</label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              value={formData.password}
-              onChange={handleInputChange}
-              placeholder="••••"
-              disabled={loading}
-              autoComplete="current-password"
-            />
-          </div>
-
-          <button 
-            type="submit" 
-            className="login-button"
-            disabled={loading || !connectionStatus?.success}
+          <Form<LoginValues>
+            form={form}
+            layout="vertical"
+            requiredMark={false}
+            initialValues={{
+              username: localStorage.getItem('los_remember_username') ?? '',
+              password: '',
+              remember: Boolean(localStorage.getItem('los_remember_username')),
+            }}
+            onFinish={handleFinish}
+            className="login-form"
           >
-            {loading ? '🔄 Нэвтрэж байна...' : '🔐 Нэвтрэх'}
-          </button>
-        </form>
+            <Form.Item
+              name="username"
+              label="Хэрэглэгчийн нэр"
+              rules={[
+                { required: true, message: 'Хэрэглэгчийн нэрээ оруулна уу' },
+                { min: 3, message: 'Хамгийн багадаа 3 тэмдэгт' },
+              ]}
+            >
+              <Input
+                size="large"
+                placeholder="admin"
+                autoComplete="username"
+                disabled={submitting}
+                prefix={<BankOutlined className="login-input-icon" />}
+              />
+            </Form.Item>
 
-        {/* Тест хэрэглэгчдийн жагсаалт */}
-        <div className="test-users">
-          <h3>Тест хэрэглэгчид:</h3>
-          <div className="test-user-buttons">
-            {TEST_USERS.map((user: any) => (
-              <button
-                key={user.username}
-                onClick={() => handleTestLogin(user)}
-                className="test-user-button"
-                disabled={loading || !connectionStatus?.success}
-                title={`${user.username} / ${user.password}`}
+            <Form.Item
+              name="password"
+              label="Нууц үг"
+              rules={[
+                { required: true, message: 'Нууц үгээ оруулна уу' },
+                { min: 6, message: 'Хамгийн багадаа 6 тэмдэгт' },
+              ]}
+            >
+              <Input.Password
+                size="large"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                disabled={submitting}
+                prefix={<LockOutlined className="login-input-icon" />}
+              />
+            </Form.Item>
+
+            <div className="login-form__row">
+              <Form.Item name="remember" valuePropName="checked" noStyle>
+                <Checkbox disabled={submitting}>Намайг сана</Checkbox>
+              </Form.Item>
+              <Button
+                type="link"
+                size="small"
+                onClick={() =>
+                  message.info('Нууц үг сэргээх хүсэлтийг байгууллагын админд хандана уу')
+                }
               >
-                👤 {user.username} ({user.role})
+                Нууц үгээ мартсан уу?
+              </Button>
+            </div>
+
+            <Button
+              type="primary"
+              htmlType="submit"
+              size="large"
+              block
+              loading={submitting}
+              className="login-submit"
+            >
+              {submitting ? 'Нэвтэрч байна...' : 'Нэвтрэх'}
+            </Button>
+          </Form>
+
+          <Divider plain className="login-divider">Демо хэрэглэгчээр турших</Divider>
+
+          <div className="login-demo-grid">
+            {DEMO_ACCOUNTS.map((account) => (
+              <button
+                key={account.username}
+                type="button"
+                className="login-demo"
+                disabled={submitting}
+                onClick={() => handleDemo(account.username, account.password)}
+              >
+                <span className="login-demo__avatar">{account.name.charAt(0)}</span>
+                <span className="login-demo__body">
+                  <strong>{ROLE_LABELS[account.role]}</strong>
+                  <small>{account.username} / {account.password}</small>
+                </span>
+                <ArrowRightOutlined className="login-demo__arrow" />
               </button>
             ))}
           </div>
-          <p className="test-info">
-            💡 Дээрх товчнуудыг дарж шууд нэвтрэх боломжтой
+
+          <p className="login-card__note">
+            Демо горимд бүх өгөгдөл таны хөтөч дээр хадгалагдах бөгөөд сервер шаардлагагүй.
           </p>
         </div>
 
-        {/* Системийн мэдээлэл */}
-        <div className="system-info">
-          <h4>📋 Системийн мэдээлэл:</h4>
-          <ul>
-            <li>🌐 Backend: http://localhost:8080/los</li>
-            <li>🎨 Frontend: http://localhost:3001</li>
-            <li>📊 API Docs: http://localhost:8080/los/swagger-ui.html</li>
-            <li>🗄️ H2 Database: http://localhost:8080/los/h2-console</li>
-          </ul>
-        </div>
-      </div>
+        <p className="login-copyright">
+          © {new Date().getFullYear()} {profile.name} · Лиценз {profile.licenseNo}
+        </p>
+      </main>
     </div>
   );
 };

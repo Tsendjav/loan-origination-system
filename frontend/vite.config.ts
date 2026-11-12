@@ -18,6 +18,8 @@ export default defineConfig({
     port: 3001,
     host: '0.0.0.0', // Allow external connections
     strictPort: true, // Fail if port is already in use
+    // Preview hostnames are supplied per environment; never hardcode or widen this list.
+    allowedHosts: process.env.VITE_PREVIEW_HOST ? [process.env.VITE_PREVIEW_HOST] : undefined,
     
     // ⭐ BACKEND PROXY CONFIGURATION - САЙЖРУУЛСАН ⭐
     proxy: {
