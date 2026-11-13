@@ -223,8 +223,13 @@ public class DatabaseConfig {
         properties.setProperty("hibernate.cache.use_second_level_cache", "false");
         properties.setProperty("hibernate.cache.use_query_cache", "false");
         
-        // Connection handling
-        properties.setProperty("hibernate.connection.provider_disables_autocommit", "true");
+        // Connection handling.
+        // `provider_disables_autocommit=true` нь Hikari pool-ийн autoCommit=false-ыг
+        // шаарддаг. Манай pool autoCommit=true (default) тул Postgres дээр
+        // "Cannot commit when autoCommit is enabled" болж унадаг байв
+        // (H2 үүнийг өнгөрөөдөг). Тиймээс Hibernate өөрөө autocommit-ыг
+        // удирдана — transaction эхлэхэд false, дуусахад буцаана.
+        properties.setProperty("hibernate.connection.provider_disables_autocommit", "false");
         
         // Naming strategy
         properties.setProperty("hibernate.physical_naming_strategy", 
