@@ -58,3 +58,6 @@ build/
 
 # Docker verify logs
 docker-logs/
+
+# start.ps1-ийн PID файлууд
+.run/

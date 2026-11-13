@@ -144,6 +144,32 @@ pull request бүрт дээрх скриптийг Ubuntu runner дээр аж�
 bash scripts/docker-verify.sh
 ```
 
+### Нэг командаар бүх stack асаах (Windows)
+
+```powershell
+.\start.ps1              # Docker Desktop -> postgres -> backend (Docker) -> frontend -> browser
+.\start.ps1 -Local       # backend-ийг локал mvn spring-boot:run-ээр
+.\start.ps1 -Rebuild     # backend образыг шинэчлэх
+.\start.ps1 -NoBrowser   # browser нээхгүй
+.\start.ps1 -Stop        # бүгдийг зогсоох (postgres_data хадгалагдана)
+```
+
+Юу хийдэг вэ:
+
+1. `docker info` шалгаж, Docker Desktop унтарсан бол өөрөө асааж 3 минут хүртэл хүлээнэ
+2. `docker compose up -d postgres` + `pg_isready`
+3. Backend: default нь `los-backend` образ (`-Rebuild` бол `--build`), `-Local` бол шинэ цонхонд `mvn spring-boot:run`
+4. `GET /los/actuator/health` 200 болтол хүлээнэ
+5. Frontend: `node_modules` байхгүй бол `npm ci`, дараа нь шинэ цонхонд `npm run dev`
+6. `http://localhost:3001` нээнэ
+
+PID-ууд `.run/` дотор хадгалагдана (gitignored) — `-Stop` үед `taskkill /T`-ээр
+хүү процессуудтай нь хамт зогсооно. Docker контейнерууд `stop` хийгдэнэ,
+`down -v` хийгдэхгүй тул өгөгдөл устахгүй.
+
+> Docker Desktop-ийн анхны асаалт удаан байвал скрипт 3 минутын дараа
+> "Docker 3 минутад бэлэн болсонгүй" гэж зогсоно — дахин ажиллуулна.
+
 ### Windows: Maven суулгах эсвэл Docker-оор асаах
 
 `scripts\run-db.bat` нь backend-ийг `mvn spring-boot:run`-ээр асаадаг тул
