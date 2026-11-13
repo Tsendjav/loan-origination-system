@@ -131,6 +131,55 @@ pull request бүрт дээрх скриптийг Ubuntu runner дээр аж�
 bash scripts/docker-verify.sh
 ```
 
+## 6.1 PostgreSQL (Docker Desktop) — байнгын өгөгдөл
+
+Development-д H2 in-memory ашигладаг тул restart бүрт өгөгдөл арилдаг.
+Docker Desktop-оор PostgreSQL асааж, **өгөгдөл хадгалагддаг** горимд ажиллуулна:
+
+```bash
+# Linux / macOS / Git Bash
+bash scripts/run-db.sh          # postgres асааж, backend-ийг docker профайлаар ажиллуулна
+bash scripts/run-db.sh --db-only
+
+# Windows (cmd/PowerShell)
+scripts\run-db.bat
+```
+
+Скрипт нь:
+1. `docker compose up -d postgres` — `los-postgres` контейнер, `postgres_data` volume
+2. `pg_isready`-ээр бэлэн болохыг хүлээнэ
+3. `SPRING_PROFILES_ACTIVE=docker mvn spring-boot:run` — `application-docker.yml`
+
+| Тохиргоо | Утга |
+|---|---|
+| URL (локал) | `jdbc:postgresql://localhost:5432/los_db` |
+| Хэрэглэгч / нууц үг | `los_user` / `los_password` |
+| DDL | `update` — restart хийсэн ч өгөгдөл үлдэнэ |
+| Демо өгөгдөл | `DataInitializer` зөвхөн хоосон үед нэмнэ (давхардахгүй) |
+
+```bash
+# Зогсоох (өгөгдөл ХАДГАЛАГДАНА)
+docker compose stop postgres
+
+# Дахин асаах
+docker compose start postgres
+
+# Volume-той устгах (өгөгдөл устана!)
+docker compose down -v
+```
+
+Backend-ийг Docker-гүйгээр, гэхдээ Postgres руу холбох:
+
+```bash
+cd backend
+SPRING_PROFILES_ACTIVE=docker mvn spring-boot:run
+# Windows: set SPRING_PROFILES_ACTIVE=docker && mvn spring-boot:run
+```
+
+> `docker compose up -d` (бүтэн stack) ажиллуулбал backend контейнер дотор
+> `SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/los_db` гэж дарж өгөгддөг
+> тул ижил сан руу холбогдоно.
+
 ## 7. Deploy (staging / production)
 
 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) нь **зөвхөн гараар**

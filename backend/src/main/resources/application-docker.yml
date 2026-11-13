@@ -8,7 +8,9 @@ spring:
       on-profile: docker
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/los_db}
+    # docker compose дотор SPRING_DATASOURCE_URL-аар "postgres" host руу дарж өгнө.
+    # Локал (Docker Desktop) дээр ажиллуулахад localhost руу холбогдоно.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/los_db}
     username: ${DB_USERNAME:los_user}
     password: ${DB_PASSWORD:los_password}
     driver-class-name: org.postgresql.Driver
@@ -20,8 +22,8 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      # Контейнерт schema-г Hibernate-ээр үүсгэнэ (schema.sql ашиглахгүй)
-      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:create}
+      # update: өгөгдөл хадгалагдана (create нь restart бүрт хүснэгтийг шинэчилдэг)
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     open-in-view: false
     show-sql: false
 

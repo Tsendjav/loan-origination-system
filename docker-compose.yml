@@ -70,7 +70,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/los_db
       DB_USERNAME: los_user
       DB_PASSWORD: los_password
-      SPRING_JPA_HIBERNATE_DDL_AUTO: create
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
       REDIS_HOST: redis
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: minioadmin
