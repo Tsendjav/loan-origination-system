@@ -30,9 +30,12 @@ import java.util.*;
 @SQLRestriction("is_deleted = false")
 public class User implements UserDetails {
 
+    // Анхаар: `columnDefinition = "BINARY(16)"` нь PostgreSQL-д байхгүй тип тул
+    // `users` хүснэгт үүсэхгүй, Hibernate зөвхөн WARN бичээд үргэлжлүүлдэг байв.
+    // Типийг DB-ийн dialect өөрөө сонгоно (Postgres: uuid, H2: uuid).
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", columnDefinition = "BINARY(16)")
+    @Column(name = "id")
     private UUID id;
 
     @Column(name = "username", unique = true, nullable = false, length = 100)

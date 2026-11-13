@@ -88,9 +88,10 @@ public class Permission {
         public String getMongolianName() { return mongolianName; }
     }
 
+    // `BINARY(16)` нь PostgreSQL-д байхгүй тип — типийг dialect сонгоно.
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
-    @Column(name = "id", columnDefinition = "BINARY(16)")
+    @Column(name = "id")
     private UUID id;
 
     @Column(name = "name", unique = true, nullable = false, length = 100)

@@ -1,5 +1,6 @@
 package com.company.los.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -107,16 +108,22 @@ public class Role extends BaseEntity {
     @Column(name = "display_name", length = 150)
     private String displayName;
 
+    // Эдгээр холбоо нь LAZY бөгөөд JSON хариунд орох шаардлагагүй. Ignore хийхгүй бол
+    // serialization үед нэмэлт query (жишээ нь `users` хүснэгт) ажиллаж 500 гардаг.
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_role_id", foreignKey = @ForeignKey(name = "fk_role_parent"))
     private Role parentRole;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "parentRole", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<Role> childRoles = new ArrayList<>();
 
+    @JsonIgnore
     @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
     private List<User> users = new ArrayList<>();
 
+    @JsonIgnore
     @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "role_permissions",
