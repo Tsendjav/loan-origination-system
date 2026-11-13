@@ -144,6 +144,30 @@ pull request бүрт дээрх скриптийг Ubuntu runner дээр аж�
 bash scripts/docker-verify.sh
 ```
 
+### Windows: Maven суулгах эсвэл Docker-оор асаах
+
+`scripts\run-db.bat` нь backend-ийг `mvn spring-boot:run`-ээр асаадаг тул
+локал Maven шаардана. `'mvn' is not recognized` гэвэл:
+
+```powershell
+# 1) Maven суулгах (Git Bash/PowerShell)
+winget install --id Apache.Maven --source winget
+# суулгасны дараа терминалаа хааж дахин нээгээд:  mvn -v
+
+# 2) Эсвэл Maven-гүйгээр backend-ийг Docker-оор асаах
+docker compose up -d --build backend
+docker compose logs -f backend     # "Started LosApplication" хүлээнэ
+```
+
+Хоёр тохиолдолд PostgreSQL `localhost:5432` дээр ажиллаж, өгөгдөл нь
+`postgres_data` volume-д хадгалагдана. Docker-оор асаасан backend мөн адил
+`docker` профайл (`ddl-auto=update`) ашиглана.
+
+> **Git Bash-ийн `timeout`:** Windows-ийн `timeout.exe`-тэй ижил нэртэй тул
+> `.bat` дотор бүтэн зам (`%SystemRoot%\System32\timeout.exe`) ашигладаг —
+> `timeout: invalid time interval '/t'` гэсэн мессеж гарвал скриптийн хуучин
+> хувилбар байна, `git pull` хийнэ.
+
 ## 6.1 PostgreSQL (Docker Desktop) — байнгын өгөгдөл
 
 Development-д H2 in-memory ашигладаг тул restart бүрт өгөгдөл арилдаг.

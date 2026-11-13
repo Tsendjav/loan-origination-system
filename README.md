@@ -8,7 +8,9 @@
 - ✅ Java 17+ (суулгагдсан: Java 17.0.16)
 - ✅ Node.js 18+ (суулгагдсан: v22.17.0)  
 - ✅ Docker Desktop (суулгагдсан)
-- ❌ PostgreSQL шаардлагагүй! (H2 ашиглана)
+- ⚙️ Maven 3.9+ — зөвхөн backend-ийг **локалаар** асаах бол (`mvn spring-boot:run`).
+  Mavenгүй бол Docker-оор асаана: `docker compose up -d --build backend`
+- ❌ PostgreSQL заавал биш — H2 in-memory ашиглана (Docker Desktop-той бол [Postgres](#postgresql--өгөгдөл-хадгалагдах-горим-docker-desktop))
 
 ### Нэг командаар эхлүүлэх
 ```bash
