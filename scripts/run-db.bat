@@ -36,7 +36,8 @@ for /l %%i in (1,1,40) do (
       set READY=1
       echo     OK - localhost:5432 / los_db
     ) else (
-      timeout /t 2 /nobreak >nul
+      rem Git Bash-ийн `timeout`-тай мөргөлдөхөөс зайлсхийж бүтэн замыг ашиглана
+      "%SystemRoot%\System32\timeout.exe" /t 2 /nobreak >nul 2>&1 || ping -n 3 127.0.0.1 >nul 2>&1
     )
   )
 )
@@ -54,6 +55,23 @@ if /i "%~1"=="--db-only" (
   echo      cd backend ^&^& set SPRING_PROFILES_ACTIVE=docker ^&^& mvn spring-boot:run
   popd
   exit /b 0
+)
+
+where mvn >nul 2>&1
+if errorlevel 1 (
+  echo [X] Maven ('mvn') олдсонгүй — backend-ийг локалаар асаах боломжгүй.
+  echo.
+  echo     Сонголт 1: Maven суулгах
+  echo         winget install --id Apache.Maven --source winget
+  echo         ^(суулгасны дараа терминалаа хааж дахин нээх^)
+  echo.
+  echo     Сонголт 2: Maven-гүйгээр backend-ийг Docker-оор асаах
+  echo         docker compose up -d --build backend
+  echo.
+  echo     PostgreSQL асаалттай хэвээр байна — зөвхөн backend дутуу.
+  popd
+  pause
+  exit /b 1
 )
 
 echo.

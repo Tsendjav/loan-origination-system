@@ -144,6 +144,56 @@ pull request бүрт дээрх скриптийг Ubuntu runner дээр аж�
 bash scripts/docker-verify.sh
 ```
 
+### Нэг командаар бүх stack асаах (Windows)
+
+```powershell
+.\start.ps1              # Docker Desktop -> postgres -> backend (Docker) -> frontend -> browser
+.\start.ps1 -Local       # backend-ийг локал mvn spring-boot:run-ээр
+.\start.ps1 -Rebuild     # backend образыг шинэчлэх
+.\start.ps1 -NoBrowser   # browser нээхгүй
+.\start.ps1 -Stop        # бүгдийг зогсоох (postgres_data хадгалагдана)
+```
+
+Юу хийдэг вэ:
+
+1. `docker info` шалгаж, Docker Desktop унтарсан бол өөрөө асааж 3 минут хүртэл хүлээнэ
+2. `docker compose up -d postgres` + `pg_isready`
+3. Backend: default нь `los-backend` образ (`-Rebuild` бол `--build`), `-Local` бол шинэ цонхонд `mvn spring-boot:run`
+4. `GET /los/actuator/health` 200 болтол хүлээнэ
+5. Frontend: `node_modules` байхгүй бол `npm ci`, дараа нь шинэ цонхонд `npm run dev`
+6. `http://localhost:3001` нээнэ
+
+PID-ууд `.run/` дотор хадгалагдана (gitignored) — `-Stop` үед `taskkill /T`-ээр
+хүү процессуудтай нь хамт зогсооно. Docker контейнерууд `stop` хийгдэнэ,
+`down -v` хийгдэхгүй тул өгөгдөл устахгүй.
+
+> Docker Desktop-ийн анхны асаалт удаан байвал скрипт 3 минутын дараа
+> "Docker 3 минутад бэлэн болсонгүй" гэж зогсоно — дахин ажиллуулна.
+
+### Windows: Maven суулгах эсвэл Docker-оор асаах
+
+`scripts\run-db.bat` нь backend-ийг `mvn spring-boot:run`-ээр асаадаг тул
+локал Maven шаардана. `'mvn' is not recognized` гэвэл:
+
+```powershell
+# 1) Maven суулгах (Git Bash/PowerShell)
+winget install --id Apache.Maven --source winget
+# суулгасны дараа терминалаа хааж дахин нээгээд:  mvn -v
+
+# 2) Эсвэл Maven-гүйгээр backend-ийг Docker-оор асаах
+docker compose up -d --build backend
+docker compose logs -f backend     # "Started LosApplication" хүлээнэ
+```
+
+Хоёр тохиолдолд PostgreSQL `localhost:5432` дээр ажиллаж, өгөгдөл нь
+`postgres_data` volume-д хадгалагдана. Docker-оор асаасан backend мөн адил
+`docker` профайл (`ddl-auto=update`) ашиглана.
+
+> **Git Bash-ийн `timeout`:** Windows-ийн `timeout.exe`-тэй ижил нэртэй тул
+> `.bat` дотор бүтэн зам (`%SystemRoot%\System32\timeout.exe`) ашигладаг —
+> `timeout: invalid time interval '/t'` гэсэн мессеж гарвал скриптийн хуучин
+> хувилбар байна, `git pull` хийнэ.
+
 ## 6.1 PostgreSQL (Docker Desktop) — байнгын өгөгдөл
 
 Development-д H2 in-memory ашигладаг тул restart бүрт өгөгдөл арилдаг.

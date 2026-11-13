@@ -47,8 +47,13 @@ public class DatabaseConfig {
     @Value("${spring.datasource.password:}")
     private String password;
 
-    @Value("${spring.datasource.driverClassName:org.h2.Driver}")
-    private String driverClassName;
+    /**
+     * JDBC драйверын класс. Spring Boot-ийн стандарт
+     * `spring.datasource.driver-class-name` болон хуучин `driverClassName`
+     * хоёуланг нь дэмжинэ. Хоосон бол JDBC URL-аас автоматаар тодорхойлно.
+     */
+    @Value("${spring.datasource.driverClassName:${spring.datasource.driver-class-name:}}")
+    private String configuredDriverClassName;
 
     @Value("${spring.datasource.hikari.maximum-pool-size:20}")
     private int maximumPoolSize;
@@ -93,7 +98,13 @@ public class DatabaseConfig {
         config.setJdbcUrl(jdbcUrl);
         config.setUsername(username);
         config.setPassword(password);
-        config.setDriverClassName(driverClassName);
+
+        // Драйвер: тохиргоонд заасан бол түүнийг, эс бөгөөс URL-аас тодорхойлно
+        // (өмнө нь H2 хатуу бичигдсэн тул postgres URL дээр эхлэхгүй байв).
+        String driverClassName = resolveDriverClassName(configuredDriverClassName, jdbcUrl);
+        if (driverClassName != null) {
+            config.setDriverClassName(driverClassName);
+        }
         
         // Pool configuration
         config.setMaximumPoolSize(maximumPoolSize);
@@ -149,6 +160,36 @@ public class DatabaseConfig {
     }
 
     /**
+     * Тохиргооны драйвер байхгүй үед JDBC URL-аас драйверын классыг тодорхойлно.
+     *
+     * @param configured тохиргоонд заасан драйвер (байж болно)
+     * @param url        JDBC URL
+     * @return драйверын класс, эсвэл тодорхойлж чадахгүй бол null
+     */
+    static String resolveDriverClassName(String configured, String url) {
+        if (configured != null && !configured.isBlank()) {
+            return configured.trim();
+        }
+        if (url == null) {
+            return null;
+        }
+        String u = url.trim().toLowerCase();
+        if (u.startsWith("jdbc:postgresql:")) {
+            return "org.postgresql.Driver";
+        }
+        if (u.startsWith("jdbc:mysql:")) {
+            return "com.mysql.cj.jdbc.Driver";
+        }
+        if (u.startsWith("jdbc:sqlserver:")) {
+            return "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+        }
+        if (u.startsWith("jdbc:h2:")) {
+            return "org.h2.Driver";
+        }
+        return null; // HikariCP/DriverManager өөрөө олно
+    }
+
+    /**
      * Configure Hibernate properties
      * @return Hibernate properties
      */
@@ -182,8 +223,13 @@ public class DatabaseConfig {
         properties.setProperty("hibernate.cache.use_second_level_cache", "false");
         properties.setProperty("hibernate.cache.use_query_cache", "false");
         
-        // Connection handling
-        properties.setProperty("hibernate.connection.provider_disables_autocommit", "true");
+        // Connection handling.
+        // `provider_disables_autocommit=true` нь Hikari pool-ийн autoCommit=false-ыг
+        // шаарддаг. Манай pool autoCommit=true (default) тул Postgres дээр
+        // "Cannot commit when autoCommit is enabled" болж унадаг байв
+        // (H2 үүнийг өнгөрөөдөг). Тиймээс Hibernate өөрөө autocommit-ыг
+        // удирдана — transaction эхлэхэд false, дуусахад буцаана.
+        properties.setProperty("hibernate.connection.provider_disables_autocommit", "false");
         
         // Naming strategy
         properties.setProperty("hibernate.physical_naming_strategy", 

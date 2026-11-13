@@ -8,12 +8,30 @@
 - ✅ Java 17+ (суулгагдсан: Java 17.0.16)
 - ✅ Node.js 18+ (суулгагдсан: v22.17.0)  
 - ✅ Docker Desktop (суулгагдсан)
-- ❌ PostgreSQL шаардлагагүй! (H2 ашиглана)
+- ⚙️ Maven 3.9+ — зөвхөн backend-ийг **локалаар** асаах бол (`mvn spring-boot:run`).
+  Mavenгүй бол Docker-оор асаана: `docker compose up -d --build backend`
+- ❌ PostgreSQL заавал биш — H2 in-memory ашиглана (Docker Desktop-той бол [Postgres](#postgresql--өгөгдөл-хадгалагдах-горим-docker-desktop))
 
 ### Нэг командаар эхлүүлэх
-```bash
-.\scripts\start.bat
+
+PowerShell (санал болгож буй):
+
+```powershell
+.\start.ps1              # Postgres + backend (Docker) + frontend + browser
+.\start.ps1 -Local       # backend-ийг локал mvn-ээр (hot reload, Maven шаардана)
+.\start.ps1 -Rebuild     # backend образыг дахин build
+.\start.ps1 -Stop        # бүгдийг зогсоох (өгөгдөл хадгалагдана)
 ```
+
+Эсвэл cmd / double-click:
+
+```bat
+scripts\start.bat
+```
+
+Скрипт нь Docker Desktop унтарсан бол өөрөө асааж, PostgreSQL бэлэн болохыг
+хүлээгээд backend/Frontend-ийг асааж, health шалгаад browser нээнэ.
+Execution policy хоригловол: `powershell -ExecutionPolicy Bypass -File .\start.ps1`
 
 ## 🐳 Docker-оор бүтэн stack ажиллуулах
 
