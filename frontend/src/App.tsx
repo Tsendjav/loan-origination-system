@@ -12,10 +12,10 @@ import {
   Button, 
   Spin, 
   Tabs,
-  Input,
   message,
   Tag,
-  Divider
+  Divider,
+  ConfigProvider
 } from 'antd';
 import { 
   CheckCircleOutlined, 
@@ -26,17 +26,18 @@ import {
   ReloadOutlined,
   WifiOutlined,
   ApiOutlined,
-  BugOutlined,
   LoginOutlined,
   LogoutOutlined,
-  EyeInvisibleOutlined,
-  EyeTwoTone,
   SecurityScanOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 
+import LoginPanel from './components/auth/LoginPanel';
+import CustomerSection from './components/customer/CustomerSection';
+import LoanApplicationSection from './components/loan/LoanApplicationSection';
+
 const { Header, Content, Footer } = Layout;
-const { Title, Paragraph, Text } = Typography;
+const { Title, Text } = Typography;
 
 // ⭐ ENHANCED TYPESCRIPT INTERFACES ⭐
 interface User {
@@ -113,10 +114,6 @@ interface AuthContextType {
   logout: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
-}
-
-interface LoginComponentProps {
-  onLoginSuccess: (user: User) => void;
 }
 
 // ⭐ ERROR BOUNDARY COMPONENT ⭐
@@ -209,13 +206,15 @@ class SimpleApiClient {
     
     const url = `${this.baseURL}${endpoint}`;
     
+    // Тэмдэглэл: credentials-ийг хасахгүй (same-origin cookie preview/proxy-д хэрэгтэй).
+    // `credentials: 'omit'` байсан нь cloud preview дээр 403 өгч, нэвтрэлтийг блоклож байсан.
+    const token = localStorage.getItem('los_token');
     const config: RequestInit = {
-      mode: 'cors',
-      credentials: 'omit',
       signal: this.abortController.signal,
       headers: {
         'Content-Type': 'application/json;charset=UTF-8',
         'Accept': 'application/json;charset=UTF-8',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,
@@ -294,13 +293,6 @@ class SimpleApiClient {
 
 // Create API client instance
 const apiClient = new SimpleApiClient(API_BASE_URL);
-
-// Test Users that match backend AuthServiceImpl
-const TEST_USERS = [
-  { username: 'admin', password: 'admin123', role: 'SUPER_ADMIN', name: 'Системийн админ' },
-  { username: 'manager', password: 'manager123', role: 'MANAGER', name: 'Салбарын менежер' },
-  { username: 'loan_officer', password: 'loan123', role: 'LOAN_OFFICER', name: 'Зээлийн мэргэжилтэн' }
-];
 
 // ⭐ AUTH PROVIDER WITH ENHANCED FUNCTIONALITY ⭐
 const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -444,324 +436,9 @@ const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   );
 };
 
-// ⭐ ENHANCED LOGIN COMPONENT ⭐
-const LoginComponent: React.FC<LoginComponentProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState<string>('admin');
-  const [password, setPassword] = useState<string>('admin123');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [debugMode, setDebugMode] = useState<boolean>(false);
-  const [showPassword, setShowPassword] = useState<boolean>(false);
-
-  const { login: authLogin, state: authState } = useAuth();
-
-  // Watch for auth state changes and call onLoginSuccess
-  useEffect(() => {
-    if (authState.isAuthenticated && authState.user) {
-      console.log('🎉 Auth state changed - user logged in');
-      onLoginSuccess(authState.user);
-    }
-  }, [authState.isAuthenticated, authState.user, onLoginSuccess]);
-
-  // Validation that matches backend LoginRequestDto.Validator exactly
-  const validateForm = useCallback((): string | null => {
-    if (!username || !username.trim()) {
-      return 'Хэрэглэгчийн нэр заавал оруулна уу';
-    }
-    
-    if (!password || !password.trim()) {
-      return 'Нууц үг заавал оруулна уу';
-    }
-    
-    const trimmedUsername = username.trim();
-    
-    if (trimmedUsername.length < 3) {
-      return 'Хэрэглэгчийн нэр хамгийн багадаа 3 тэмдэгт байх ёстой';
-    }
-    
-    if (trimmedUsername.length > 50) {
-      return 'Хэрэглэгчийн нэр 50 тэмдэгтээс их байж болохгүй';
-    }
-    
-    if (password.length < 6) {
-      return 'Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой';
-    }
-    
-    if (password.length > 100) {
-      return 'Нууц үг 100 тэмдэгтээс их байж болохгүй';
-    }
-    
-    // Username pattern validation (matches backend regex)
-    if (!trimmedUsername.match(/^[a-zA-Z0-9._@-]+$/)) {
-      return 'Хэрэглэгчийн нэр зөвхөн үсэг, тоо, цэг, дэд зураас, @ тэмдэг агуулах боломжтой';
-    }
-    
-    return null;
-  }, [username, password]);
-
-  // Backend validation test
-  const testValidation = useCallback(async (): Promise<void> => {
-    try {
-      const testRequest = {
-        username: username || 'test',
-        password: password || 'test123',
-        timestamp: Date.now(),
-        platform: 'WEB'
-      };
-
-      console.log('🧪 Testing validation with backend /auth/test-validation...');
-      
-      const response = await apiClient.post('/auth/test-validation', testRequest);
-      
-      console.log('📊 Backend validation result:', response);
-      
-      if (response && response.valid) {
-        message.success('Validation амжилттай! Backend-тай тохирч байна.');
-      } else {
-        message.error(`Validation алдаа: ${response?.error || 'Unknown error'}`);
-      }
-      
-    } catch (error: unknown) {
-      console.error('❌ Validation test failed:', error);
-      message.warning('Backend validation test хийх боломжгүй. Энгийн frontend validation ашигласан.');
-    }
-  }, [username, password]);
-
-  const handleLogin = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      console.log('🔐 Starting login process...');
-
-      // Frontend validation (matches backend validation exactly)
-      const validationError = validateForm();
-      if (validationError) {
-        throw new Error(validationError);
-      }
-
-      // Create login request that exactly matches backend LoginRequestDto structure
-      const loginRequest: LoginRequest = {
-        username: username.trim(),
-        password: password.trim(),
-        rememberMe: false,
-        timestamp: Date.now(),
-        platform: 'WEB',
-        deviceInfo: navigator.userAgent,
-        clientVersion: '1.0.0',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      };
-
-      console.log('📤 Calling auth context login...');
-      
-      await authLogin(loginRequest);
-
-      message.success('Амжилттай нэвтэрлээ!');
-      
-      // Reset form
-      setUsername('');
-      setPassword('');
-      
-    } catch (err: unknown) {
-      console.error('❌ Login error:', err);
-      let errorMessage = 'Нэвтрэх үед алдаа гарлаа';
-      
-      if (err instanceof Error) {
-        if (err.message?.includes('401')) {
-          errorMessage = 'Хэрэглэгчийн нэр эсвэл нууц үг буруу байна';
-        } else if (err.message?.includes('400')) {
-          errorMessage = 'Нэвтрэх мэдээлэл буруу байна';
-        } else if (err.message?.includes('403')) {
-          errorMessage = 'Хандах эрхгүй байна';
-        } else if (err.message?.includes('500')) {
-          errorMessage = 'Серверийн алдаа гарлаа. Дахин оролдоно уу';
-        } else if (err.message) {
-          errorMessage = err.message;
-        }
-      }
-      
-      setError(errorMessage);
-      message.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [username, password, validateForm, authLogin]);
-
-  const handleQuickLogin = useCallback((testUsername: string, testPassword: string): void => {
-    setUsername(testUsername);
-    setPassword(testPassword);
-    // Auto-submit after setting values
-    setTimeout(() => {
-      handleLogin();
-    }, 100);
-  }, [handleLogin]);
-
-  const handleKeyPress = useCallback((e: React.KeyboardEvent): void => {
-    if (e.key === 'Enter') {
-      handleLogin();
-    }
-  }, [handleLogin]);
-
-  return (
-    <div style={{ maxWidth: 600, margin: '0 auto' }}>
-      <Card title="🔐 Системд нэвтрэх" style={{ marginBottom: 24 }}>
-        {error && (
-          <Alert
-            message="Нэвтрэх алдаа"
-            description={error}
-            type="error"
-            showIcon
-            closable
-            onClose={() => setError(null)}
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
-        {authState.error && (
-          <Alert
-            message="Authentication алдаа"
-            description={authState.error}
-            type="error"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
-        )}
-
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ marginBottom: 16 }}>
-            <Text strong>Хэрэглэгчийн нэр</Text>
-            <Input
-              placeholder="admin"
-              size="large"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyPress={handleKeyPress}
-              style={{ marginTop: 4 }}
-              disabled={loading || authState.loading}
-            />
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <Text strong>Нууц үг</Text>
-            <div style={{ position: 'relative' }}>
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••"
-                size="large"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={handleKeyPress}
-                style={{ marginTop: 4 }}
-                disabled={loading || authState.loading}
-                suffix={
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={showPassword ? <EyeTwoTone /> : <EyeInvisibleOutlined />}
-                    onClick={() => setShowPassword(!showPassword)}
-                  />
-                }
-              />
-            </div>
-          </div>
-
-          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Button 
-              type="primary" 
-              onClick={handleLogin}
-              loading={loading || authState.loading} 
-              size="large"
-              style={{ minWidth: 120 }}
-            >
-              {(loading || authState.loading) ? 'Нэвтрэж байна...' : 'Нэвтрэх'}
-            </Button>
-
-            <Space>
-              <Button 
-                onClick={testValidation}
-                size="large"
-                disabled={loading || authState.loading}
-              >
-                🧪 Validation шалгах
-              </Button>
-              <Button
-                type={debugMode ? "primary" : "default"}
-                onClick={() => setDebugMode(!debugMode)}
-                size="large"
-                icon={<BugOutlined />}
-              >
-                Debug {debugMode ? 'ON' : 'OFF'}
-              </Button>
-            </Space>
-          </Space>
-        </div>
-      </Card>
-
-      {/* Test Users */}
-      <Card title="🧪 Тест хэрэглэгчид" size="small">
-        <Paragraph>Дараах тест хэрэглэгчдээр шууд нэвтрэх боломжтой:</Paragraph>
-
-        <Space direction="vertical" style={{ width: '100%' }}>
-          {TEST_USERS.map((user, index) => (
-            <Button 
-              key={index}
-              block 
-              onClick={() => handleQuickLogin(user.username, user.password)}
-              disabled={loading || authState.loading}
-              type="default"
-            >
-              👤 {user.username} / {user.password} ({user.name})
-            </Button>
-          ))}
-        </Space>
-
-        {debugMode && (
-          <div style={{ marginTop: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-            <Text strong>Enhanced Debug Info:</Text>
-            <pre style={{ fontSize: 11, margin: '8px 0 0 0' }}>
-              {JSON.stringify({
-                apiBaseUrl: API_BASE_URL,
-                authState: {
-                  isAuthenticated: authState.isAuthenticated,
-                  hasUser: !!authState.user,
-                  loading: authState.loading,
-                  error: authState.error,
-                  userRole: authState.user?.role,
-                  userPermissions: authState.user?.permissions?.length || 0
-                },
-                currentValues: { 
-                  username, 
-                  password: password ? '[HIDDEN]' : '',
-                  validationStatus: validateForm() === null ? 'VALID' : 'INVALID',
-                  validationError: validateForm()
-                },
-                backendExpectedFormat: {
-                  username: 'string (3-50 chars, alphanumeric + ._@-)',
-                  password: 'string (6-100 chars)',
-                  rememberMe: 'boolean (optional)',
-                  timestamp: 'number (optional)',
-                  platform: 'string (optional)',
-                  deviceInfo: 'string (optional)'
-                },
-                features: {
-                  authContext: 'enabled',
-                  errorBoundary: 'enabled',
-                  typeScript: 'enabled',
-                  localStorage: 'enabled',
-                  permissionSystem: 'enabled'
-                }
-              }, null, 2)}
-            </pre>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-};
-
 // ⭐ MAIN APP CONTENT WITH ENHANCED FEATURES ⭐
 const AppContent: React.FC = () => {
-  const { state: authState, logout: authLogout, hasPermission, hasRole } = useAuth();
+  const { state: authState, login: authLogin, logout: authLogout, hasPermission, hasRole } = useAuth();
   
   const [backendStatus, setBackendStatus] = useState<BackendStatus | null>(null);
   const [systemLoading, setSystemLoading] = useState<boolean>(true);
@@ -1197,7 +874,7 @@ const AppContent: React.FC = () => {
           Authentication тест
         </span>
       ),
-      children: <LoginComponent onLoginSuccess={handleLoginSuccess} />
+      children: <LoginPanel login={authLogin} authState={authState} onLoginSuccess={handleLoginSuccess} />
     },
     {
       key: 'customers',
@@ -1207,31 +884,16 @@ const AppContent: React.FC = () => {
           Харилцагчид
         </span>
       ),
-      children: (
-        <Card title="👥 Харилцагчийн удирдлага" extra={
-          authState.isAuthenticated && (
-            <Tag color={hasPermission('customer:view') ? 'green' : 'red'}>
-              {hasPermission('customer:view') ? 'Эрх байна' : 'Эрх байхгүй'}
-            </Tag>
-          )
-        }>
-          <Paragraph>Харилцагчийн удирдлагын хэсэг удахгүй нэмэгдэнэ...</Paragraph>
-          {!authState.isAuthenticated && (
-            <Alert
-              message="Эхлээд нэвтэрнэ үү"
-              description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
-              type="warning"
-              showIcon
-            />
-          )}
-          {authState.isAuthenticated && (
-            <Alert
-              message="Development Phase"
-              description={`Энэ хэсэг одоогоор хөгжүүлэлтийн шатанд байна. ${hasPermission('customer:view') ? 'Танд харах эрх байна!' : 'Танд харах эрх байхгүй.'}`}
-              type="info"
-              showIcon
-            />
-          )}
+      children: authState.isAuthenticated ? (
+        <CustomerSection />
+      ) : (
+        <Card title="👥 Харилцагчийн удирдлага">
+          <Alert
+            message="Эхлээд нэвтэрнэ үү"
+            description="Харилцагчдын жагсаалтыг харахын тулд системд нэвтэрнэ үү."
+            type="warning"
+            showIcon
+          />
         </Card>
       )
     },
@@ -1243,31 +905,16 @@ const AppContent: React.FC = () => {
           Зээлийн хүсэлт
         </span>
       ),
-      children: (
-        <Card title="📋 Зээлийн хүсэлт" extra={
-          authState.isAuthenticated && (
-            <Tag color={hasPermission('loan:view') ? 'green' : 'red'}>
-              {hasPermission('loan:view') ? 'Эрх байна' : 'Эрх байхгүй'}
-            </Tag>
-          )
-        }>
-          <Paragraph>Зээлийн хүсэлтийн хэсэг удахгүй нэмэгдэнэ...</Paragraph>
-          {!authState.isAuthenticated && (
-            <Alert
-              message="Эхлээд нэвтэрнэ үү"
-              description="Энэ хэсгийг ашиглахын тулд эхлээд системд нэвтэрнэ үү."
-              type="warning"
-              showIcon
-            />
-          )}
-          {authState.isAuthenticated && (
-            <Alert
-              message="Development Phase"
-              description={`Энэ хэсэг одоогоор хөгжүүлэлтийн шатанд байна. ${hasPermission('loan:view') ? 'Танд харах эрх байна!' : 'Танд харах эрх байхгүй.'}`}
-              type="info"
-              showIcon
-            />
-          )}
+      children: authState.isAuthenticated ? (
+        <LoanApplicationSection />
+      ) : (
+        <Card title="📋 Зээлийн хүсэлт">
+          <Alert
+            message="Эхлээд нэвтэрнэ үү"
+            description="Зээлийн хүсэлтүүдийг харах болон шийдвэрлэхийн тулд системд нэвтэрнэ үү."
+            type="warning"
+            showIcon
+          />
         </Card>
       )
     }
@@ -1292,7 +939,7 @@ const AppContent: React.FC = () => {
       <Header style={{ 
         display: 'flex', 
         alignItems: 'center', 
-        background: '#001529',
+        background: '#0a0a0a',
         justifyContent: 'space-between'
       }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1395,13 +1042,37 @@ const AppContent: React.FC = () => {
 };
 
 // ⭐ MAIN APP WITH ERROR BOUNDARY AND AUTH PROVIDER ⭐
+// Хар цагаан (monochrome) дизайны theme
+const monochromeTheme = {
+  token: {
+    colorPrimary: '#111111',
+    colorLink: '#111111',
+    colorInfo: '#111111',
+    colorSuccess: '#1f1f1f',
+    colorWarning: '#595959',
+    colorError: '#000000',
+    colorTextBase: '#111111',
+    borderRadius: 8,
+    fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif",
+  },
+  components: {
+    Layout: { headerBg: '#0a0a0a', bodyBg: '#ffffff', footerBg: '#ffffff' },
+    Table: { headerBg: '#fafafa', headerColor: '#111111', borderColor: '#e8e8e8' },
+    Tabs: { itemSelectedColor: '#111111', inkBarColor: '#111111', itemHoverColor: '#000000' },
+    Card: { headerBg: '#ffffff' },
+    Menu: { darkItemBg: '#0a0a0a', darkSubMenuItemBg: '#0a0a0a' },
+  },
+};
+
 function App(): React.ReactElement {
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ErrorBoundary>
+    <ConfigProvider theme={monochromeTheme}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
+    </ConfigProvider>
   );
 }
 

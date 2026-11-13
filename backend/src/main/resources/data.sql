@@ -87,19 +87,19 @@ INSERT INTO roles (id, name, display_name, display_name_mn, description, code, s
 
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, phone, employee_id, department, position, status, is_email_verified, is_active, language, timezone, created_at) VALUES
 -- Super Admin User
-('33333333-3333-3333-3333-333333333301', 'admin', 'admin@los.mn', '$2a$12$N.zmdr9k7uOCQb376NoUnuTsOkHBgjfASJq8Kt8eEOs94kGNrzjX.', 'Админ', 'Хэрэглэгч', '+97699887766', 'EMP001', 'IT хэлтэс', 'Системийн админ', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
+('33333333-3333-3333-3333-333333333301', 'admin', 'admin@los.mn', '$2a$12$93Gf88edihEYEYq4q1KMeOJfA9Fg6PgJLnJ.eOh.LARgU3JlPANii', 'Админ', 'Хэрэглэгч', '+97699887766', 'EMP001', 'IT хэлтэс', 'Системийн админ', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
 
 -- Manager User
-('33333333-3333-3333-3333-333333333302', 'manager', 'manager@los.mn', '$2a$12$K3fL5d8jN6oQ8xV4r9hVyO2L8jK9pR4tE1sG7aX2nQ5oP8mL7cD3f', 'Бат', 'Болд', '+97698887766', 'EMP002', 'Удирдлагын хэлтэс', 'Салбарын менежер', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
+('33333333-3333-3333-3333-333333333302', 'manager', 'manager@los.mn', '$2a$12$YqUOOHsPdlEb8gUPnrnZBOQdhctrJtsJrcZSK03p7vkTd/QRJwL3q', 'Бат', 'Болд', '+97698887766', 'EMP002', 'Удирдлагын хэлтэс', 'Салбарын менежер', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
 
 -- Loan Officer User
-('33333333-3333-3333-3333-333333333303', 'loan_officer', 'loan@los.mn', '$2a$12$E7WnBdl6eRDj4QF6h6.yROZJ2dOgXLBOeL9QU2gU7YLu7T2g1FQ8y', 'Цэрэн', 'Дорж', '+97697887766', 'EMP003', 'Зээлийн хэлтэс', 'Зээлийн мэргэжилтэн', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
+('33333333-3333-3333-3333-333333333303', 'loan_officer', 'loan@los.mn', '$2a$12$tTu8OMZhj35Fn91SWvSvwOkJ/WgN8l.hgF8KhVW0UsZRAluC3LKwK', 'Цэрэн', 'Дорж', '+97697887766', 'EMP003', 'Зээлийн хэлтэс', 'Зээлийн мэргэжилтэн', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
 
 -- Document Reviewer User
-('33333333-3333-3333-3333-333333333304', 'reviewer', 'reviewer@los.mn', '$2a$12$N.zmdr9k7uOCQb376NoUnuTsOkHBgjfASJq8Kt8eEOs94kGNrzjX.', 'Оюунaa', 'Гантулга', '+97696887766', 'EMP004', 'Баримт хэлтэс', 'Баримт хянагч', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
+('33333333-3333-3333-3333-333333333304', 'reviewer', 'reviewer@los.mn', '$2a$12$93Gf88edihEYEYq4q1KMeOJfA9Fg6PgJLnJ.eOh.LARgU3JlPANii', 'Оюунaa', 'Гантулга', '+97696887766', 'EMP004', 'Баримт хэлтэс', 'Баримт хянагч', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP),
 
 -- Customer Service User
-('33333333-3333-3333-3333-333333333305', 'customer_service', 'service@los.mn', '$2a$12$N.zmdr9k7uOCQb376NoUnuTsOkHBgjfASJq8Kt8eEOs94kGNrzjX.', 'Сайхан', 'Оюун', '+97695887766', 'EMP005', 'Харилцагчийн үйлчилгээ', 'Харилцагчийн мэргэжилтэн', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP);
+('33333333-3333-3333-3333-333333333305', 'customer_service', 'service@los.mn', '$2a$12$93Gf88edihEYEYq4q1KMeOJfA9Fg6PgJLnJ.eOh.LARgU3JlPANii', 'Сайхан', 'Оюун', '+97695887766', 'EMP005', 'Харилцагчийн үйлчилгээ', 'Харилцагчийн мэргэжилтэн', 'ACTIVE', TRUE, TRUE, 'mn', 'Asia/Ulaanbaatar', CURRENT_TIMESTAMP);
 
 -- =====================================================================================
 -- 4. USER-ROLE ASSIGNMENTS

@@ -1,0 +1,53 @@
+name: Docker Build & Stack Verification
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  docker-stack:
+    name: Build images & verify compose stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Docker versions
+        run: |
+          docker version
+          docker compose version
+
+      - name: Validate compose files
+        run: |
+          docker compose -f docker-compose.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+
+      - name: Build images and run smoke tests
+        run: bash scripts/docker-verify.sh
+
+      - name: Show stack logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml ps || true
+          docker compose -f docker-compose.yml logs --no-color --tail=200 || true
+
+      - name: Upload stack logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-stack-logs
+          path: docker-logs/
+          if-no-files-found: ignore
+          retention-days: 7

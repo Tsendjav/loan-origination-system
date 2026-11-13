@@ -15,6 +15,38 @@
 .\scripts\start.bat
 ```
 
+## 🐳 Docker-оор бүтэн stack ажиллуулах
+
+```bash
+# Backend + Frontend образ build → compose stack асаах → smoke тест → цэвэрлэх
+bash scripts/docker-verify.sh
+
+# Stack-ыг асаалттай үлдээх
+bash scripts/docker-verify.sh --keep
+```
+
+Скрипт нь `docker compose config` шалгаж, образ build хийж, Postgres/Redis/MinIO/Backend/Frontend
+асааж, health хүлээгээд нэвтрэлт, харилцагч, автомат шийдвэр (APPROVED/UNDER_REVIEW),
+шийдвэрийн эрх (403/200) зэргийг API-аар шалгана. Дэлгэрэнгүй: [docs/DOCKER.md](docs/DOCKER.md).
+
+CI: `.github/workflows/docker-verify.yml` (push/PR бүрт Ubuntu runner дээр дээрх шалгалтыг ажиллуулна).
+
+### PostgreSQL — өгөгдөл хадгалагдах горим (Docker Desktop)
+
+```bash
+bash scripts/run-db.sh          # Windows: scripts\run-db.bat
+```
+
+`postgres_data` volume-д өгөгдөл хадгалагдана (`ddl-auto=update`), restart хийсэн ч үлдэнэ.
+Дэлгэрэнгүй: [docs/DOCKER.md](docs/DOCKER.md#61-postgresql-docker-desktop--байнгын-өгөгдөл).
+
+### Замын зураг ба Git заавар
+
+- [docs/ROADMAP.md](docs/ROADMAP.md) — банк/ББСБ-д иж бүрэн систем болгоход юу дутагдаж байгаа
+- [docs/GITHUB.md](docs/GITHUB.md) — commit, push, PR, conflict, rollback-ийн бүрэн заавар
+Deploy: `.github/workflows/deploy.yml` — зөвхөн гараар (`workflow_dispatch`), staging/production
+орчин, rollback болон read-only smoke тесттэй. Тохиргоо: [docs/DOCKER.md#7-deploy-staging--production](docs/DOCKER.md).
+
 ## 🗄️ Database тохиргоо
 
 ### Development (одоогийн)

@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -151,6 +152,7 @@ public class LoanApplicationController {
      * ⭐ ЗАСВАРЛАСАН: Шинэ зээлийн хүсэлт үүсгэх ⭐
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','CUSTOMER_SERVICE')")
     @Operation(summary = "Шинэ зээлийн хүсэлт", description = "Шинэ зээлийн хүсэлт үүсгэх")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Амжилттай үүсгэгдсэн"),
@@ -209,6 +211,7 @@ public class LoanApplicationController {
      * ⭐ ЗАСВАРЛАСАН: Зээлийн хүсэлтийн статус шинэчлэх ⭐
      */
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER')")
     @Operation(summary = "Статус шинэчлэх", description = "Зээлийн хүсэлтийн статус шинэчлэх")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Амжилттай шинэчлэгдсэн"),
@@ -264,6 +267,7 @@ public class LoanApplicationController {
      * ⭐ ЗАСВАРЛАСАН: Зээлийн хүсэлт зөвшөөрөх ⭐
      */
     @PutMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER')")
     @Operation(summary = "Зээл зөвшөөрөх", description = "Зээлийн хүсэлтийг зөвшөөрөх")
     public ResponseEntity<ResponseWrapper<LoanApplicationDto>> approveLoan(
             @PathVariable UUID id,
@@ -309,6 +313,7 @@ public class LoanApplicationController {
      * ⭐ ЗАСВАРЛАСАН: Зээлийн хүсэлт татгалзах ⭐
      */
     @PutMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER')")
     @Operation(summary = "Зээл татгалзах", description = "Зээлийн хүсэлтийг татгалзах")
     public ResponseEntity<ResponseWrapper<LoanApplicationDto>> rejectLoan(
             @PathVariable UUID id,
@@ -428,6 +433,7 @@ public class LoanApplicationController {
      * ⭐ ЗАСВАРЛАСАН: Зээлийн дүн тооцоолох ⭐
      */
     @PostMapping("/calculate")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER','CUSTOMER_SERVICE')")
     @Operation(summary = "Зээлийн тооцоо", description = "Зээлийн сарын төлбөр болон нийт дүн тооцоолох")
     public ResponseEntity<ResponseWrapper<Map<String, Object>>> calculateLoan(
             @RequestParam @Parameter(description = "Зээлийн дүн") Double amount,
@@ -483,6 +489,7 @@ public class LoanApplicationController {
      * ⭐ ЗАСВАРЛАСАН: Risk assessment хийх ⭐
      */
     @PostMapping("/{id}/assess")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','LOAN_OFFICER')")
     @Operation(summary = "Зээлийн үнэлгээ", description = "Зээлийн хүсэлтийн эрсдэлийн үнэлгээ хийх")
     public ResponseEntity<ResponseWrapper<LoanApplicationDto>> performRiskAssessment(
             @PathVariable UUID id) {
