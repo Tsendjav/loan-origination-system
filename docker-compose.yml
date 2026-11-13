@@ -11,7 +11,10 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # init.sql ашиглахгүй: database/user-ыг POSTGRES_DB/POSTGRES_USER-ээр image
+      # өөрөө үүсгэдэг, schema-г Hibernate (ddl-auto) удирддаг. Хуучин init.sql
+      # нь аль хэдийн байгаа DB/user-ыг дахин үүсгэх гэж алдаа өгдөг байв
+      # (шинэ volume дээр контейнер exit 3 болж унадаг).
     networks:
       - los-network
     healthcheck:
