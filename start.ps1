@@ -50,7 +50,10 @@ function Write-Warn { param($Message) Write-Host "  [!]  $Message" -ForegroundCo
 function Write-Fail { param($Message) Write-Host "  [X]  $Message" -ForegroundColor Red; $script:Failures++ }
 
 function Test-Docker {
-    docker info *> $null
+    # Анхаар: PowerShell 5.1 дээр native командын stderr-ыг `*>`-ээр далдлахад
+    # NativeCommandError үүсэж, $ErrorActionPreference='Stop' үед скрипт унадаг.
+    # Тиймээс cmd-ээр ажиллуулж, зөвхөн exit code-ыг авна.
+    cmd /c "docker info >nul 2>&1"
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -89,7 +92,7 @@ function Stop-FromPidFile {
     if ($processId -and (Get-Process -Id $processId -ErrorAction SilentlyContinue)) {
         Write-Step "$Label зогсоож байна (PID $processId)"
         # /T — хүү процессуудыг (mvn -> java, node) хамт зогсооно
-        taskkill /PID $processId /T /F *> $null
+        cmd /c "taskkill /PID $processId /T /F >nul 2>&1"
         Write-Ok "$Label зогслоо"
     }
     Remove-Item $File -Force -ErrorAction SilentlyContinue
@@ -180,7 +183,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host '  ... PostgreSQL бэлэн болохыг хүлээж байна' -NoNewline
 $dbReady = $false
 for ($i = 0; $i -lt 40; $i++) {
-    docker compose exec -T postgres pg_isready -U los_user -d los_db *> $null
+    cmd /c "docker compose exec -T postgres pg_isready -U los_user -d los_db >nul 2>&1"
     if ($LASTEXITCODE -eq 0) { $dbReady = $true; break }
     Write-Host '.' -NoNewline
     Start-Sleep -Seconds 2
@@ -202,7 +205,7 @@ if ($Local) {
     Set-Content -Path $BackendPidFile -Value $proc.Id -Encoding ascii
     Write-Ok "Backend процесс эхэллээ (PID $($proc.Id))"
 } else {
-    docker image inspect los-backend:latest *> $null
+    cmd /c "docker image inspect los-backend:latest >nul 2>&1"
     $imageExists = ($LASTEXITCODE -eq 0)
     $needsBuild  = ($Rebuild -or -not $imageExists)
 
