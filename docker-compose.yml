@@ -37,9 +37,16 @@ services:
       timeout: 10s
       retries: 5
 
-  # ==================== MinIO (баримтын сан) ====================
+  # ==================== MinIO (баримтын сан, сонголтоор) ====================
+  # Анхаар: MinIO-гийн community образ 2026-09-д Docker Hub-аас бүх tag-тайгаа
+  # устсан, quay.io хувилбар нь anonymous pull-д 401 буцаадаг. Тиймээс энэ
+  # сервисийг профайлаар сонголттой болгосон — default `docker compose up`-д
+  # эхлэхгүй (backend код одоогоор MinIO-г ашиглахгүй, баримт нь локал
+  # `los_uploads` volume-д хадгалагдана).
+  #   Асаах: docker compose --profile storage up -d
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z}
+    profiles: ["storage"]
     container_name: los-minio
     ports:
       - "9000:9000"

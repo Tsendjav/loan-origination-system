@@ -101,7 +101,7 @@ if [[ $DO_BUILD -eq 1 ]]; then
 fi
 
 if [[ $DO_UP -eq 1 ]]; then
-  log "Stack асаах (postgres, redis, minio, backend, frontend)"
+  log "Stack асаах (postgres, redis, backend, frontend; storage/MinIO нь сонголтоор)"
   compose up -d
   wait_for_http "$BACKEND_URL/actuator/health" "$HEALTH_TIMEOUT" "Backend"
   wait_for_http "$FRONTEND_URL/" 90 "Frontend (nginx)"

@@ -35,7 +35,7 @@ bash scripts/docker-verify.sh
 1. `docker compose config -q` — compose файл хүчинтэй эсэх
 2. `docker compose build --pull` — **backend** (`Dockerfile.backend.dockerfile`) ба
    **frontend** (`Dockerfile.frontend.dockerfile`) образ
-3. `docker compose up -d` — postgres, redis, minio, backend, frontend
+3. `docker compose up -d` — postgres, redis, backend, frontend (MinIO нь сонголтоор, доор үзнэ үү)
 4. Health хүлээх — `http://localhost:8080/los/actuator/health`, `http://localhost:3001/`
 5. API smoke тест (доорх хүснэгт)
 6. `docker compose down -v` — цэвэрлэх (амжилтгүй бол log хадгална)
@@ -99,7 +99,20 @@ docker compose down -v
 - Frontend: <http://localhost:3001>
 - Backend: <http://localhost:8080/los/api/v1/health>
 - Swagger: <http://localhost:8080/los/swagger-ui.html>
-- MinIO console: <http://localhost:9001> (`minioadmin` / `minioadmin123`)
+- MinIO console (зөвхөн `storage` профайлтай): <http://localhost:9001> (`minioadmin` / `minioadmin123`)
+
+> **MinIO тухай:** MinIO-гийн community образ 2026 оны 9-р сард Docker Hub-аас
+> бүх tag-тайгаа устсан (`pull access denied`), `quay.io/minio/minio` нь
+> anonymous pull-д 401 буцаадаг. Тиймээс `minio` сервис `storage` профайлд
+> орсон — default `docker compose up` үед **эхлэхгүй**, CI ч үүнээс хамаарахгүй.
+> Backend код одоогоор MinIO-г ашигладаггүй (баримт нь `los_uploads` volume-д
+> хадгалагдана). Хэрэгтэй бол:
+>
+> ```bash
+> docker login quay.io                     # эсвэл өөр ажиллаж буй S3 образ
+> MINIO_IMAGE=quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z \
+>   docker compose --profile storage up -d
+> ```
 
 Анхны нэвтрэлт: `admin / admin123`, `manager / manager123`,
 `loan_officer / loan123`.
