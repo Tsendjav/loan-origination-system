@@ -1,5 +1,8 @@
 package com.company.los.service.impl;
 
+import com.company.los.scoring.ScoringResult;
+import com.company.los.scoring.ScoringService;
+
 import com.company.los.dto.CreateLoanRequestDto;
 import com.company.los.dto.LoanApplicationDto;
 import com.company.los.entity.Customer;
@@ -56,6 +59,7 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
     private final LoanProductRepository loanProductRepository;
     private final DocumentService documentService; // Баримт сервис
     private final NotificationService notificationService; // Мэдэгдлийн сервис
+    private final ScoringService scoringService; // Оноо/шийдвэрийн engine
 
     // ==================== АВТОМАТ ШИЙДВЭРИЙН ТОХИРГОО ====================
 
@@ -819,8 +823,9 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
 
     @Override
     public BigDecimal calculateCreditScore(UUID customerId) {
-        // ⭐ PLACEHOLDER: Бодит кредит оноо тооцоолох логик нэмэх ⭐
-        return BigDecimal.valueOf(650);
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found: " + customerId));
+        return BigDecimal.valueOf(scoringService.customerScore(customer));
     }
 
     @Override
@@ -1096,9 +1101,18 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
             return application;
         }
 
-        if (!isEligibleForAutoApproval(application)) {
-            application.setStatus(LoanApplication.ApplicationStatus.UNDER_REVIEW);
-            application.setDecisionReason(buildAutoDecisionRejectionReason(application));
+        // Оноо, DTI, эрсдэлийг тооцож, шийдвэрийн шалтгааныг хадгална
+        ScoringResult scoring = scoringService.score(application);
+        application.setCreditScore(scoring.score());
+        application.setDebtToIncomeRatio(scoring.dti());
+        application.setRiskScore(BigDecimal.valueOf(850 - scoring.score()));
+
+        if (!scoring.isApproved()) {
+            application.setStatus("REJECTED".equals(scoring.decision())
+                    ? LoanApplication.ApplicationStatus.REJECTED
+                    : LoanApplication.ApplicationStatus.UNDER_REVIEW);
+            application.setDecisionReason(buildDecisionReason(application, scoring));
+            application.setDecisionDate(LocalDateTime.now());
             return application;
         }
 
@@ -1109,7 +1123,8 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         application.setInterestRate(rateFraction);
         application.approve("AUTO_DECISION", application.getRequestedAmount(),
                 application.getRequestedTermMonths(), rateFraction);
-        application.setDecisionReason("Автомат шийдвэр: бүх шалгуур хангагдсан тул зөвшөөрөгдлөө");
+        application.setDecisionReason("Автомат шийдвэр: оноо " + scoring.score()
+                + ", DTI " + scoring.dti() + " — бүх шалгуур хангагдсан тул зөвшөөрөгдлөө");
 
         // calculateMonthlyPayment нь жилийн хүүг хувиар (жишээ нь 18.5) хүлээж авдаг
         BigDecimal monthlyPayment = calculateMonthlyPayment(
@@ -1138,6 +1153,19 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         }
         BigDecimal score = calculateCreditScore(customer.getId());
         return score != null && score.compareTo(BigDecimal.valueOf(autoApprovalMinCreditScore)) >= 0;
+    }
+
+    /**
+     * Scoring-ийн үр дүнгээс хүнд ойлгомжтой шалтгаан үүсгэнэ.
+     */
+    private String buildDecisionReason(LoanApplication application, ScoringResult scoring) {
+        StringBuilder reason = new StringBuilder(buildAutoDecisionRejectionReason(application));
+        reason.append(" · оноо ").append(scoring.score())
+              .append(", DTI ").append(scoring.dti());
+        if (!scoring.reasons().isEmpty()) {
+            reason.append(" (").append(String.join(", ", scoring.reasons())).append(')');
+        }
+        return reason.toString();
     }
 
     private String buildAutoDecisionRejectionReason(LoanApplication application) {

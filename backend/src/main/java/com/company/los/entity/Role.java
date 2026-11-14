@@ -255,14 +255,19 @@ public class Role extends BaseEntity {
         return permissions != null && !permissions.isEmpty();
     }
 
+    // `users` collection LAZY тул JSON болгох үед "no Session" алдаа гардаг.
+    @JsonIgnore
     public int getUserCount() {
         return users != null ? users.size() : 0;
     }
 
+    // LAZY collection-ууд тул JSON-д оруулахгүй ("no Session" алдаа гардаг)
+    @JsonIgnore
     public int getPermissionCount() {
         return permissions != null ? permissions.size() : 0;
     }
 
+    @JsonIgnore
     public int getChildRoleCount() {
         return childRoles != null ? childRoles.size() : 0;
     }

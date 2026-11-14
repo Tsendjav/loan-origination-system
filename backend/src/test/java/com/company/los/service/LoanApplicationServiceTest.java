@@ -72,6 +72,9 @@ class LoanApplicationServiceTest {
     @Mock
     private NotificationService notificationService;
 
+    @Mock
+    private com.company.los.scoring.ScoringService scoringService;
+
     @InjectMocks
     private LoanApplicationServiceImpl loanApplicationService;
 
@@ -83,7 +86,26 @@ class LoanApplicationServiceTest {
     @BeforeEach
     void setUp() {
         // Reset all mocks
-        reset(loanApplicationRepository, customerRepository, documentService, notificationService);
+        reset(loanApplicationRepository, customerRepository, documentService, notificationService, scoringService);
+
+        // ScoringService-ийг бодит дүрмийн engine-ээр stub хийнэ
+        com.company.los.scoring.RuleBasedScoringService realScoring =
+                new com.company.los.scoring.RuleBasedScoringService();
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "minScore", 650);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "maxDti", new BigDecimal("0.45"));
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "maxAmount", new BigDecimal("10000000"));
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "maxTermMonths", 60);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "weightDti", 250);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "weightExperience", 80);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "weightIncome", 90);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "weightBureau", 100);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "weightAmount", 50);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "weightTerm", 30);
+        org.springframework.test.util.ReflectionTestUtils.setField(realScoring, "defaultAnnualRate", new BigDecimal("18.5"));
+        when(scoringService.score(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> realScoring.score(invocation.getArgument(0)));
+        when(scoringService.customerScore(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> realScoring.customerScore(invocation.getArgument(0)));
         
         // ⭐ REALISTIC TEST CUSTOMER ⭐
         testCustomer = new Customer();

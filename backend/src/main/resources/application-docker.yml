@@ -59,6 +59,23 @@ logging:
       max-history: 7
 
 app:
+  # Seed нь эрх/роль/DB хэрэглэгчийг үүсгэнэ
+  seed:
+    enabled: ${APP_SEED_ENABLED:true}
+    admin-password: ${APP_SEED_ADMIN_PASSWORD:admin123}
+
+  auth:
+    # Docker орчинд нэвтрэлт DB хэрэглэгчээр (seed) явагдана
+    demo-users-enabled: ${APP_AUTH_DEMO_USERS_ENABLED:false}
+    # Тестийн endpoint-ууд хаалттай
+    test-endpoints-enabled: false
+
+  scoring:
+    min-score: 650
+    max-dti: 0.45
+    max-amount: 10000000
+    max-term-months: 60
+
   document:
     storage:
       path: /app/uploads/documents

@@ -125,6 +125,14 @@ app:
   name: "LOS Production"
   version: "@project.version@"
   description: "Loan Origination System - Production Environment"
+
+  seed:
+    enabled: ${APP_SEED_ENABLED:true}
+    admin-password: ${APP_SEED_ADMIN_PASSWORD:admin123}
+
+  auth:
+    demo-users-enabled: false
+    test-endpoints-enabled: false
   
   # JWT Configuration
   jwt:

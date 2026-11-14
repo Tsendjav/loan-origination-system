@@ -261,6 +261,32 @@ app:
       api-key: ""
       from-number: ""
 
+  # Анхны өгөгдөл (эрх, роль, хэрэглэгч)
+  seed:
+    enabled: true
+    admin-password: ${APP_SEED_ADMIN_PASSWORD:admin123}
+
+  # Нэвтрэлтийн горимууд
+  auth:
+    # Кодод hardcode хийсэн демо хэрэглэгчид (production-д false)
+    demo-users-enabled: true
+    # /auth/test, /auth/test-users, /auth/debug-json (production-д false)
+    test-endpoints-enabled: true
+
+  # Кредит оноо/шийдвэрийн дүрэм
+  scoring:
+    min-score: 650
+    max-dti: 0.45
+    max-amount: 10000000
+    max-term-months: 60
+    weights:
+      dti: 250
+      experience: 80
+      income: 90
+      bureau: 100
+      amount: 50
+      term: 30
+
 ---
 # Production Profile Configuration
 spring:
