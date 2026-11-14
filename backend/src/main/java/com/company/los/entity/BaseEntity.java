@@ -20,7 +20,7 @@ import java.util.UUID;
 public abstract class BaseEntity {
 
     @Id
-    @Column(name = "id", updatable = false, nullable = false, columnDefinition = "VARCHAR(36)")
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @CreatedDate
