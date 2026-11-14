@@ -14,82 +14,82 @@ SET REFERENTIAL_INTEGRITY FALSE;
 -- 1. ROLES - Эрхийн түвшинүүд
 -- =====================================================================================
 INSERT INTO roles (id, name, display_name, display_name_mn, description, code, status, type, priority, is_system_role, is_default, created_at, updated_at, is_deleted, is_active) VALUES
-('role-001', 'ADMIN', 'Administrator', 'Администратор', 'System administrator with full access', 'ADMIN', 'ACTIVE', 'SYSTEM', 1, true, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('role-002', 'LOAN_OFFICER', 'Loan Officer', 'Зээлийн мэргэжилтэн', 'Loan application processing officer', 'LOAN_OFFICER', 'ACTIVE', 'BUSINESS', 2, false, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('role-003', 'MANAGER', 'Manager', 'Менежер', 'Department manager with approval rights', 'MANAGER', 'ACTIVE', 'BUSINESS', 3, false, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('role-004', 'CUSTOMER_SERVICE', 'Customer Service', 'Харилцагчийн үйлчилгээ', 'Customer service representative', 'CUSTOMER_SERVICE', 'ACTIVE', 'BUSINESS', 4, false, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
+('02000000-0000-0000-0000-000000000001', 'ADMIN', 'Administrator', 'Администратор', 'System administrator with full access', 'ADMIN', 'ACTIVE', 'SYSTEM', 1, true, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('02000000-0000-0000-0000-000000000002', 'LOAN_OFFICER', 'Loan Officer', 'Зээлийн мэргэжилтэн', 'Loan application processing officer', 'LOAN_OFFICER', 'ACTIVE', 'BUSINESS', 2, false, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('02000000-0000-0000-0000-000000000003', 'MANAGER', 'Manager', 'Менежер', 'Department manager with approval rights', 'MANAGER', 'ACTIVE', 'BUSINESS', 3, false, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('02000000-0000-0000-0000-000000000004', 'CUSTOMER_SERVICE', 'Customer Service', 'Харилцагчийн үйлчилгээ', 'Customer service representative', 'CUSTOMER_SERVICE', 'ACTIVE', 'BUSINESS', 4, false, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
 
 -- =====================================================================================
 -- 2. PERMISSIONS - Зөвшөөрөл
 -- =====================================================================================
 INSERT INTO permissions (id, name, display_name, display_name_mn, description, resource, action, category, scope, is_system_permission, priority, created_at, updated_at, is_deleted, is_active) VALUES
-('perm-001', 'customer:view', 'View Customers', 'Харилцагч үзэх', 'View customer information', 'customer', 'READ', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-002', 'customer:create', 'Create Customers', 'Харилцагч үүсгэх', 'Create new customers', 'customer', 'CREATE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-003', 'customer:update', 'Update Customers', 'Харилцагч засах', 'Update customer information', 'customer', 'UPDATE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-004', 'customer:delete', 'Delete Customers', 'Харилцагч устгах', 'Delete customers', 'customer', 'DELETE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-005', 'customer:kyc', 'KYC Management', 'KYC удирдлага', 'Manage customer KYC status', 'customer', 'UPDATE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-006', 'loan:view', 'View Loans', 'Зээл үзэх', 'View loan applications', 'loan', 'READ', 'LOAN_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-007', 'loan:create', 'Create Loans', 'Зээл үүсгэх', 'Create loan applications', 'loan', 'CREATE', 'LOAN_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-008', 'loan:update', 'Update Loans', 'Зээл засах', 'Update loan applications', 'loan', 'UPDATE', 'LOAN_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-009', 'loan:approve', 'Approve Loans', 'Зээл зөвшөөрөх', 'Approve or reject loan applications', 'loan', 'APPROVE', 'LOAN_MANAGEMENT', 'GLOBAL', false, 8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('perm-010', 'system:admin', 'System Administration', 'Систем удирдлага', 'Full system administration', 'system', 'CONFIG', 'SYSTEM_MANAGEMENT', 'GLOBAL', true, 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
+('01000000-0000-0000-0000-000000000001', 'customer:view', 'View Customers', 'Харилцагч үзэх', 'View customer information', 'customer', 'READ', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000002', 'customer:create', 'Create Customers', 'Харилцагч үүсгэх', 'Create new customers', 'customer', 'CREATE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000003', 'customer:update', 'Update Customers', 'Харилцагч засах', 'Update customer information', 'customer', 'UPDATE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000004', 'customer:delete', 'Delete Customers', 'Харилцагч устгах', 'Delete customers', 'customer', 'DELETE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000005', 'customer:kyc', 'KYC Management', 'KYC удирдлага', 'Manage customer KYC status', 'customer', 'UPDATE', 'CUSTOMER_MANAGEMENT', 'GLOBAL', false, 7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000006', 'loan:view', 'View Loans', 'Зээл үзэх', 'View loan applications', 'loan', 'READ', 'LOAN_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000007', 'loan:create', 'Create Loans', 'Зээл үүсгэх', 'Create loan applications', 'loan', 'CREATE', 'LOAN_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000008', 'loan:update', 'Update Loans', 'Зээл засах', 'Update loan applications', 'loan', 'UPDATE', 'LOAN_MANAGEMENT', 'GLOBAL', false, 5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000009', 'loan:approve', 'Approve Loans', 'Зээл зөвшөөрөх', 'Approve or reject loan applications', 'loan', 'APPROVE', 'LOAN_MANAGEMENT', 'GLOBAL', false, 8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('01000000-0000-0000-0000-000000000010', 'system:admin', 'System Administration', 'Систем удирдлага', 'Full system administration', 'system', 'CONFIG', 'SYSTEM_MANAGEMENT', 'GLOBAL', true, 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
 
 -- =====================================================================================
 -- 3. ROLE-PERMISSION MAPPINGS
 -- =====================================================================================
 INSERT INTO role_permissions (role_id, permission_id, assigned_at, assigned_by, is_active) VALUES
 -- Admin роль - бүх зөвшөөрөл
-('role-001', 'perm-001', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-002', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-003', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-004', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-005', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-006', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-007', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-008', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-009', CURRENT_TIMESTAMP, 'system', true),
-('role-001', 'perm-010', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000004', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000005', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000006', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000007', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000008', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000009', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000001', '01000000-0000-0000-0000-000000000010', CURRENT_TIMESTAMP, 'system', true),
 
 -- Loan Officer роль
-('role-002', 'perm-001', CURRENT_TIMESTAMP, 'system', true),
-('role-002', 'perm-002', CURRENT_TIMESTAMP, 'system', true),
-('role-002', 'perm-003', CURRENT_TIMESTAMP, 'system', true),
-('role-002', 'perm-005', CURRENT_TIMESTAMP, 'system', true),
-('role-002', 'perm-006', CURRENT_TIMESTAMP, 'system', true),
-('role-002', 'perm-007', CURRENT_TIMESTAMP, 'system', true),
-('role-002', 'perm-008', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000005', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000006', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000007', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000002', '01000000-0000-0000-0000-000000000008', CURRENT_TIMESTAMP, 'system', true),
 
 -- Manager роль
-('role-003', 'perm-001', CURRENT_TIMESTAMP, 'system', true),
-('role-003', 'perm-003', CURRENT_TIMESTAMP, 'system', true),
-('role-003', 'perm-005', CURRENT_TIMESTAMP, 'system', true),
-('role-003', 'perm-006', CURRENT_TIMESTAMP, 'system', true),
-('role-003', 'perm-008', CURRENT_TIMESTAMP, 'system', true),
-('role-003', 'perm-009', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000003', '01000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000003', '01000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000003', '01000000-0000-0000-0000-000000000005', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000003', '01000000-0000-0000-0000-000000000006', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000003', '01000000-0000-0000-0000-000000000008', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000003', '01000000-0000-0000-0000-000000000009', CURRENT_TIMESTAMP, 'system', true),
 
 -- Customer Service роль
-('role-004', 'perm-001', CURRENT_TIMESTAMP, 'system', true),
-('role-004', 'perm-002', CURRENT_TIMESTAMP, 'system', true),
-('role-004', 'perm-003', CURRENT_TIMESTAMP, 'system', true),
-('role-004', 'perm-006', CURRENT_TIMESTAMP, 'system', true);
+('02000000-0000-0000-0000-000000000004', '01000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000004', '01000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000004', '01000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP, 'system', true),
+('02000000-0000-0000-0000-000000000004', '01000000-0000-0000-0000-000000000006', CURRENT_TIMESTAMP, 'system', true);
 
 -- =====================================================================================
 -- 4. USERS - Хэрэглэгчид
 -- =====================================================================================
 INSERT INTO users (id, username, email, password_hash, first_name, last_name, phone, employee_id, department, position, status, is_email_verified, is_locked, failed_login_attempts, language, timezone, two_factor_enabled, created_at, updated_at, is_deleted, is_active) VALUES
-('user-001', 'admin', 'admin@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Admin', 'User', '99999999', 'EMP001', 'IT', 'System Administrator', 'ACTIVE', true, false, 0, 'en', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('user-002', 'loan_officer', 'loan@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Батбаяр', 'Болд', '99119911', 'EMP002', 'LOANS', 'Loan Officer', 'ACTIVE', true, false, 0, 'mn', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('user-003', 'manager', 'manager@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Сарангэрэл', 'Баатар', '88228822', 'EMP003', 'LOANS', 'Department Manager', 'ACTIVE', true, false, 0, 'mn', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('user-004', 'customer_service', 'cs@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Оюунчимэг', 'Түвшин', '77337733', 'EMP004', 'CUSTOMER_SERVICE', 'Customer Service Rep', 'ACTIVE', true, false, 0, 'mn', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
+('03000000-0000-0000-0000-000000000001', 'admin', 'admin@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Admin', 'User', '99999999', 'EMP001', 'IT', 'System Administrator', 'ACTIVE', true, false, 0, 'en', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('03000000-0000-0000-0000-000000000002', 'loan_officer', 'loan@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Батбаяр', 'Болд', '99119911', 'EMP002', 'LOANS', 'Loan Officer', 'ACTIVE', true, false, 0, 'mn', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('03000000-0000-0000-0000-000000000003', 'manager', 'manager@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Сарангэрэл', 'Баатар', '88228822', 'EMP003', 'LOANS', 'Department Manager', 'ACTIVE', true, false, 0, 'mn', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('03000000-0000-0000-0000-000000000004', 'customer_service', 'cs@los.com', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9b2x7mq3TcCbMaS', 'Оюунчимэг', 'Түвшин', '77337733', 'EMP004', 'CUSTOMER_SERVICE', 'Customer Service Rep', 'ACTIVE', true, false, 0, 'mn', 'Asia/Ulaanbaatar', false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
 
 -- =====================================================================================
 -- 5. USER-ROLE MAPPINGS
 -- =====================================================================================
 INSERT INTO user_roles (user_id, role_id, assigned_at, assigned_by, is_active) VALUES
-('user-001', 'role-001', CURRENT_TIMESTAMP, 'system', true),
-('user-002', 'role-002', CURRENT_TIMESTAMP, 'system', true),
-('user-003', 'role-003', CURRENT_TIMESTAMP, 'system', true),
-('user-004', 'role-004', CURRENT_TIMESTAMP, 'system', true);
+('03000000-0000-0000-0000-000000000001', '02000000-0000-0000-0000-000000000001', CURRENT_TIMESTAMP, 'system', true),
+('03000000-0000-0000-0000-000000000002', '02000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, 'system', true),
+('03000000-0000-0000-0000-000000000003', '02000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP, 'system', true),
+('03000000-0000-0000-0000-000000000004', '02000000-0000-0000-0000-000000000004', CURRENT_TIMESTAMP, 'system', true);
 
 -- =====================================================================================
 -- 6. DOCUMENT TYPES - Баримт бичгийн төрөл
@@ -113,27 +113,27 @@ INSERT INTO loan_products (id, name, product_name, loan_type, min_amount, max_am
 -- 8. CUSTOMERS - Харилцагчид
 -- =====================================================================================
 INSERT INTO customers (id, customer_type, register_number, first_name, last_name, date_of_birth, gender, marital_status, phone, email, address, city, province, country, monthly_income, kyc_status, risk_rating, assigned_to, created_at, updated_at, is_deleted, is_active) VALUES
-('customer-001', 'INDIVIDUAL', 'УБ90011500', 'Батбаяр', 'Болд', '1990-01-15', 'MALE', 'MARRIED', '99119911', 'batbayar@test.com', 'ХУД 3-р хороо, 25-р байр', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 2500000.00, 'COMPLETED', 'LOW', 'user-002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('customer-002', 'INDIVIDUAL', 'УБ92032000', 'Сарангэрэл', 'Батбаяр', '1992-03-20', 'FEMALE', 'SINGLE', '88228822', 'sarangerel@test.com', 'СБД 5-р хороо, 15-р байр', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 1800000.00, 'IN_PROGRESS', 'MEDIUM', 'user-002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('customer-003', 'BUSINESS', 'УБ85121201', 'ТехноСофт ХХК', 'Технологийн компани', '1985-12-12', 'OTHER', 'SINGLE', '70707070', 'info@technosoft.mn', 'БГД 1-р хороо, Central Tower', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 50000000.00, 'COMPLETED', 'LOW', 'user-003', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('customer-004', 'INDIVIDUAL', 'УБ88091100', 'Энхбаяр', 'Дорж', '1988-09-11', 'MALE', 'MARRIED', '95959595', 'enhbayar@test.com', 'ЧД 7-р хороо, 8-р байр', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 3200000.00, 'COMPLETED', 'LOW', 'user-002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
+('customer-001', 'INDIVIDUAL', 'УБ90011500', 'Батбаяр', 'Болд', '1990-01-15', 'MALE', 'MARRIED', '99119911', 'batbayar@test.com', 'ХУД 3-р хороо, 25-р байр', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 2500000.00, 'COMPLETED', 'LOW', '03000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('customer-002', 'INDIVIDUAL', 'УБ92032000', 'Сарангэрэл', 'Батбаяр', '1992-03-20', 'FEMALE', 'SINGLE', '88228822', 'sarangerel@test.com', 'СБД 5-р хороо, 15-р байр', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 1800000.00, 'IN_PROGRESS', 'MEDIUM', '03000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('customer-003', 'BUSINESS', 'УБ85121201', 'ТехноСофт ХХК', 'Технологийн компани', '1985-12-12', 'OTHER', 'SINGLE', '70707070', 'info@technosoft.mn', 'БГД 1-р хороо, Central Tower', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 50000000.00, 'COMPLETED', 'LOW', '03000000-0000-0000-0000-000000000003', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('customer-004', 'INDIVIDUAL', 'УБ88091100', 'Энхбаяр', 'Дорж', '1988-09-11', 'MALE', 'MARRIED', '95959595', 'enhbayar@test.com', 'ЧД 7-р хороо, 8-р байр', 'Улаанбаатар', 'Улаанбаатар', 'Mongolia', 3200000.00, 'COMPLETED', 'LOW', '03000000-0000-0000-0000-000000000002', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
 
 -- =====================================================================================
 -- 9. LOAN APPLICATIONS - Зээлийн хүсэлтүүд
 -- =====================================================================================
 INSERT INTO loan_applications (id, customer_id, loan_product_id, application_number, loan_type, requested_amount, requested_term_months, purpose, status, priority, assigned_to, declared_income, credit_score, submitted_at, created_at, updated_at, is_deleted, is_active) VALUES
-('app-001', 'customer-001', 'product-001', 'LN202508030001', 'PERSONAL', 15000000.00, 36, 'Хувийн хэрэгцээ', 'SUBMITTED', 3, 'user-002', 2500000.00, 720, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('app-002', 'customer-002', 'product-001', 'LN202508030002', 'PERSONAL', 8000000.00, 24, 'Сургуулийн төлбөр', 'UNDER_REVIEW', 2, 'user-002', 1800000.00, 680, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('app-003', 'customer-003', 'product-002', 'LN202508030003', 'BUSINESS', 80000000.00, 60, 'Тоног төхөөрөмж худалдан авах', 'PENDING', 1, 'user-003', 50000000.00, 750, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('app-004', 'customer-004', 'product-003', 'LN202508030004', 'MORTGAGE', 150000000.00, 240, 'Орон сууц худалдан авах', 'DRAFT', 3, 'user-002', 3200000.00, 740, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
+('app-001', 'customer-001', 'product-001', 'LN202508030001', 'PERSONAL', 15000000.00, 36, 'Хувийн хэрэгцээ', 'SUBMITTED', 3, '03000000-0000-0000-0000-000000000002', 2500000.00, 720, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('app-002', 'customer-002', 'product-001', 'LN202508030002', 'PERSONAL', 8000000.00, 24, 'Сургуулийн төлбөр', 'UNDER_REVIEW', 2, '03000000-0000-0000-0000-000000000002', 1800000.00, 680, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('app-003', 'customer-003', 'product-002', 'LN202508030003', 'BUSINESS', 80000000.00, 60, 'Тоног төхөөрөмж худалдан авах', 'PENDING', 1, '03000000-0000-0000-0000-000000000003', 50000000.00, 750, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('app-004', 'customer-004', 'product-003', 'LN202508030004', 'MORTGAGE', 150000000.00, 240, 'Орон сууц худалдан авах', 'DRAFT', 3, '03000000-0000-0000-0000-000000000002', 3200000.00, 740, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
 
 -- =====================================================================================
 -- 10. DOCUMENTS - Баримт бичиг
 -- =====================================================================================
 INSERT INTO documents (id, customer_id, loan_application_id, document_type_id, file_name, original_filename, stored_filename, file_path, content_type, file_size, description, verification_status, uploaded_at, created_at, updated_at, is_deleted, is_active) VALUES
-('doc-001', 'customer-001', 'app-001', 'doc-type-001', 'national_id_001.pdf', 'batbayar_id.pdf', 'stored_001.pdf', '/uploads/documents/stored_001.pdf', 'application/pdf', 2048576, 'Батбаярын иргэний үнэмлэх', 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('doc-002', 'customer-001', 'app-001', 'doc-type-002', 'income_001.pdf', 'batbayar_income.pdf', 'stored_002.pdf', '/uploads/documents/stored_002.pdf', 'application/pdf', 1536000, 'Орлогын справка', 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
-('doc-003', 'customer-002', 'app-002', 'doc-type-001', 'national_id_002.pdf', 'sarangerel_id.pdf', 'stored_003.pdf', '/uploads/documents/stored_003.pdf', 'application/pdf', 1874944, 'Сарангэрэлийн иргэний үнэмлэх', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
+('04000000-0000-0000-0000-000000000001', 'customer-001', 'app-001', 'doc-type-001', 'national_id_001.pdf', 'batbayar_id.pdf', 'stored_001.pdf', '/uploads/documents/stored_001.pdf', 'application/pdf', 2048576, 'Батбаярын иргэний үнэмлэх', 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('04000000-0000-0000-0000-000000000002', 'customer-001', 'app-001', 'doc-type-002', 'income_001.pdf', 'batbayar_income.pdf', 'stored_002.pdf', '/uploads/documents/stored_002.pdf', 'application/pdf', 1536000, 'Орлогын справка', 'APPROVED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true),
+('04000000-0000-0000-0000-000000000003', 'customer-002', 'app-002', 'doc-type-001', 'national_id_002.pdf', 'sarangerel_id.pdf', 'stored_003.pdf', '/uploads/documents/stored_003.pdf', 'application/pdf', 1874944, 'Сарангэрэлийн иргэний үнэмлэх', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, true);
 
 -- =====================================================================================
 -- 11. SYSTEM SETTINGS - Системийн тохиргоо
@@ -158,9 +158,9 @@ INSERT INTO system_configs (id, config_key, config_value, default_value, value_t
 -- 13. ACTIVITY LOGS - Үйл ажиллагааны лог (сэмпл)
 -- =====================================================================================
 INSERT INTO activity_logs (id, user_id, activity_type, entity_type, entity_id, description, ip_address, user_agent, session_id, severity, source, created_at) VALUES
-('log-001', 'user-001', 'LOGIN', 'USER', 'user-001', 'User logged in successfully', '127.0.0.1', 'Mozilla/5.0 (Test)', 'session-001', 'INFO', 'WEB', CURRENT_TIMESTAMP),
-('log-002', 'user-002', 'CREATE', 'CUSTOMER', 'customer-001', 'Created new customer', '127.0.0.1', 'Mozilla/5.0 (Test)', 'session-002', 'INFO', 'WEB', CURRENT_TIMESTAMP),
-('log-003', 'user-002', 'CREATE', 'LOAN_APPLICATION', 'app-001', 'Created new loan application', '127.0.0.1', 'Mozilla/5.0 (Test)', 'session-002', 'INFO', 'WEB', CURRENT_TIMESTAMP);
+('log-001', '03000000-0000-0000-0000-000000000001', 'LOGIN', 'USER', '03000000-0000-0000-0000-000000000001', 'User logged in successfully', '127.0.0.1', 'Mozilla/5.0 (Test)', 'session-001', 'INFO', 'WEB', CURRENT_TIMESTAMP),
+('log-002', '03000000-0000-0000-0000-000000000002', 'CREATE', 'CUSTOMER', 'customer-001', 'Created new customer', '127.0.0.1', 'Mozilla/5.0 (Test)', 'session-002', 'INFO', 'WEB', CURRENT_TIMESTAMP),
+('log-003', '03000000-0000-0000-0000-000000000002', 'CREATE', 'LOAN_APPLICATION', 'app-001', 'Created new loan application', '127.0.0.1', 'Mozilla/5.0 (Test)', 'session-002', 'INFO', 'WEB', CURRENT_TIMESTAMP);
 
 -- Re-enable foreign key checks
 SET REFERENTIAL_INTEGRITY TRUE;

@@ -1,5 +1,7 @@
 package com.company.los.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import org.hibernate.annotations.SQLDelete;
@@ -139,6 +141,7 @@ public class Permission {
     @Max(value = 10, message = "Тэргүүлэх эрэмбэ 10-аас их байж болохгүй")
     private Integer priority = 5;
 
+    @JsonIgnore
     @ManyToMany(mappedBy = "permissions", fetch = FetchType.LAZY)
     private List<Role> roles = new ArrayList<>();
 
@@ -199,10 +202,13 @@ public class Permission {
         return roles.stream().anyMatch(role -> role.getName().equals(roleName));
     }
 
+    // LAZY collection-ууд тул JSON-д оруулахгүй ("no Session" алдаа гардаг)
+    @JsonIgnore
     public int getAssignedRoleCount() {
         return roles != null ? roles.size() : 0;
     }
 
+    @JsonIgnore
     public int getAssignedUserCount() {
         return roles != null ? roles.stream().mapToInt(role -> role.getUserCount()).sum() : 0;
     }

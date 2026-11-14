@@ -103,6 +103,10 @@ logging:
 
 # ⭐ ЗАСВАРЛАСАН: Application Test Configuration ⭐
 app:
+  # Тестүүд өөрсдийн өгөгдлөө бэлддэг тул seed ажиллуулахгүй
+  seed:
+    enabled: false
+
   jwt:
     secret: testSecretKeyThatIsAtLeast32CharactersLong123456789
     expiration: 3600000

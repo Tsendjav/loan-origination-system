@@ -1,5 +1,7 @@
 package com.company.los.service.impl;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import com.company.los.dto.AuthResponseDto;
 import com.company.los.dto.LoginRequestDto;
 import com.company.los.dto.UserDto;
@@ -51,6 +53,13 @@ public class AuthServiceImpl implements AuthService {
     // In a production environment, this should be a persistent, distributed cache (e.g., Redis).
     private final Set<String> invalidatedTokens = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Кодод hardcode хийсэн демо хэрэглэгчдийг зөвшөөрөх эсэх.
+     * Production/docker дээр `false` — нэвтрэлт зөвхөн DB хэрэглэгчээр явагдана.
+     */
+    @Value("${app.auth.demo-users-enabled:true}")
+    private boolean demoUsersEnabled;
+
     // ⭐ TEST USERS - Development mode (Production-д хасах) ⭐
     private static final Map<String, TestUser> TEST_USERS = new HashMap<>();
     
@@ -80,8 +89,8 @@ public class AuthServiceImpl implements AuthService {
 
             username = username.trim().toLowerCase();
 
-            // 1️⃣ TEST USERS шалгах (Development mode)
-            TestUser testUser = TEST_USERS.get(username);
+            // 1️⃣ TEST USERS шалгах (зөвхөн demo-users-enabled=true үед)
+            TestUser testUser = demoUsersEnabled ? TEST_USERS.get(username) : null;
             if (testUser != null && testUser.password.equals(password)) {
                 log.info("✅ Test хэрэглэгчээр амжилттай нэвтэрлээ: {}", username);
                 return createTestUserResponse(testUser);

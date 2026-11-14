@@ -1,5 +1,7 @@
 package com.company.los.controller;
 
+import org.springframework.beans.factory.annotation.Value;
+
 import com.company.los.dto.AuthResponseDto;
 import com.company.los.dto.LoginRequestDto;
 import com.company.los.entity.User;
@@ -48,6 +50,13 @@ public class AuthController {
 
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private final AuthService authService;
+
+    /**
+     * Тестийн endpoint-уудыг (/test, /test-users, /debug-json) зөвшөөрөх эсэх.
+     * Docker/production дээр `false` — эдгээр нь 404 буцаана.
+     */
+    @Value("${app.auth.test-endpoints-enabled:true}")
+    private boolean testEndpointsEnabled;
 
     /**
      * ⭐ ЭЦСИЙН САЙЖРУУЛСАН LOGIN METHOD ⭐
@@ -401,6 +410,9 @@ public class AuthController {
     @GetMapping(value = "/test", produces = "application/json;charset=UTF-8")
     @Operation(summary = "Authentication тест")
     public ResponseEntity<Map<String, Object>> test() {
+        if (!testEndpointsEnabled) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.<String, Object>of("message", "Not found"));
+        }
         Map<String, Object> response = new HashMap<>();
         response.put("status", "OK");
         response.put("message", "Authentication Controller ажиллаж байна");
@@ -467,6 +479,9 @@ public class AuthController {
     @GetMapping(value = "/test-users", produces = "application/json;charset=UTF-8")
     @Operation(summary = "Test users жагсаалт", description = "Development mode-н тулд")
     public ResponseEntity<Map<String, Object>> getTestUsers() {
+        if (!testEndpointsEnabled) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.<String, Object>of("message", "Not found"));
+        }
         Map<String, Object> response = new HashMap<>();
         response.put("testUsers", new Object[]{
             Map.of("username", "admin", "password", "admin123", "role", "SUPER_ADMIN", "name", "Системийн админ"),
@@ -492,6 +507,9 @@ public class AuthController {
     @PostMapping(value = "/debug-json", produces = "application/json;charset=UTF-8")
     @Operation(summary = "JSON format debug", description = "Frontend-с илгээсэн JSON format шалгах")
     public ResponseEntity<Map<String, Object>> debugJson(@RequestBody(required = false) Object rawRequest, HttpServletRequest request) {
+        if (!testEndpointsEnabled) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.<String, Object>of("message", "Not found"));
+        }
         Map<String, Object> response = new HashMap<>();
         
         try {
