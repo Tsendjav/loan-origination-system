@@ -1,7 +1,10 @@
 package com.company.los.dto;
 
 import com.company.los.enums.CustomerType;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
@@ -9,6 +12,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
@@ -46,6 +50,19 @@ public class CustomerRequestDto {
     private CustomerType customerType;
 
     private String preferredLanguage;
+
+    // Санхүүгийн мэдээлэл (заавал биш) — зээлийн оноо тооцоход ашиглагдана
+    @DecimalMin(value = "0.0", message = "Сарын орлого сөрөг байж болохгүй.")
+    private BigDecimal monthlyIncome;
+
+    @Min(value = 0, message = "Ажлын туршлага сөрөг байж болохгүй.")
+    private Integer workExperienceYears;
+
+    @Min(value = 300, message = "Зээлийн оноо 300-аас бага байж болохгүй.")
+    @Max(value = 850, message = "Зээлийн оноо 850-аас их байж болохгүй.")
+    private Integer creditScore;
+
+    private String employmentStatus;
 
     // ⭐ MANUAL GETTER METHODS - Lombok @Data-аас гадна нэмэлт ⭐
     // Эдгээр методууд нь CustomerController-т ашиглагдаж байгаа

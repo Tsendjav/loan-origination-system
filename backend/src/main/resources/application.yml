@@ -279,6 +279,9 @@ app:
     max-dti: 0.45
     max-amount: 10000000
     max-term-months: 60
+    # Эдгээрээс доогуур/дээш бол шууд татгалзана
+    reject-score-below: 500
+    reject-dti: 0.70
     weights:
       dti: 250
       experience: 80

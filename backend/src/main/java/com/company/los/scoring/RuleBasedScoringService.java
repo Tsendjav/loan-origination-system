@@ -44,6 +44,13 @@ public class RuleBasedScoringService implements ScoringService {
     @Value("${app.scoring.max-term-months:60}")
     private int maxTermMonths;
 
+    // Эдгээрээс доош/дээш гарвал гараар хянахгүйгээр шууд татгалзана
+    @Value("${app.scoring.reject-score-below:500}")
+    private int rejectScoreBelow;
+
+    @Value("${app.scoring.reject-dti:0.70}")
+    private BigDecimal rejectDti;
+
     @Value("${app.scoring.weights.dti:250}")
     private int weightDti;
 
@@ -152,8 +159,14 @@ public class RuleBasedScoringService implements ScoringService {
         score = clamp(score);
 
         String decision;
-        if (income.signum() <= 0) {
+        if (income.signum() <= 0 || score < rejectScoreBelow || dti.compareTo(rejectDti) > 0) {
             decision = ScoringResult.REJECTED;
+            if (score < rejectScoreBelow) {
+                reasons.add("SCORE_TOO_LOW");
+            }
+            if (dti.compareTo(rejectDti) > 0) {
+                reasons.add("DTI_CRITICAL");
+            }
         } else if (score >= minScore
                 && dti.compareTo(maxDti) <= 0
                 && requested.compareTo(maxAmount) <= 0

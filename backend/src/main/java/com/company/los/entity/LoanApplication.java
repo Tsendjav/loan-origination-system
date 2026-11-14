@@ -78,13 +78,13 @@ public class LoanApplication extends BaseEntity {
 
     // ⭐ ЗӨВӨӨР ТОДОРХОЙЛОГДСОН: Customer entity-тэй холбосон ⭐
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, columnDefinition = "VARCHAR(36)",
+    @JoinColumn(name = "customer_id", nullable = false,
                 foreignKey = @ForeignKey(name = "fk_loan_app_customer"))
     @NotNull(message = "Харилцагч заавал байх ёстой")
     private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loan_product_id", columnDefinition = "VARCHAR(36)",
+    @JoinColumn(name = "loan_product_id",
                 foreignKey = @ForeignKey(name = "fk_loan_app_product"))
     private LoanProduct loanProduct;
 

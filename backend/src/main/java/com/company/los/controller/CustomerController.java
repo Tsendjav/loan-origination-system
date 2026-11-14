@@ -523,6 +523,12 @@ public class CustomerController {
         dto.setBirthDate(request.getDateOfBirth());
         dto.setRegisterNumber(request.getSocialSecurityNumber());
 
+        // Санхүүгийн мэдээлэл (scoring-д ашиглагдана)
+        dto.setMonthlyIncome(request.getMonthlyIncome());
+        dto.setWorkExperienceYears(request.getWorkExperienceYears());
+        dto.setCreditScore(request.getCreditScore());
+        dto.setEmploymentStatus(request.getEmploymentStatus());
+
         // Convert external enum to internal enum
         if (request.getCustomerType() != null) {
             try {

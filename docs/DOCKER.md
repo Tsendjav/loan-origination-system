@@ -243,6 +243,38 @@ SPRING_PROFILES_ACTIVE=docker mvn spring-boot:run
 > `SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/los_db` гэж дарж өгөгддөг
 > тул ижил сан руу холбогдоно.
 
+### 6.2 Схем хуучин болсон үед (`-ResetDb`)
+
+Бүх ID багана Postgres-ийн `uuid` тип рүү нэгтгэгдсэн. Хуучин volume дээр
+`roles.id` нь `varchar`, `permissions.id` нь `uuid` гэх мэт холимог үлдсэн бол
+backend асахгүй, лог дээр ийм алдаа гарна:
+
+```
+ERROR: operator does not exist: character varying = uuid
+APPLICATION FAILED TO START
+```
+
+`ddl-auto=update` баганын **типийг өөрчилдөггүй** тул схемийг шинээр үүсгэх
+шаардлагатай (development орчинд):
+
+```powershell
+.\start.ps1 -ResetDb     # postgres_data, redis_data, los_uploads volume-уудыг устгаж, шинээр үүсгэнэ
+```
+
+> Өгөгдөл хадгалах бол `docker compose down -v`-гүйгээр гараар `ALTER TABLE`
+> хийх эсвэл шинэ `los_db` үүсгэж, `SPRING_DATASOURCE_URL`-ыг түүн рүү чиглүүлнэ.
+
+### 6.3 Автомат шийдвэрийг шалгах
+
+```powershell
+.\scripts\verify-scoring.ps1                 # http://localhost:8080/los
+.\scripts\verify-scoring.ps1 -Password wrong # алдааны зам шалгах
+```
+
+Скрипт нь 3 өөр профайлтай харилцагч үүсгэж, KYC-г `COMPLETED` болгоод зээлийн
+хүсэлт илгээж, `APPROVED` / `UNDER_REVIEW` / `REJECTED` шийдвэр, оноо, DTI,
+`decisionReason`-ыг хүлээлттэй тулгана. Зөрүү гарвал `exit 1`.
+
 ## 7. Deploy (staging / production)
 
 [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) нь **зөвхөн гараар**

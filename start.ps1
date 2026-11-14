@@ -15,7 +15,8 @@
     .\start.ps1                 # Postgres + backend (Docker) + frontend
     .\start.ps1 -Local          # backend-ийг локал mvn spring-boot:run-ээр (hot reload)
     .\start.ps1 -Rebuild        # backend образыг дахин build хийж асаах
-    .\start.ps1 -NoBrowser      # browser нээхгүй
+    .\start.ps1 -ResetDb        # volume-уудыг (өгөгдлийн сан) устгаж, шинээр үүсгэх
+    .\start.ps1 -NoBrowser      # браузер нээхгүй
     .\start.ps1 -Stop           # бүгдийг зогсоох (өгөгдөл хадгалагдана)
 
 .NOTES
@@ -27,6 +28,7 @@ param(
     [switch]$Stop,
     [switch]$Local,
     [switch]$Rebuild,
+    [switch]$ResetDb,
     [switch]$NoBrowser
 )
 
@@ -173,6 +175,17 @@ if ($Local -and -not (Get-Command mvn -ErrorAction SilentlyContinue)) {
 # ============================================================================
 Ensure-Docker
 
+if ($ResetDb) {
+    Write-Step 'Өгөгдлийн санг шинээр үүсгэж байна (-ResetDb)'
+    Write-Warn 'postgres_data, redis_data, los_uploads дахь бүх өгөгдөл УСТАНА'
+    docker compose down -v --remove-orphans | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail 'docker compose down -v амжилтгүй'
+        exit 1
+    }
+    Write-Ok 'Хуучин volume-ууд устлаа — схем шинээр (uuid типүүдээр) үүснэ'
+}
+
 Write-Step 'PostgreSQL асааж байна'
 docker compose up -d postgres | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -246,7 +259,12 @@ if ($Local) {
 }
 
 if (-not (Wait-Http -Url $BackendHealthUrl -Seconds 240 -Label 'Backend')) {
-    Write-Host '  Дэлгэрэнгүй: docker compose logs backend  (эсвэл backend цонх)' -ForegroundColor Gray
+    Write-Host '  --- backend лог (сүүлийн 40 мөр) ---' -ForegroundColor Gray
+    docker compose logs backend --tail 40
+    Write-Host ''
+    Write-Host '  Хэрэв "operator does not exist" эсвэл схем/баганын алдаа гарсан бол' -ForegroundColor Yellow
+    Write-Host '  хуучин өгөгдлийн сангийн схем буруу байна. Шинээр үүсгэх:' -ForegroundColor Yellow
+    Write-Host '      .\start.ps1 -ResetDb      (postgres volume дахь өгөгдөл устана)' -ForegroundColor Yellow
     exit 1
 }
 
@@ -278,6 +296,8 @@ if (Test-Http -Url $FrontendUrl) {
     Write-Ok "Frontend процесс эхэллээ (PID $($proc.Id))"
 
     if (-not (Wait-Http -Url $FrontendUrl -Seconds 120 -Label 'Frontend')) {
+        Write-Host '  --- frontend лог (сүүлийн 20 мөр) ---' -ForegroundColor Gray
+        docker compose logs frontend --tail 20
         exit 1
     }
 }

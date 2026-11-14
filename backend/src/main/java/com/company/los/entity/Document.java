@@ -48,18 +48,18 @@ public class Document extends BaseEntity {
     }
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "customer_id", nullable = false, columnDefinition = "VARCHAR(36)",
+    @JoinColumn(name = "customer_id", nullable = false,
                 foreignKey = @ForeignKey(name = "fk_document_customer"))
     @NotNull(message = "Харилцагч заавал байх ёстой")
     private Customer customer;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "loan_application_id", columnDefinition = "VARCHAR(36)",
+    @JoinColumn(name = "loan_application_id",
                 foreignKey = @ForeignKey(name = "fk_document_loan_app"))
     private LoanApplication loanApplication;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "document_type_id", nullable = false, columnDefinition = "VARCHAR(36)",
+    @JoinColumn(name = "document_type_id", nullable = false,
                 foreignKey = @ForeignKey(name = "fk_document_type"))
     @NotNull(message = "Баримтын төрөл заавал сонгох ёстой")
     private DocumentType documentType;
@@ -103,7 +103,7 @@ public class Document extends BaseEntity {
     @Min(value = 1, message = "Хувилбарын дугаар 1-ээс бага байж болохгүй")
     private Integer versionNumber = 1;
 
-    @Column(name = "previous_document_id", columnDefinition = "VARCHAR(36)")
+    @Column(name = "previous_document_id")
     private UUID previousDocumentId;
 
     @Column(name = "verification_status", nullable = false, length = 20)

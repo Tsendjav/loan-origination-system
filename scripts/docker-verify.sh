@@ -112,6 +112,7 @@ BASE="$BACKEND_URL" FRONTEND="$FRONTEND_URL" python3 - <<'PY'
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -184,6 +185,42 @@ check("Харилцагчийн жагсаалт 200", status == 200, f"(HTTP {s
 check("Харилцагч байна", len(rows) > 0, f"({len(rows)} мөр)")
 
 customer_id = rows[0].get("id") if rows else None
+
+
+# Smoke тест өөрийн харилцагчийг үүсгэнэ: seed өгөгдлийн орлого/зээлийн түүхээс
+# хамаарахгүй байхын тулд санхүүгийн профайлыг бүрэн өгч, шийдвэрийг тодорхой болгоно.
+if not READ_ONLY:
+    stamp = str(int(time.time()))[-8:]
+    status, text = req(
+        "/api/v1/customers",
+        "POST",
+        token=token,
+        body={
+            "firstName": "Смоук",
+            "lastName": "Тест",
+            "email": f"smoke{stamp}@test.mn",
+            "phone": "8" + stamp[:7],
+            "dateOfBirth": "1990-05-15",
+            "socialSecurityNumber": ("SM" + stamp)[:10],
+            "customerType": "INDIVIDUAL",
+            "monthlyIncome": 3000000,
+            "workExperienceYears": 10,
+            "creditScore": 780,
+            "employmentStatus": "EMPLOYED",
+        },
+    )
+    data = as_json(text).get("data", {})
+    customer_id = data.get("id")
+    check("Тестийн харилцагч үүслээ", status == 201 and bool(customer_id), f"(HTTP {status})")
+
+    if customer_id:
+        # KYC дуусаагүй харилцагч зээл хүсэх боломжгүй
+        status, _ = req(
+            f"/api/v1/customers/{customer_id}/kyc-status?kycStatus=COMPLETED",
+            "PUT",
+            token=token,
+        )
+        check("KYC COMPLETED", status == 200, f"(HTTP {status})")
 
 
 def create(amount, term):
