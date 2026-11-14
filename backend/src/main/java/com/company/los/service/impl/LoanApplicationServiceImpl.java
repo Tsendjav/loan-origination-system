@@ -1105,7 +1105,10 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
         ScoringResult scoring = scoringService.score(application);
         application.setCreditScore(scoring.score());
         application.setDebtToIncomeRatio(scoring.dti());
-        application.setRiskScore(BigDecimal.valueOf(850 - scoring.score()));
+        // riskScore нь 0..100 хязгаартай тул 550 онооны зөрүүг 100-д хөрвүүлнэ
+        application.setRiskScore(BigDecimal.valueOf(850L - scoring.score())
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(550), 2, RoundingMode.HALF_UP));
 
         if (!scoring.isApproved()) {
             application.setStatus("REJECTED".equals(scoring.decision())
@@ -1159,7 +1162,10 @@ public class LoanApplicationServiceImpl implements LoanApplicationService {
      * Scoring-ийн үр дүнгээс хүнд ойлгомжтой шалтгаан үүсгэнэ.
      */
     private String buildDecisionReason(LoanApplication application, ScoringResult scoring) {
-        StringBuilder reason = new StringBuilder(buildAutoDecisionRejectionReason(application));
+        String prefix = com.company.los.scoring.ScoringResult.REJECTED.equals(scoring.decision())
+                ? "Автомат шийдвэрээр татгалзлаа"
+                : buildAutoDecisionRejectionReason(application);
+        StringBuilder reason = new StringBuilder(prefix);
         reason.append(" · оноо ").append(scoring.score())
               .append(", DTI ").append(scoring.dti());
         if (!scoring.reasons().isEmpty()) {
